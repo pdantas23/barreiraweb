@@ -43,6 +43,7 @@ export default function RootLayout() {
           <Stack.Screen name="index" />
           <Stack.Screen name="game" />
           <Stack.Screen name="online" />
+          <Stack.Screen name="online-game" />
         </Stack>
         <DragOverlayRenderer />
       </DragOverlayProvider>

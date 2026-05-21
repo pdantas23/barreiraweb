@@ -1,69 +1,39 @@
-import { useState } from "react";
-import { Alert, FlatList, Pressable, StyleSheet, Text, View } from "react-native";
-import { router } from "expo-router";
+import { useCallback, useEffect, useState } from "react";
+import {
+  ActivityIndicator,
+  Alert,
+  FlatList,
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native";
+import { router, useFocusEffect } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Animated, { FadeInUp } from "react-native-reanimated";
+import type { ColorChoice, PublicRoom } from "@barreira/shared";
 import {
   CreateRoomModal,
   type CreateRoomConfig,
 } from "../src/components/CreateRoomModal";
 import { JoinByCodeModal } from "../src/components/JoinByCodeModal";
+import { createRoom, joinRoom, listRooms } from "../src/net/api";
+import { connectSocket } from "../src/net/socket";
 import { theme } from "../src/theme";
 
-// === Tipos ===
-
-type RoomColor = "cyan" | "random" | "red";
-
-type Room = {
-  id: string;
-  code: string;
-  host: string;
-  hostColor: RoomColor;
-  isPrivate: boolean;
-  ping: number;
-};
-
-// === Mock de salas (3 exemplos, sem backend) ===
-// Trocar essa lista por dados vindos do servidor quando o socket entrar.
-// hostColor é apenas cosmético — quem entrar sempre joga saindo de baixo.
-
-const MOCK_ROOMS: Room[] = [
-  {
-    id: "r1",
-    code: "AX42KP",
-    host: "RogerCarl",
-    hostColor: "cyan",
-    isPrivate: false,
-    ping: 38,
-  },
-  {
-    id: "r2",
-    code: "ZQ09MN",
-    host: "MariaLuz",
-    hostColor: "random",
-    isPrivate: true,
-    ping: 64,
-  },
-  {
-    id: "r3",
-    code: "BT77JD",
-    host: "Pedrim",
-    hostColor: "red",
-    isPrivate: false,
-    ping: 22,
-  },
-];
+// Nome default do jogador. Quando tivermos perfil, vai vir do AsyncStorage.
+const DEFAULT_PLAYER_NAME = "Jogador";
 
 // === Helpers de UI ===
 
-const colorAccent = (c: RoomColor): string => {
+const colorAccent = (c: ColorChoice): string => {
   if (c === "cyan") return theme.player1;
   if (c === "red") return theme.player2;
   return theme.textMuted;
 };
 
-const colorLabel = (c: RoomColor): string => {
+const colorLabel = (c: ColorChoice): string => {
   if (c === "cyan") return "Ciano";
   if (c === "red") return "Vermelho";
   return "Random";
@@ -75,41 +45,114 @@ export default function OnlineScreen() {
   const insets = useSafeAreaInsets();
   const [createOpen, setCreateOpen] = useState(false);
   const [joinOpen, setJoinOpen] = useState(false);
+  const [rooms, setRooms] = useState<PublicRoom[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [busy, setBusy] = useState(false);
 
-  const onJoinRoom = (room: Room) => {
-    // Estrutura: aqui plugaríamos a navegação pra sala de espera após o socket.
-    Alert.alert(
-      "Entrar na sala",
-      `Conectaria à sala ${room.code} (${room.host}).`,
-    );
+  // Refresh: chama o server e atualiza lista.
+  const refresh = useCallback(async () => {
+    setLoading(true);
+    const res = await listRooms();
+    setLoading(false);
+    if (!res.ok) {
+      Alert.alert("Erro", `Não consegui listar salas (${res.error}).`);
+      return;
+    }
+    setRooms(res.data.rooms);
+  }, []);
+
+  // Conecta o socket ao montar a tela. O singleton garante que reconectar
+  // depois de já estar conectado é no-op.
+  useEffect(() => {
+    connectSocket();
+    refresh();
+  }, [refresh]);
+
+  // Quando o usuário volta de uma partida pra cá, re-lista (sala antiga
+  // pode ter sumido, novas podem ter aparecido).
+  useFocusEffect(
+    useCallback(() => {
+      refresh();
+    }, [refresh]),
+  );
+
+  // === Ações ===
+
+  const goToOnlineGame = (params: Record<string, string>) => {
+    router.push({
+      pathname: "/online-game" as never,
+      params,
+    });
   };
 
-  const onConfirmCreate = (config: CreateRoomConfig) => {
+  const onJoinRoom = async (room: PublicRoom) => {
+    if (busy) return;
+    if (room.isPrivate) {
+      // Sala privada na lista — exige código + senha. Abre o modal de código.
+      setJoinOpen(true);
+      return;
+    }
+    setBusy(true);
+    const res = await joinRoom({
+      code: room.code,
+      playerName: DEFAULT_PLAYER_NAME,
+    });
+    setBusy(false);
+    if (!res.ok) {
+      Alert.alert("Não consegui entrar", errorMessage(res.error));
+      return;
+    }
+    goToOnlineGame({ role: "guest", code: room.code });
+  };
+
+  const onConfirmCreate = async (config: CreateRoomConfig) => {
     setCreateOpen(false);
-    // Estrutura: chamaria o servidor pra criar sala com essa config.
-    const detail = config.isPrivate
-      ? `Privada · senha ${config.password} · cor ${colorLabel(config.color)}`
-      : `Pública · cor ${colorLabel(config.color)}`;
-    Alert.alert("Sala criada", detail);
+    setBusy(true);
+    const res = await createRoom({
+      hostName: DEFAULT_PLAYER_NAME,
+      color: config.color,
+      isPrivate: config.isPrivate,
+    });
+    setBusy(false);
+    if (!res.ok) {
+      Alert.alert("Não consegui criar a sala", errorMessage(res.error));
+      return;
+    }
+    goToOnlineGame({
+      role: "host",
+      code: res.data.code,
+      password: res.data.password ?? "",
+    });
   };
 
-  const onConfirmJoin = (code: string) => {
+  const onConfirmJoin = async (code: string) => {
     setJoinOpen(false);
-    Alert.alert("Entrar com código", `Tentaria entrar na sala ${code}.`);
+    setBusy(true);
+    const res = await joinRoom({
+      code,
+      playerName: DEFAULT_PLAYER_NAME,
+    });
+    setBusy(false);
+    if (!res.ok) {
+      Alert.alert("Não consegui entrar", errorMessage(res.error));
+      return;
+    }
+    goToOnlineGame({ role: "guest", code });
   };
 
-  const renderRoom = ({ item, index }: { item: Room; index: number }) => {
+  // === Render ===
+
+  const renderRoom = ({ item, index }: { item: PublicRoom; index: number }) => {
     const accent = colorAccent(item.hostColor);
     return (
       <Animated.View entering={FadeInUp.duration(360).delay(80 + index * 70)}>
         <View style={styles.roomCard}>
-          {/* Faixa colorida lateral mostra a cor escolhida pelo host */}
           <View style={[styles.roomAccent, { backgroundColor: accent }]} />
 
           <View style={styles.roomBody}>
             <View style={styles.roomHeader}>
               <Text style={styles.roomHost} numberOfLines={1}>
-                {item.host}
+                {item.hostName}
               </Text>
               {item.isPrivate && (
                 <Ionicons name="lock-closed" size={13} color={theme.textMuted} />
@@ -127,15 +170,18 @@ export default function OnlineScreen() {
                 {item.isPrivate ? "Privada" : "Pública"}
               </Text>
               <Text style={styles.metaDot}>·</Text>
-              <Text style={styles.metaText}>{item.ping}ms</Text>
-              <Text style={styles.metaDot}>·</Text>
               <Text style={styles.codeText}>{item.code}</Text>
             </View>
           </View>
 
           <Pressable
             onPress={() => onJoinRoom(item)}
-            style={({ pressed }) => [styles.joinBtn, pressed && styles.pressed]}
+            disabled={busy}
+            style={({ pressed }) => [
+              styles.joinBtn,
+              pressed && styles.pressed,
+              busy && styles.disabled,
+            ]}
           >
             <Text style={styles.joinBtnText}>Entrar</Text>
             <Ionicons name="arrow-forward" size={16} color="#0b1014" />
@@ -145,9 +191,18 @@ export default function OnlineScreen() {
     );
   };
 
+  const emptyView = (
+    <View style={styles.emptyBox}>
+      <Ionicons name="people-outline" size={48} color="#2a2a35" />
+      <Text style={styles.emptyText}>Nenhuma sala aberta agora</Text>
+      <Text style={styles.emptySub}>
+        Crie uma nova sala ou entre com um código.
+      </Text>
+    </View>
+  );
+
   return (
     <View style={[styles.container, { paddingTop: insets.top + 10 }]}>
-      {/* Top bar */}
       <View style={styles.topBar}>
         <Pressable onPress={() => router.back()} style={styles.backButton}>
           <Ionicons name="chevron-back" size={28} color={theme.textPrimary} />
@@ -156,28 +211,43 @@ export default function OnlineScreen() {
         <View style={styles.backButton} />
       </View>
 
-      {/* Subtítulo / contador */}
       <View style={styles.subRow}>
-        <Text style={styles.subText}>{MOCK_ROOMS.length} salas disponíveis</Text>
+        <Text style={styles.subText}>
+          {loading
+            ? "Carregando..."
+            : `${rooms.length} sala${rooms.length === 1 ? "" : "s"} disponíve${rooms.length === 1 ? "l" : "is"}`}
+        </Text>
         <Pressable
-          onPress={() => Alert.alert("Atualizar", "Recarregaria a lista do servidor.")}
-          style={({ pressed }) => [styles.refreshBtn, pressed && styles.pressed]}
+          onPress={refresh}
+          disabled={loading || busy}
+          style={({ pressed }) => [
+            styles.refreshBtn,
+            pressed && styles.pressed,
+            (loading || busy) && styles.disabled,
+          ]}
         >
-          <Ionicons name="refresh" size={16} color={theme.textMuted} />
+          {loading ? (
+            <ActivityIndicator size="small" color={theme.textMuted} />
+          ) : (
+            <Ionicons name="refresh" size={16} color={theme.textMuted} />
+          )}
         </Pressable>
       </View>
 
-      {/* Lista de salas (FlatList nativo pra performance) */}
       <FlatList
-        data={MOCK_ROOMS}
-        keyExtractor={(r) => r.id}
+        data={rooms}
+        keyExtractor={(r) => r.code}
         renderItem={renderRoom}
-        contentContainerStyle={styles.listContent}
+        contentContainerStyle={
+          rooms.length === 0
+            ? [styles.listContent, styles.listEmpty]
+            : styles.listContent
+        }
         ItemSeparatorComponent={() => <View style={{ height: 10 }} />}
         showsVerticalScrollIndicator={false}
+        ListEmptyComponent={!loading ? emptyView : null}
       />
 
-      {/* Ações fixas no rodapé */}
       <View
         style={[
           styles.footer,
@@ -186,7 +256,12 @@ export default function OnlineScreen() {
       >
         <Pressable
           onPress={() => setJoinOpen(true)}
-          style={({ pressed }) => [styles.btnSecondary, pressed && styles.pressed]}
+          disabled={busy}
+          style={({ pressed }) => [
+            styles.btnSecondary,
+            pressed && styles.pressed,
+            busy && styles.disabled,
+          ]}
         >
           <Ionicons name="key-outline" size={18} color={theme.textPrimary} />
           <Text style={styles.btnSecondaryText}>Entrar com código</Text>
@@ -194,7 +269,12 @@ export default function OnlineScreen() {
 
         <Pressable
           onPress={() => setCreateOpen(true)}
-          style={({ pressed }) => [styles.btnPrimary, pressed && styles.pressed]}
+          disabled={busy}
+          style={({ pressed }) => [
+            styles.btnPrimary,
+            pressed && styles.pressed,
+            busy && styles.disabled,
+          ]}
         >
           <Ionicons name="add" size={20} color="#0b1014" />
           <Text style={styles.btnPrimaryText}>Criar sala</Text>
@@ -214,6 +294,24 @@ export default function OnlineScreen() {
     </View>
   );
 }
+
+// Tradução dos RpcError pra mensagens amigáveis.
+const errorMessage = (err: string): string => {
+  switch (err) {
+    case "room-not-found":
+      return "Sala não encontrada. O código está certo?";
+    case "room-full":
+      return "Essa sala já tem 2 jogadores.";
+    case "wrong-password":
+      return "Senha incorreta.";
+    case "already-in-room":
+      return "Você já está numa sala.";
+    case "internal-error":
+      return "Erro no servidor. Verifica se o server está rodando.";
+    default:
+      return `Erro: ${err}`;
+  }
+};
 
 const styles = StyleSheet.create({
   container: {
@@ -266,6 +364,27 @@ const styles = StyleSheet.create({
   listContent: {
     paddingHorizontal: 20,
     paddingBottom: 8,
+  },
+  listEmpty: {
+    flexGrow: 1,
+    justifyContent: "center",
+  },
+  emptyBox: {
+    alignItems: "center",
+    paddingHorizontal: 24,
+    paddingVertical: 32,
+  },
+  emptyText: {
+    color: theme.textPrimary,
+    fontSize: 15,
+    fontWeight: "700",
+    marginTop: 14,
+  },
+  emptySub: {
+    color: theme.textMuted,
+    fontSize: 12,
+    textAlign: "center",
+    marginTop: 6,
   },
   roomCard: {
     flexDirection: "row",
@@ -392,5 +511,8 @@ const styles = StyleSheet.create({
   pressed: {
     opacity: 0.8,
     transform: [{ scale: 0.98 }],
+  },
+  disabled: {
+    opacity: 0.5,
   },
 });

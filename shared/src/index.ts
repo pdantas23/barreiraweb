@@ -17,3 +17,6 @@ export { randomOpponentMove } from "./randomOpponent";
 
 // --- Serialização (wire format) ---
 export * from "./serialization";
+
+// --- Protocolo cliente ↔ server ---
+export * from "./protocol";

@@ -5,27 +5,30 @@ import { theme } from "../theme";
 type Props = {
   turn: PlayerId;
   winner: PlayerId | null;
+  // Quem é "você" — default 1 (modo CPU local sempre é P1). No online,
+  // se o jogador foi escalado como engine player 2, passa 2.
+  myPlayer?: PlayerId;
 };
 
-export const TurnIndicator = ({ turn, winner }: Props) => {
+export const TurnIndicator = ({ turn, winner, myPlayer = 1 }: Props) => {
+  const myColor = myPlayer === 1 ? theme.player1 : theme.player2;
+  const opponentColor = myPlayer === 1 ? theme.player2 : theme.player1;
+
   if (winner !== null) {
-    const text = winner === 1 ? "Você venceu!" : "Adversário venceu";
-    const color = winner === 1 ? theme.player1 : theme.player2;
+    const youWon = winner === myPlayer;
     return (
       <View style={styles.row}>
-        <Text style={[styles.text, { color }]}>{text}</Text>
+        <Text style={[styles.text, { color: youWon ? myColor : opponentColor }]}>
+          {youWon ? "Você venceu!" : "Adversário venceu"}
+        </Text>
       </View>
     );
   }
+  const myTurn = turn === myPlayer;
   return (
     <View style={styles.row}>
-      <View
-        style={[
-          styles.dot,
-          { backgroundColor: turn === 1 ? theme.player1 : theme.player2 },
-        ]}
-      />
-      <Text style={styles.text}>{turn === 1 ? "Sua vez" : "Vez do adversário"}</Text>
+      <View style={[styles.dot, { backgroundColor: myTurn ? myColor : opponentColor }]} />
+      <Text style={styles.text}>{myTurn ? "Sua vez" : "Vez do adversário"}</Text>
     </View>
   );
 };
