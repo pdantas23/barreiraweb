@@ -253,8 +253,16 @@ export default function OnlineGameScreen() {
     }
   };
 
-  const doLeave = () => {
-    void leaveRoom().catch(() => {});
+  const doLeave = async () => {
+    // Espera o ack do server antes de navegar, senão race condition:
+    // router.back() pode acontecer antes do server processar o leave,
+    // deixando a sala "fantasma" na lista pros outros e bloqueando
+    // o user de criar/entrar em outra ("already-in-room").
+    // Race com timeout pra não travar a UI se a rede cair.
+    await Promise.race([
+      leaveRoom().catch(() => undefined),
+      new Promise<void>((resolve) => setTimeout(resolve, 1500)),
+    ]);
     router.back();
   };
 
@@ -270,8 +278,12 @@ export default function OnlineGameScreen() {
   };
 
   const onBackToMenu = () => router.replace("/");
-  const onBackToLobby = () => {
-    void leaveRoom().catch(() => {});
+  const onBackToLobby = async () => {
+    // Mesmo motivo do doLeave: espera ack pra evitar sala fantasma.
+    await Promise.race([
+      leaveRoom().catch(() => undefined),
+      new Promise<void>((resolve) => setTimeout(resolve, 1500)),
+    ]);
     router.replace("/online");
   };
 

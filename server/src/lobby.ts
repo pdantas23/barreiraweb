@@ -136,6 +136,43 @@ export const toRoomDetail = (
   };
 };
 
+// === Pré-flight: garante que o cliente está livre antes de criar/entrar ===
+//
+// Cenários que isso resolve:
+// 1. Cliente sai da sala mas o leaveRoom não foi ack-ado (race do back button)
+// 2. App fechou abruptamente e o disconnect timer ainda não estourou
+// 3. Cliente clica voltar pro lobby após partida terminada e logo cria outra
+//
+// Regra: se a sala antiga estava em "playing" (partida ativa), recusa —
+// o user precisa sair explicitamente primeiro. Se estava em "waiting" ou
+// "finished", limpa silenciosamente.
+const ensureClientFree = (clientId: string | null, socketId: string): void => {
+  if (clientId) {
+    const oldCode = clientToRoom.get(clientId);
+    if (oldCode) {
+      const oldRoom = rooms.get(oldCode);
+      if (oldRoom && oldRoom.status === "playing") {
+        throw new LobbyError("already-in-room");
+      }
+      if (oldRoom) {
+        const oldPlayer = oldRoom.players.find((p) => p.clientId === clientId);
+        if (oldPlayer) {
+          leaveRoom(oldPlayer.socketId);
+        }
+      }
+      clientToRoom.delete(clientId);
+    }
+  }
+  if (socketToRoom.has(socketId)) {
+    const oldCode = socketToRoom.get(socketId);
+    const oldRoom = oldCode ? rooms.get(oldCode) : null;
+    if (oldRoom && oldRoom.status === "playing") {
+      throw new LobbyError("already-in-room");
+    }
+    leaveRoom(socketId);
+  }
+};
+
 // === API: criar / entrar / listar / sair ===
 
 export type CreateInput = {
@@ -147,14 +184,11 @@ export type CreateInput = {
 };
 
 export const createRoom = (input: CreateInput): ServerRoom => {
-  // Bloqueia "duas salas pelo mesmo cliente" — tanto pelo socket
-  // (volátil) quanto pelo clientId (reconectável).
-  if (socketToRoom.has(input.hostSocketId)) {
-    throw new LobbyError("already-in-room");
-  }
-  if (input.hostClientId && clientToRoom.has(input.hostClientId)) {
-    throw new LobbyError("already-in-room");
-  }
+  // Defesa em profundidade: se o cliente ainda aparece em uma sala antiga
+  // (race do leaveRoom anterior, app fechou sem ack, etc), tenta liberar.
+  // Só nega se a sala anterior estiver em "playing" — aí o user de fato
+  // está numa partida ativa e precisa sair dela primeiro.
+  ensureClientFree(input.hostClientId, input.hostSocketId);
 
   const code = generateCode();
   const room: ServerRoom = {
@@ -192,12 +226,9 @@ export type JoinInput = {
 };
 
 export const joinRoom = (input: JoinInput): ServerRoom => {
-  if (socketToRoom.has(input.socketId)) {
-    throw new LobbyError("already-in-room");
-  }
-  if (input.clientId && clientToRoom.has(input.clientId)) {
-    throw new LobbyError("already-in-room");
-  }
+  // Mesma defesa do createRoom — limpa sala antiga se houver fantasma.
+  ensureClientFree(input.clientId, input.socketId);
+
   const code = input.code.toUpperCase().trim();
   const room = rooms.get(code);
   if (!room) throw new LobbyError("room-not-found");

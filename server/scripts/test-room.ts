@@ -141,7 +141,9 @@ const main = async () => {
   // Estado inicial deve ser idêntico nos 2 lados.
   assert(hStart.state.p1 === gStart.state.p1, "p1 igual nos dois lados");
   assert(hStart.state.p2 === gStart.state.p2, "p2 igual nos dois lados");
-  assert(hStart.state.turn === 1, "vez do P1 (sempre começa P1)");
+  // randomFirstTurn pode sortear P1 ou P2 — só validamos que está num desses 2.
+  assert(hStart.state.turn === 1 || hStart.state.turn === 2, "turn inicial é 1 ou 2");
+  assert(hStart.state.turn === gStart.state.turn, "ambos veem o mesmo turn inicial");
   assert(hStart.state.placements.length === 0, "tabuleiro vazio no início");
   assert(hStart.state.wallsLeft[1] === 10 && hStart.state.wallsLeft[2] === 10, "10 paredes cada");
 
