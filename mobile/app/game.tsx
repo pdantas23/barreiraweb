@@ -10,6 +10,7 @@ import { minimaxOpponentMove } from "../src/game/minimaxOpponent";
 import type { GameState, Move, PlayerId, WallPlacement, WallType } from "../src/game/types";
 import { canPlaceWall } from "../src/game/walls";
 import { Board } from "../src/components/Board";
+import { GameOverModal } from "../src/components/GameOverModal";
 import { TurnIndicator } from "../src/components/TurnIndicator";
 import { WallBank } from "../src/components/WallBank";
 import { useResponsiveBoard } from "../src/hooks/useResponsiveBoard";
@@ -178,11 +179,12 @@ export default function GameScreen() {
         onDragEnd={onDragEnd}
       />
 
-      {state.winner !== null && (
-        <Pressable style={styles.restart} onPress={onRestart}>
-          <Text style={styles.restartText}>Jogar de novo</Text>
-        </Pressable>
-      )}
+      <GameOverModal
+        visible={state.winner !== null}
+        winner={state.winner}
+        onRematch={onRestart}
+        onBackToMenu={() => router.back()}
+      />
 
       <Text style={styles.hint}>
         Toque numa casa verde pra mover. Arraste uma parede do banco até uma intersecção.
@@ -226,18 +228,6 @@ const styles = StyleSheet.create({
     fontSize: 12,
     textAlign: "center",
     paddingHorizontal: 16,
-  },
-  restart: {
-    backgroundColor: theme.wall,
-    paddingVertical: 12,
-    paddingHorizontal: 28,
-    borderRadius: 10,
-    marginTop: 8,
-  },
-  restartText: { 
-    color: theme.textPrimary, 
-    fontWeight: "700", 
-    fontSize: 16 
   },
   difficultyChip: {
     minWidth: 56,

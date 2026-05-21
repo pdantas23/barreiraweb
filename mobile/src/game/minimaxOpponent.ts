@@ -9,10 +9,17 @@ import { allPossiblePlacements, canPlaceWall, neighbors, registerWall } from "./
 // - Move ordering: peças antes de paredes (gera mais cortes).
 // - Branching de paredes é filtrado por raio ao redor das peças pra manter
 //   o tempo de cálculo aceitável (~200ms no iPhone modesto).
+// - Early-game shortcut: enquanto ninguém colocou parede e o bot está longe
+//   do goal, pula minimax e joga gananciosamente (só peça). Em Quoridor
+//   early-game peças apenas correm, então não perde qualidade e elimina o
+//   gargalo de 128 placements × 2 BFS por nó.
 
 const MAX_DEPTH = 2;
 const WALL_RADIUS = 2; // intersecções a até N células das peças
 const WIN_SCORE = 10000;
+// Atalho early-game: enquanto bot está a >= N linhas do goal e ninguém colocou
+// parede, pula o minimax. Cobre os ~3 primeiros turnos do bot.
+const EARLY_GAME_ROW_DIST = 6;
 
 const rowOf = (idx: number) => Math.floor(idx / BOARD_SIZE);
 const colOf = (idx: number) => idx % BOARD_SIZE;
@@ -132,8 +139,41 @@ const minimax = (
   }
 };
 
+// Greedy 1-ply só com peças — usado no atalho early-game.
+const greedyPieceMove = (
+  state: GameState,
+  botId: PlayerId,
+  humanId: PlayerId,
+): Move | null => {
+  const turnedState: GameState = { ...state, turn: botId };
+  let bestScore = -Infinity;
+  let bestMoves: Move[] = [];
+  for (const to of getValidMoves(turnedState, botId)) {
+    const res = applyMove(turnedState, botId, { kind: "piece", to });
+    if (!res.ok) continue;
+    const score = evaluate(res.state, botId, humanId);
+    if (score > bestScore) {
+      bestScore = score;
+      bestMoves = [{ kind: "piece", to }];
+    } else if (score === bestScore) {
+      bestMoves.push({ kind: "piece", to });
+    }
+  }
+  if (bestMoves.length === 0) return null;
+  return bestMoves[Math.floor(Math.random() * bestMoves.length)];
+};
+
 export const minimaxOpponentMove = (state: GameState, botId: PlayerId): Move | null => {
   const humanId = opponentOf(botId);
+
+  // Atalho early-game: ninguém colocou parede E bot ainda longe do goal →
+  // greedy de peça, sem rodar minimax. Mata a lentidão dos primeiros turnos.
+  const botPos = botId === 1 ? state.p1 : state.p2;
+  const botRowDist = Math.abs(rowOf(botPos) - goalRow(botId));
+  if (state.walls.placements.length === 0 && botRowDist >= EARLY_GAME_ROW_DIST) {
+    return greedyPieceMove(state, botId, humanId);
+  }
+
   const turnedState: GameState = { ...state, turn: botId };
   const moves = generateMoves(turnedState, botId);
   if (moves.length === 0) return null;

@@ -2,9 +2,15 @@ import { BOARD_SIZE, at, col, opponentOf, piecePosition, row } from "./board";
 import type { GameState, PlayerId } from "./types";
 import { isBlocked } from "./walls";
 
-// Casas válidas pra mover, com regras do inicial.html:
+const inBounds = (r: number, c: number): boolean =>
+  r >= 0 && r < BOARD_SIZE && c >= 0 && c < BOARD_SIZE;
+
+// Casas válidas pra mover (regras oficiais do Quoridor):
 // - 4 direções ortogonais
-// - se vai bater na peça do adversário sem parede, salta sobre ela
+// - se há adversário adjacente sem parede entre nós: salto reto por cima dele
+// - se o salto reto está bloqueado (parede atrás do adversário OU borda do tabuleiro):
+//   salto diagonal pras duas casas laterais ao adversário, desde que não haja
+//   parede entre o adversário e a casa diagonal
 export const getValidMoves = (state: GameState, player: PlayerId): number[] => {
   if (state.winner !== null) return [];
   const me = piecePosition(state, player);
@@ -17,7 +23,7 @@ export const getValidMoves = (state: GameState, player: PlayerId): number[] => {
   const tryDir = (dr: number, dc: number) => {
     const nr = r + dr;
     const nc = c + dc;
-    if (nr < 0 || nr >= BOARD_SIZE || nc < 0 || nc >= BOARD_SIZE) return;
+    if (!inBounds(nr, nc)) return;
     const next = at(nr, nc);
     if (isBlocked(state.walls, me, next)) return;
 
@@ -26,13 +32,32 @@ export const getValidMoves = (state: GameState, player: PlayerId): number[] => {
       return;
     }
 
-    // Salto sobre o adversário
+    // Adversário adjacente sem parede entre nós. Tenta salto reto primeiro.
     const jr = nr + dr;
     const jc = nc + dc;
-    if (jr < 0 || jr >= BOARD_SIZE || jc < 0 || jc >= BOARD_SIZE) return;
-    const jump = at(jr, jc);
-    if (isBlocked(state.walls, next, jump)) return;
-    moves.push(jump);
+    const straightInBounds = inBounds(jr, jc);
+    const straightBlocked =
+      !straightInBounds || isBlocked(state.walls, next, at(jr, jc));
+
+    if (!straightBlocked) {
+      moves.push(at(jr, jc));
+      return;
+    }
+
+    // Salto reto bloqueado: oferece os dois saltos diagonais perpendiculares.
+    // Perpendicular a (dr, dc): (dc, dr) e (-dc, -dr).
+    const diagonals: Array<[number, number]> = [
+      [dc, dr],
+      [-dc, -dr],
+    ];
+    for (const [pdr, pdc] of diagonals) {
+      const sr = nr + pdr;
+      const sc = nc + pdc;
+      if (!inBounds(sr, sc)) continue;
+      const diag = at(sr, sc);
+      if (isBlocked(state.walls, next, diag)) continue;
+      moves.push(diag);
+    }
   };
 
   tryDir(-1, 0);

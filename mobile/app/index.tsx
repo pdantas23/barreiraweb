@@ -65,10 +65,6 @@ export default function MenuScreen() {
 
   return (
     <View style={[styles.container, { paddingTop: insets.top + 12, paddingBottom: insets.bottom + 16 }]}>
-      {/* Fundos decorativos: dois círculos sutis pra dar profundidade ao chapado */}
-      <View pointerEvents="none" style={styles.glowTop} />
-      <View pointerEvents="none" style={styles.glowBottom} />
-
       {/* Top bar */}
       <View style={styles.topBar}>
         <View style={{ width: 44 }} />
@@ -164,26 +160,6 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: theme.bg,
     paddingHorizontal: 20,
-  },
-  glowTop: {
-    position: "absolute",
-    top: -120,
-    right: -100,
-    width: 320,
-    height: 320,
-    borderRadius: 160,
-    backgroundColor: theme.player1,
-    opacity: 0.07,
-  },
-  glowBottom: {
-    position: "absolute",
-    bottom: -160,
-    left: -120,
-    width: 360,
-    height: 360,
-    borderRadius: 180,
-    backgroundColor: theme.player2,
-    opacity: 0.06,
   },
   topBar: {
     flexDirection: "row",
