@@ -88,7 +88,7 @@ export default function HomeScreen() {
             <CasualTab onPlay={onPlay} />
           </TabPane>
           <TabPane visible={tab === "offline"}>
-            <OfflineTab onPlay={() => setOfflineModal(true)} />
+            <OfflineTab onPlay={() => { playButtonSound(); setOfflineModal(true); }} />
           </TabPane>
           <TabPane visible={tab === "ranked"}>
             <RankedTab />

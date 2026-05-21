@@ -49,6 +49,7 @@ import {
   getSocket,
 } from "../src/net/socket";
 import { useDragOverlay } from "../src/state/dragOverlay";
+import { usePieceMoveSound } from "../src/hooks/usePieceSound";
 import { theme } from "../src/theme";
 
 // Paleta clara — espelha a do lobby (online.tsx) pra consistência visual.
@@ -94,6 +95,8 @@ export default function OnlineGameScreen() {
   const [rematchStatus, setRematchStatus] = useState<RematchStatus>("idle");
   const [rematchExpiresAt, setRematchExpiresAt] = useState(0);
   const [rematchRequesterName, setRematchRequesterName] = useState("");
+
+  usePieceMoveSound(state?.p1 ?? -1, state?.p2 ?? -1);
 
   // Drag de parede — espelha o que game.tsx (CPU local) já faz.
   const [dragType, setDragType] = useState<WallType | null>(null);

@@ -31,6 +31,7 @@ import { useResponsiveBoard } from "../src/hooks/useResponsiveBoard";
 import { useDragOverlay } from "../src/state/dragOverlay";
 import { gc } from "../src/gameColors";
 import { playButtonSound, useButtonSound } from "../src/hooks/useButtonSound";
+import { usePieceMoveSound } from "../src/hooks/usePieceSound";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -71,6 +72,7 @@ export default function GameScreen() {
   const botMove = useMemo(() => pickBot(difficulty), [difficulty]);
 
   const [state, setState] = useState<GameState>(() => initialState(randomFirstTurn()));
+  usePieceMoveSound(state.p1, state.p2);
   const [dragType, setDragType] = useState<WallType | null>(null);
   const [ghost, setGhost] = useState<WallPlacement | null>(null);
   const [ghostInvalid, setGhostInvalid] = useState(false);

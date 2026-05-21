@@ -261,7 +261,7 @@ export default function OnlineScreen() {
           ]}
         >
           <Pressable
-            onPress={() => setJoinOpen(true)}
+            onPress={() => { playButtonSound(); setJoinOpen(true); }}
             disabled={busy}
             style={({ pressed }) => [
               styles.btnSecondary,
@@ -274,7 +274,7 @@ export default function OnlineScreen() {
           </Pressable>
 
           <Pressable
-            onPress={() => setCreateOpen(true)}
+            onPress={() => { playButtonSound(); setCreateOpen(true); }}
             disabled={busy}
             style={({ pressed }) => [{ flex: 1 }, pressed && styles.pressed, busy && styles.disabled]}
           >
