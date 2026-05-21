@@ -9,23 +9,18 @@ Cheatsheet pro VPS Ubuntu 22.04 com Node + pm2 + nginx (já instalados).
 - Domínio temporário: `129-121-52-119.sslip.io` (sslip.io resolve sozinho pro IP)
 - Diretório do app no VPS: `/var/www/barreira`
 
-## 1. Arquiva o myfollowers antigo
+## 1. Coexistência com outros sites
+
+Esse VPS pode rodar outros sites em paralelo. Premissas dessa config:
+- Barreira escuta em `localhost:3001` (não 3000, pra deixar livre pra outros apps).
+- nginx encaminha SÓ o domínio `129-121-52-119.sslip.io` pra essa porta.
+- Outros server blocks do nginx (com server_name explícito) seguem normais.
+
+Não precisa parar/arquivar nada. Se quiser conferir o que está na 3000:
 
 ```bash
-# Confere se está no pm2
-pm2 list
-
-# Para o processo (se aparecer myfollowers na lista)
-pm2 stop myfollowers && pm2 delete myfollowers
-
-# Arquiva os arquivos
-mv /var/www/myfollowers /root/_archive_myfollowers
-
-# Remove do nginx se tiver site enabled
-ls /etc/nginx/sites-enabled/
-# (se houver myfollowers.conf ou similar, remove o symlink:)
-# rm /etc/nginx/sites-enabled/myfollowers
-nginx -t && systemctl reload nginx
+ss -tlnp | grep -E '3000|3001'
+ls -la /etc/nginx/sites-enabled/
 ```
 
 ## 2. Clona o repo
@@ -40,21 +35,16 @@ npm install
 (Pra `git clone` SSH funcionar, precisa de chave SSH no VPS adicionada ao GitHub —
 ver "Setup SSH key no VPS" abaixo.)
 
-## 3. Configura .env
+## 3. Sobe o server via pm2
 
-```bash
-cd /var/www/barreira/server
-cp .env.example .env
-# edita se quiser ajustar valores (default já é bom pra prod)
-```
-
-## 4. Sobe o server via pm2
+O `ecosystem.config.cjs` já injeta `PORT=3001` e `DISCONNECT_TIMEOUT_MS=30000`,
+então não precisa mexer em `.env`.
 
 ```bash
 cd /var/www/barreira/server
 mkdir -p logs
 pm2 start ecosystem.config.cjs
-pm2 logs barreira-server   # confere se subiu
+pm2 logs barreira-server   # confere se subiu (Ctrl+C pra sair dos logs)
 ```
 
 Auto-start no boot:
@@ -68,11 +58,11 @@ pm2 startup
 Teste local (no próprio VPS):
 
 ```bash
-curl http://localhost:3000/health
+curl http://localhost:3001/health
 # {"ok":true,"ts":...}
 ```
 
-## 5. Configura o nginx
+## 4. Configura o nginx
 
 ```bash
 # Copia o template do repo pro sites-available
@@ -93,7 +83,7 @@ curl http://129-121-52-119.sslip.io/nginx-health   # ok do nginx
 curl http://129-121-52-119.sslip.io/health         # ok do node
 ```
 
-## 6. Instala TLS via Let's Encrypt
+## 5. Instala TLS via Let's Encrypt
 
 ```bash
 apt update
@@ -116,7 +106,7 @@ systemctl status certbot.timer
 certbot renew --dry-run
 ```
 
-## 7. Atualiza o app mobile
+## 6. Atualiza o app mobile
 
 No PC, edita `mobile/.env`:
 

@@ -32,8 +32,14 @@ module.exports = {
       error_file: "./logs/err.log",
       time: true,
 
+      // env é injetado pelo pm2 no process.env do Node. Mais simples que
+      // .env + dotenv, e fica versionado junto com o código.
       env: {
         NODE_ENV: "production",
+        // 3001 pra não conflitar com o myfollowers (3000) no mesmo VPS.
+        PORT: "3001",
+        // 30s — janela pra cliente reconectar antes de decretar W.O.
+        DISCONNECT_TIMEOUT_MS: "30000",
       },
     },
   ],
