@@ -30,6 +30,7 @@ import { WallBank } from "../src/components/WallBank";
 import { useResponsiveBoard } from "../src/hooks/useResponsiveBoard";
 import { useDragOverlay } from "../src/state/dragOverlay";
 import { gc } from "../src/gameColors";
+import { playButtonSound, useButtonSound } from "../src/hooks/useButtonSound";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -64,6 +65,7 @@ const difficultyLabel = (d: Difficulty): string =>
   d === "easy" ? "Fácil" : d === "hard" ? "Difícil" : "Médio";
 
 export default function GameScreen() {
+  useButtonSound(); // preload
   const params = useLocalSearchParams<{ difficulty?: string }>();
   const difficulty = parseDifficulty(params.difficulty);
   const botMove = useMemo(() => pickBot(difficulty), [difficulty]);
@@ -190,6 +192,7 @@ export default function GameScreen() {
   };
 
   const confirmLeave = () => {
+    playButtonSound();
     Alert.alert("Sair da partida", "Tem certeza que deseja sair?", [
       { text: "Cancelar", style: "cancel" },
       { text: "Sair", style: "destructive", onPress: () => router.back() },

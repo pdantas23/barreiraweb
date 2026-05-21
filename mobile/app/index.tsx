@@ -17,6 +17,7 @@ import Animated, {
   withTiming,
 } from "react-native-reanimated";
 import { GridBackground } from "../src/components/GridBackground";
+import { playButtonSound, useButtonSound } from "../src/hooks/useButtonSound";
 
 // ─── Palette (home-only) ───────────────────────────────────────────
 const C = {
@@ -45,12 +46,15 @@ export default function HomeScreen() {
   const [tab, setTab] = useState<Tab>("casual");
   const [difficulty, setDifficulty] = useState<Difficulty>("easy");
   const [offlineModal, setOfflineModal] = useState(false);
+  useButtonSound(); // preload
 
   const onPlay = () => {
+    playButtonSound();
     router.push("/online");
   };
 
   const onStartOffline = () => {
+    playButtonSound();
     setOfflineModal(false);
     router.push({ pathname: "/game", params: { difficulty } });
   };
@@ -92,7 +96,7 @@ export default function HomeScreen() {
         </View>
 
         {/* ─── Bottom navbar ─── */}
-        <BottomNav tab={tab} setTab={setTab} bottomInset={insets.bottom} />
+        <BottomNav tab={tab} setTab={(t) => { playButtonSound(); setTab(t); }} bottomInset={insets.bottom} />
 
         {/* ─── Difficulty modal ─── */}
         <DifficultyPickerModal
@@ -264,7 +268,7 @@ const DifficultyPickerModal = ({
             return (
               <Pressable
                 key={d.key}
-                onPress={() => setDifficulty(d.key)}
+                onPress={() => { playButtonSound(); setDifficulty(d.key); }}
                 style={[styles.diffPill, active && styles.diffPillActive]}
               >
                 <Text style={[styles.diffPillText, active && styles.diffPillTextActive]}>

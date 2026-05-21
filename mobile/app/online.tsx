@@ -21,6 +21,7 @@ import {
 import { JoinByCodeModal } from "../src/components/JoinByCodeModal";
 import { createRoom, joinRoom, listRooms } from "../src/net/api";
 import { clearLastGameStart, connectSocket } from "../src/net/socket";
+import { playButtonSound, useButtonSound } from "../src/hooks/useButtonSound";
 
 // Palette — matches Home & Game screens
 const C = {
@@ -52,6 +53,7 @@ const colorLabel = (c: ColorChoice): string => {
 };
 
 export default function OnlineScreen() {
+  useButtonSound(); // preload
   const insets = useSafeAreaInsets();
   const [createOpen, setCreateOpen] = useState(false);
   const [joinOpen, setJoinOpen] = useState(false);
@@ -90,6 +92,7 @@ export default function OnlineScreen() {
   };
 
   const onJoinRoom = async (room: PublicRoom) => {
+    playButtonSound();
     if (busy) return;
     if (room.isPrivate) {
       setJoinOpen(true);
@@ -109,6 +112,7 @@ export default function OnlineScreen() {
   };
 
   const onConfirmCreate = async (config: CreateRoomConfig) => {
+    playButtonSound();
     setCreateOpen(false);
     setBusy(true);
     const res = await createRoom({
