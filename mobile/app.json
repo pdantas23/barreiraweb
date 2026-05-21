@@ -1,0 +1,38 @@
+{
+  "expo": {
+    "name": "Barreira",
+    "slug": "barreira",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "dark",
+    "scheme": "barreira",
+    "newArchEnabled": true,
+    "icon": "./assets/icon.png",
+    "splash": {
+      "image": "./assets/splash.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#121216"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.barreira.app"
+    },
+    "android": {
+      "package": "com.barreira.app",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#121216"
+      }
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      "expo-router"
+    ],
+    "experiments": {
+      "typedRoutes": true
+    }
+    
+  }
+}
