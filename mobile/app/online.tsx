@@ -11,6 +11,7 @@ import {
 import { router, useFocusEffect } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { LinearGradient } from "expo-linear-gradient";
 import Animated, { FadeInUp } from "react-native-reanimated";
 import type { ColorChoice, PublicRoom } from "@barreira/shared";
 import {
@@ -20,17 +21,28 @@ import {
 import { JoinByCodeModal } from "../src/components/JoinByCodeModal";
 import { createRoom, joinRoom, listRooms } from "../src/net/api";
 import { clearLastGameStart, connectSocket } from "../src/net/socket";
-import { theme } from "../src/theme";
 
-// Nome default do jogador. Quando tivermos perfil, vai vir do AsyncStorage.
+// Palette — matches Home & Game screens
+const C = {
+  blue: "#3D6FFF",
+  blueLight: "#6B9FFF",
+  navy: "#1A2A4A",
+  muted: "#9AAACA",
+  white: "#FFFFFF",
+  bgTop: "#F0F4FF",
+  bgBottom: "#E8EEF8",
+  cardBg: "#FFFFFF",
+  cellBg: "#EEF2FF",
+  border: "#DDEAFF",
+  red: "#FF3D6F",
+} as const;
+
 const DEFAULT_PLAYER_NAME = "Jogador";
 
-// === Helpers de UI ===
-
 const colorAccent = (c: ColorChoice): string => {
-  if (c === "cyan") return theme.player1;
-  if (c === "red") return theme.player2;
-  return theme.textMuted;
+  if (c === "cyan") return C.blue;
+  if (c === "red") return C.red;
+  return C.muted;
 };
 
 const colorLabel = (c: ColorChoice): string => {
@@ -38,8 +50,6 @@ const colorLabel = (c: ColorChoice): string => {
   if (c === "red") return "Vermelho";
   return "Random";
 };
-
-// === Tela ===
 
 export default function OnlineScreen() {
   const insets = useSafeAreaInsets();
@@ -49,7 +59,6 @@ export default function OnlineScreen() {
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
 
-  // Refresh: chama o server e atualiza lista.
   const refresh = useCallback(async () => {
     setLoading(true);
     const res = await listRooms();
@@ -61,24 +70,17 @@ export default function OnlineScreen() {
     setRooms(res.data.rooms);
   }, []);
 
-  // Conecta o socket ao montar a tela. O singleton garante que reconectar
-  // depois de já estar conectado é no-op. Limpa o cache de gameStart pra
-  // não vazar payload de partida anterior pra próxima sala que o user entrar.
   useEffect(() => {
     clearLastGameStart();
     connectSocket();
     refresh();
   }, [refresh]);
 
-  // Quando o usuário volta de uma partida pra cá, re-lista (sala antiga
-  // pode ter sumido, novas podem ter aparecido).
   useFocusEffect(
     useCallback(() => {
       refresh();
     }, [refresh]),
   );
-
-  // === Ações ===
 
   const goToOnlineGame = (params: Record<string, string>) => {
     router.push({
@@ -90,7 +92,6 @@ export default function OnlineScreen() {
   const onJoinRoom = async (room: PublicRoom) => {
     if (busy) return;
     if (room.isPrivate) {
-      // Sala privada na lista — exige código + senha. Abre o modal de código.
       setJoinOpen(true);
       return;
     }
@@ -142,8 +143,6 @@ export default function OnlineScreen() {
     goToOnlineGame({ role: "guest", code });
   };
 
-  // === Render ===
-
   const renderRoom = ({ item, index }: { item: PublicRoom; index: number }) => {
     const accent = colorAccent(item.hostColor);
     return (
@@ -157,7 +156,7 @@ export default function OnlineScreen() {
                 {item.hostName}
               </Text>
               {item.isPrivate && (
-                <Ionicons name="lock-closed" size={13} color={theme.textMuted} />
+                <Ionicons name="lock-closed" size={13} color={C.muted} />
               )}
             </View>
 
@@ -186,7 +185,7 @@ export default function OnlineScreen() {
             ]}
           >
             <Text style={styles.joinBtnText}>Entrar</Text>
-            <Ionicons name="arrow-forward" size={16} color="#0b1014" />
+            <Ionicons name="arrow-forward" size={16} color={C.white} />
           </Pressable>
         </View>
       </Animated.View>
@@ -195,7 +194,7 @@ export default function OnlineScreen() {
 
   const emptyView = (
     <View style={styles.emptyBox}>
-      <Ionicons name="people-outline" size={48} color="#2a2a35" />
+      <Ionicons name="people-outline" size={48} color={C.border} />
       <Text style={styles.emptyText}>Nenhuma sala aberta agora</Text>
       <Text style={styles.emptySub}>
         Crie uma nova sala ou entre com um código.
@@ -204,100 +203,104 @@ export default function OnlineScreen() {
   );
 
   return (
-    <View style={[styles.container, { paddingTop: insets.top + 10 }]}>
-      <View style={styles.topBar}>
-        <Pressable onPress={() => router.back()} style={styles.backButton}>
-          <Ionicons name="chevron-back" size={28} color={theme.textPrimary} />
-        </Pressable>
-        <Text style={styles.topTitle}>Jogo Online</Text>
-        <View style={styles.backButton} />
-      </View>
+    <LinearGradient colors={[C.bgTop, C.bgBottom]} style={styles.root}>
+      <View style={[styles.container, { paddingTop: insets.top + 10 }]}>
+        <View style={styles.topBar}>
+          <Pressable onPress={() => router.back()} style={styles.backButton}>
+            <Ionicons name="chevron-back" size={28} color={C.navy} />
+          </Pressable>
+          <Text style={styles.topTitle}>Lobby</Text>
+          <View style={styles.backButton} />
+        </View>
 
-      <View style={styles.subRow}>
-        <Text style={styles.subText}>
-          {loading
-            ? "Carregando..."
-            : `${rooms.length} sala${rooms.length === 1 ? "" : "s"} disponíve${rooms.length === 1 ? "l" : "is"}`}
-        </Text>
-        <Pressable
-          onPress={refresh}
-          disabled={loading || busy}
-          style={({ pressed }) => [
-            styles.refreshBtn,
-            pressed && styles.pressed,
-            (loading || busy) && styles.disabled,
+        <View style={styles.subRow}>
+          <Text style={styles.subText}>
+            {loading
+              ? "Carregando..."
+              : `${rooms.length} sala${rooms.length === 1 ? "" : "s"} disponíve${rooms.length === 1 ? "l" : "is"}`}
+          </Text>
+          <Pressable
+            onPress={refresh}
+            disabled={loading || busy}
+            style={({ pressed }) => [
+              styles.refreshBtn,
+              pressed && styles.pressed,
+              (loading || busy) && styles.disabled,
+            ]}
+          >
+            {loading ? (
+              <ActivityIndicator size="small" color={C.muted} />
+            ) : (
+              <Ionicons name="refresh" size={16} color={C.blue} />
+            )}
+          </Pressable>
+        </View>
+
+        <FlatList
+          data={rooms}
+          keyExtractor={(r) => r.code}
+          renderItem={renderRoom}
+          contentContainerStyle={
+            rooms.length === 0
+              ? [styles.listContent, styles.listEmpty]
+              : styles.listContent
+          }
+          ItemSeparatorComponent={() => <View style={{ height: 10 }} />}
+          showsVerticalScrollIndicator={false}
+          ListEmptyComponent={!loading ? emptyView : null}
+        />
+
+        <View
+          style={[
+            styles.footer,
+            { paddingBottom: Math.max(insets.bottom, 12) + 4 },
           ]}
         >
-          {loading ? (
-            <ActivityIndicator size="small" color={theme.textMuted} />
-          ) : (
-            <Ionicons name="refresh" size={16} color={theme.textMuted} />
-          )}
-        </Pressable>
+          <Pressable
+            onPress={() => setJoinOpen(true)}
+            disabled={busy}
+            style={({ pressed }) => [
+              styles.btnSecondary,
+              pressed && styles.pressed,
+              busy && styles.disabled,
+            ]}
+          >
+            <Ionicons name="key-outline" size={18} color={C.navy} />
+            <Text style={styles.btnSecondaryText}>Entrar com código</Text>
+          </Pressable>
+
+          <Pressable
+            onPress={() => setCreateOpen(true)}
+            disabled={busy}
+            style={({ pressed }) => [{ flex: 1 }, pressed && styles.pressed, busy && styles.disabled]}
+          >
+            <LinearGradient
+              colors={[C.blue, C.blueLight]}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 0 }}
+              style={styles.btnPrimary}
+            >
+              <Ionicons name="add" size={20} color={C.white} />
+              <Text style={styles.btnPrimaryText}>Criar sala</Text>
+            </LinearGradient>
+          </Pressable>
+        </View>
+
+        <CreateRoomModal
+          visible={createOpen}
+          onClose={() => setCreateOpen(false)}
+          onConfirm={onConfirmCreate}
+        />
+        <JoinByCodeModal
+          visible={joinOpen}
+          onClose={() => setJoinOpen(false)}
+          onConfirm={onConfirmJoin}
+        />
       </View>
-
-      <FlatList
-        data={rooms}
-        keyExtractor={(r) => r.code}
-        renderItem={renderRoom}
-        contentContainerStyle={
-          rooms.length === 0
-            ? [styles.listContent, styles.listEmpty]
-            : styles.listContent
-        }
-        ItemSeparatorComponent={() => <View style={{ height: 10 }} />}
-        showsVerticalScrollIndicator={false}
-        ListEmptyComponent={!loading ? emptyView : null}
-      />
-
-      <View
-        style={[
-          styles.footer,
-          { paddingBottom: Math.max(insets.bottom, 12) + 4 },
-        ]}
-      >
-        <Pressable
-          onPress={() => setJoinOpen(true)}
-          disabled={busy}
-          style={({ pressed }) => [
-            styles.btnSecondary,
-            pressed && styles.pressed,
-            busy && styles.disabled,
-          ]}
-        >
-          <Ionicons name="key-outline" size={18} color={theme.textPrimary} />
-          <Text style={styles.btnSecondaryText}>Entrar com código</Text>
-        </Pressable>
-
-        <Pressable
-          onPress={() => setCreateOpen(true)}
-          disabled={busy}
-          style={({ pressed }) => [
-            styles.btnPrimary,
-            pressed && styles.pressed,
-            busy && styles.disabled,
-          ]}
-        >
-          <Ionicons name="add" size={20} color="#0b1014" />
-          <Text style={styles.btnPrimaryText}>Criar sala</Text>
-        </Pressable>
-      </View>
-
-      <CreateRoomModal
-        visible={createOpen}
-        onClose={() => setCreateOpen(false)}
-        onConfirm={onConfirmCreate}
-      />
-      <JoinByCodeModal
-        visible={joinOpen}
-        onClose={() => setJoinOpen(false)}
-        onConfirm={onConfirmJoin}
-      />
-    </View>
+    </LinearGradient>
   );
 }
 
-// Tradução dos RpcError pra mensagens amigáveis.
 const errorMessage = (err: string): string => {
   switch (err) {
     case "room-not-found":
@@ -316,9 +319,11 @@ const errorMessage = (err: string): string => {
 };
 
 const styles = StyleSheet.create({
+  root: {
+    flex: 1,
+  },
   container: {
     flex: 1,
-    backgroundColor: theme.bg,
   },
   topBar: {
     flexDirection: "row",
@@ -332,7 +337,7 @@ const styles = StyleSheet.create({
   },
   topTitle: {
     flex: 1,
-    color: theme.textPrimary,
+    color: C.navy,
     fontSize: 18,
     fontWeight: "800",
     letterSpacing: 0.5,
@@ -347,7 +352,7 @@ const styles = StyleSheet.create({
     paddingBottom: 12,
   },
   subText: {
-    color: theme.textMuted,
+    color: C.muted,
     fontSize: 12,
     fontWeight: "700",
     letterSpacing: 0.5,
@@ -357,9 +362,9 @@ const styles = StyleSheet.create({
     width: 32,
     height: 32,
     borderRadius: 16,
-    backgroundColor: theme.boardBg,
+    backgroundColor: C.white,
     borderWidth: 1,
-    borderColor: "#2a2a35",
+    borderColor: C.border,
     alignItems: "center",
     justifyContent: "center",
   },
@@ -377,13 +382,13 @@ const styles = StyleSheet.create({
     paddingVertical: 32,
   },
   emptyText: {
-    color: theme.textPrimary,
+    color: C.navy,
     fontSize: 15,
     fontWeight: "700",
     marginTop: 14,
   },
   emptySub: {
-    color: theme.textMuted,
+    color: C.muted,
     fontSize: 12,
     textAlign: "center",
     marginTop: 6,
@@ -391,11 +396,16 @@ const styles = StyleSheet.create({
   roomCard: {
     flexDirection: "row",
     alignItems: "stretch",
-    backgroundColor: theme.boardBg,
+    backgroundColor: C.cardBg,
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: "#2a2a35",
+    borderColor: C.border,
     overflow: "hidden",
+    shadowColor: C.blue,
+    shadowOpacity: 0.06,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 2,
   },
   roomAccent: {
     width: 5,
@@ -414,7 +424,7 @@ const styles = StyleSheet.create({
     marginBottom: 6,
   },
   roomHost: {
-    color: theme.textPrimary,
+    color: C.navy,
     fontSize: 15,
     fontWeight: "800",
     flexShrink: 1,
@@ -437,16 +447,16 @@ const styles = StyleSheet.create({
     letterSpacing: 0.5,
   },
   metaDot: {
-    color: "#3a3a48",
+    color: C.border,
     fontSize: 12,
   },
   metaText: {
-    color: theme.textMuted,
+    color: C.muted,
     fontSize: 11,
     fontWeight: "600",
   },
   codeText: {
-    color: theme.textMuted,
+    color: C.muted,
     fontSize: 11,
     fontWeight: "700",
     letterSpacing: 1.2,
@@ -456,14 +466,14 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 6,
-    backgroundColor: theme.player1,
+    backgroundColor: C.blue,
     paddingHorizontal: 14,
     marginVertical: 10,
     marginRight: 10,
     borderRadius: 10,
   },
   joinBtnText: {
-    color: "#0b1014",
+    color: C.white,
     fontWeight: "900",
     fontSize: 13,
     letterSpacing: 0.5,
@@ -474,38 +484,36 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingTop: 12,
     borderTopWidth: 1,
-    borderTopColor: "#1f1f27",
-    backgroundColor: theme.bg,
+    borderTopColor: C.border,
+    backgroundColor: "rgba(255,255,255,0.85)",
   },
   btnSecondary: {
     flex: 1,
     flexDirection: "row",
-    gap: 8,
+    gap: 6,
     paddingVertical: 14,
     borderRadius: 12,
-    backgroundColor: "transparent",
+    backgroundColor: C.white,
     borderWidth: 1,
-    borderColor: "#3a3a48",
+    borderColor: C.border,
     alignItems: "center",
     justifyContent: "center",
   },
   btnSecondaryText: {
-    color: theme.textPrimary,
+    color: C.navy,
     fontWeight: "700",
     fontSize: 13,
   },
   btnPrimary: {
-    flex: 1,
     flexDirection: "row",
     gap: 8,
     paddingVertical: 14,
     borderRadius: 12,
-    backgroundColor: theme.player1,
     alignItems: "center",
     justifyContent: "center",
   },
   btnPrimaryText: {
-    color: "#0b1014",
+    color: C.white,
     fontWeight: "900",
     fontSize: 14,
     letterSpacing: 0.5,

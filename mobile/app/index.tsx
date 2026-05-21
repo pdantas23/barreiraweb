@@ -1,5 +1,6 @@
-import { useRef, useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
+  Modal,
   Pressable,
   StyleSheet,
   Text,
@@ -9,7 +10,13 @@ import { router } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
-import Animated, { FadeIn, FadeOut } from "react-native-reanimated";
+import Animated, {
+  Easing,
+  useAnimatedStyle,
+  useSharedValue,
+  withTiming,
+} from "react-native-reanimated";
+import { GridBackground } from "../src/components/GridBackground";
 
 // ─── Palette (home-only) ───────────────────────────────────────────
 const C = {
@@ -22,6 +29,7 @@ const C = {
   bgBottom: "#E8EEF8",
   gold: "rgba(245,166,35,0.3)",
   goldShadow: "rgba(245,166,35,0.18)",
+  cellBg: "#EEF2FF",
   disabled: "#CCCCCC",
   disabledBg: "#BBBBBB",
   red: "#FF3D6F",
@@ -36,12 +44,14 @@ export default function HomeScreen() {
   const insets = useSafeAreaInsets();
   const [tab, setTab] = useState<Tab>("casual");
   const [difficulty, setDifficulty] = useState<Difficulty>("easy");
+  const [offlineModal, setOfflineModal] = useState(false);
 
   const onPlay = () => {
     router.push("/online");
   };
 
-  const onTrain = () => {
+  const onStartOffline = () => {
+    setOfflineModal(false);
     router.push({ pathname: "/game", params: { difficulty } });
   };
 
@@ -69,44 +79,61 @@ export default function HomeScreen() {
 
         {/* ─── Tab content ─── */}
         <View style={styles.content}>
-          {tab === "casual" && (
-            <Animated.View
-              key="casual"
-              entering={FadeIn.duration(150)}
-              exiting={FadeOut.duration(150)}
-              style={styles.tabContent}
-            >
-              <CasualTab onPlay={onPlay} />
-            </Animated.View>
-          )}
-          {tab === "offline" && (
-            <Animated.View
-              key="offline"
-              entering={FadeIn.duration(150)}
-              exiting={FadeOut.duration(150)}
-              style={styles.tabContent}
-            >
-              <OfflineTab difficulty={difficulty} setDifficulty={setDifficulty} onTrain={onTrain} />
-            </Animated.View>
-          )}
-          {tab === "ranked" && (
-            <Animated.View
-              key="ranked"
-              entering={FadeIn.duration(150)}
-              exiting={FadeOut.duration(150)}
-              style={styles.tabContent}
-            >
-              <RankedTab />
-            </Animated.View>
-          )}
+          {tab !== "ranked" && <GridBackground />}
+          <TabPane visible={tab === "casual"}>
+            <CasualTab onPlay={onPlay} />
+          </TabPane>
+          <TabPane visible={tab === "offline"}>
+            <OfflineTab onPlay={() => setOfflineModal(true)} />
+          </TabPane>
+          <TabPane visible={tab === "ranked"}>
+            <RankedTab />
+          </TabPane>
         </View>
 
         {/* ─── Bottom navbar ─── */}
         <BottomNav tab={tab} setTab={setTab} bottomInset={insets.bottom} />
+
+        {/* ─── Difficulty modal ─── */}
+        <DifficultyPickerModal
+          visible={offlineModal}
+          difficulty={difficulty}
+          setDifficulty={setDifficulty}
+          onConfirm={onStartOffline}
+          onClose={() => setOfflineModal(false)}
+        />
       </View>
     </LinearGradient>
   );
 }
+
+// ═══════════════════════════════════════════════════════════════════
+// TAB PANE (opacity + pointerEvents transition)
+// ═══════════════════════════════════════════════════════════════════
+
+const TabPane = ({ visible, children }: { visible: boolean; children: React.ReactNode }) => {
+  const opacity = useSharedValue(visible ? 1 : 0);
+
+  useEffect(() => {
+    opacity.value = withTiming(visible ? 1 : 0, {
+      duration: visible ? 150 : 120,
+      easing: visible ? Easing.out(Easing.ease) : Easing.in(Easing.ease),
+    });
+  }, [visible, opacity]);
+
+  const animStyle = useAnimatedStyle(() => ({
+    opacity: opacity.value,
+  }));
+
+  return (
+    <Animated.View
+      style={[styles.tabContent, animStyle]}
+      pointerEvents={visible ? "auto" : "none"}
+    >
+      {children}
+    </Animated.View>
+  );
+};
 
 // ═══════════════════════════════════════════════════════════════════
 // CASUAL TAB
@@ -177,52 +204,22 @@ const DIFFICULTIES: { key: Difficulty; label: string }[] = [
   { key: "hard", label: "Difícil" },
 ];
 
-const OfflineTab = ({
-  difficulty,
-  setDifficulty,
-  onTrain,
-}: {
-  difficulty: Difficulty;
-  setDifficulty: (d: Difficulty) => void;
-  onTrain: () => void;
-}) => (
+const OfflineTab = ({ onPlay }: { onPlay: () => void }) => (
   <View style={styles.offlineWrap}>
-    {/* Bot icon */}
     <LinearGradient
       colors={[C.blue, C.navy]}
       style={styles.botIcon}
     >
-      <Text style={styles.botEmoji}>🤖</Text>
+      <Ionicons name="hardware-chip-outline" size={52} color={C.white} />
     </LinearGradient>
 
     <Text style={styles.offlineTitle}>Treino</Text>
-    <Text style={styles.offlineSub}>Jogue contra a IA. Sem pressão.</Text>
 
-    {/* Difficulty selector */}
-    <Text style={styles.diffLabel}>DIFICULDADE</Text>
-    <View style={styles.diffRow}>
-      {DIFFICULTIES.map((d) => {
-        const active = difficulty === d.key;
-        return (
-          <Pressable
-            key={d.key}
-            onPress={() => setDifficulty(d.key)}
-            style={[styles.diffPill, active && styles.diffPillActive]}
-          >
-            <Text style={[styles.diffPillText, active && styles.diffPillTextActive]}>
-              {d.label}
-            </Text>
-          </Pressable>
-        );
-      })}
-    </View>
-
-    {/* Train button */}
     <Pressable
-      onPress={onTrain}
+      onPress={onPlay}
       style={({ pressed }) => [styles.trainBtn, pressed && styles.btnPressed]}
     >
-      <Text style={styles.trainBtnText}>🤖 TREINAR</Text>
+      <Text style={styles.trainBtnText}>JOGAR</Text>
     </Pressable>
   </View>
 );
@@ -240,8 +237,174 @@ const RankedTab = () => (
 );
 
 // ═══════════════════════════════════════════════════════════════════
+// DIFFICULTY PICKER MODAL
+// ═══════════════════════════════════════════════════════════════════
+
+const DifficultyPickerModal = ({
+  visible,
+  difficulty,
+  setDifficulty,
+  onConfirm,
+  onClose,
+}: {
+  visible: boolean;
+  difficulty: Difficulty;
+  setDifficulty: (d: Difficulty) => void;
+  onConfirm: () => void;
+  onClose: () => void;
+}) => (
+  <Modal transparent visible={visible} animationType="fade" statusBarTranslucent>
+    <Pressable style={styles.modalBackdrop} onPress={onClose}>
+      <Pressable style={styles.modalCard} onPress={(e) => e.stopPropagation?.()}>
+        <Text style={styles.modalTitle}>Escolha a dificuldade</Text>
+
+        <View style={styles.diffRow}>
+          {DIFFICULTIES.map((d) => {
+            const active = difficulty === d.key;
+            return (
+              <Pressable
+                key={d.key}
+                onPress={() => setDifficulty(d.key)}
+                style={[styles.diffPill, active && styles.diffPillActive]}
+              >
+                <Text style={[styles.diffPillText, active && styles.diffPillTextActive]}>
+                  {d.label}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </View>
+
+        <View style={styles.modalActions}>
+          <Pressable
+            onPress={onClose}
+            style={({ pressed }) => [styles.modalBtnCancel, pressed && styles.btnPressed]}
+          >
+            <Text style={styles.modalBtnCancelText}>Cancelar</Text>
+          </Pressable>
+          <Pressable
+            onPress={onConfirm}
+            style={({ pressed }) => [{ flex: 1 }, pressed && styles.btnPressed]}
+          >
+            <LinearGradient
+              colors={[C.blue, C.blueLight]}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 0 }}
+              style={styles.modalBtnConfirm}
+            >
+              <Text style={styles.modalBtnConfirmText}>Jogar</Text>
+            </LinearGradient>
+          </Pressable>
+        </View>
+      </Pressable>
+    </Pressable>
+  </Modal>
+);
+
+// ═══════════════════════════════════════════════════════════════════
 // BOTTOM NAV
 // ═══════════════════════════════════════════════════════════════════
+
+const ANIM_CFG = { duration: 200, easing: Easing.out(Easing.ease) };
+
+const NavIcon = ({
+  active,
+  iconActive,
+  iconInactive,
+  label,
+  onPress,
+}: {
+  active: boolean;
+  iconActive: keyof typeof Ionicons.glyphMap;
+  iconInactive: keyof typeof Ionicons.glyphMap;
+  label: string;
+  onPress: () => void;
+}) => {
+  const bubbleSize = useSharedValue(active ? 56 : 36);
+  const bubbleOpacity = useSharedValue(active ? 1 : 0.4);
+  const liftY = useSharedValue(active ? -20 : 0);
+
+  useEffect(() => {
+    bubbleSize.value = withTiming(active ? 56 : 36, ANIM_CFG);
+    bubbleOpacity.value = withTiming(active ? 1 : 0.4, ANIM_CFG);
+    liftY.value = withTiming(active ? -20 : 0, ANIM_CFG);
+  }, [active]);
+
+  const wrapStyle = useAnimatedStyle(() => ({
+    transform: [{ translateY: liftY.value }],
+  }));
+
+  const sizeStyle = useAnimatedStyle(() => ({
+    width: bubbleSize.value,
+    height: bubbleSize.value,
+    borderRadius: bubbleSize.value / 2,
+    opacity: bubbleOpacity.value,
+  }));
+
+  return (
+    <Pressable onPress={onPress} style={styles.navItem}>
+      <Animated.View style={wrapStyle}>
+        <Animated.View style={sizeStyle}>
+          <LinearGradient
+            colors={[C.blue, C.blueLight]}
+            style={styles.navBubbleInner}
+          >
+            <Ionicons
+              name={active ? iconActive : iconInactive}
+              size={active ? 26 : 18}
+              color={C.white}
+            />
+          </LinearGradient>
+        </Animated.View>
+      </Animated.View>
+      <Text style={[styles.navLabel, active && styles.navLabelActive]}>
+        {label}
+      </Text>
+    </Pressable>
+  );
+};
+
+// Animated bubble for Casual tab — grows/lifts when active
+const CasualBubble = ({ active, onPress }: { active: boolean; onPress: () => void }) => {
+  const bubbleSize = useSharedValue(active ? 56 : 36);
+  const bubbleOpacity = useSharedValue(active ? 1 : 0.4);
+  const liftY = useSharedValue(active ? -20 : 0);
+
+  useEffect(() => {
+    bubbleSize.value = withTiming(active ? 56 : 36, ANIM_CFG);
+    bubbleOpacity.value = withTiming(active ? 1 : 0.4, ANIM_CFG);
+    liftY.value = withTiming(active ? -20 : 0, ANIM_CFG);
+  }, [active]);
+
+  const wrapStyle = useAnimatedStyle(() => ({
+    transform: [{ translateY: liftY.value }],
+  }));
+
+  const sizeStyle = useAnimatedStyle(() => ({
+    width: bubbleSize.value,
+    height: bubbleSize.value,
+    borderRadius: bubbleSize.value / 2,
+    opacity: bubbleOpacity.value,
+  }));
+
+  return (
+    <Pressable onPress={onPress} style={styles.navItem}>
+      <Animated.View style={wrapStyle}>
+        <Animated.View style={sizeStyle}>
+          <LinearGradient
+            colors={[C.blue, C.blueLight]}
+            style={styles.navBubbleInner}
+          >
+            <Ionicons name="flash" size={active ? 26 : 18} color={C.white} />
+          </LinearGradient>
+        </Animated.View>
+      </Animated.View>
+      <Text style={[styles.navLabel, active && styles.navLabelActive]}>
+        Casual
+      </Text>
+    </Pressable>
+  );
+};
 
 const BottomNav = ({
   tab,
@@ -254,47 +417,21 @@ const BottomNav = ({
 }) => {
   return (
     <View style={[styles.navbar, { paddingBottom: Math.max(bottomInset, 8) }]}>
-      {/* Offline */}
-      <Pressable
+      <NavIcon
+        active={tab === "offline"}
+        iconActive="game-controller"
+        iconInactive="game-controller-outline"
+        label="Offline"
         onPress={() => setTab("offline")}
-        style={styles.navItem}
-      >
-        <Ionicons
-          name={tab === "offline" ? "game-controller" : "game-controller-outline"}
-          size={tab === "offline" ? 28 : 24}
-          color={tab === "offline" ? C.blue : C.muted}
-        />
-        <Text style={[styles.navLabel, tab === "offline" && styles.navLabelActive]}>
-          Offline
-        </Text>
-      </Pressable>
+      />
 
-      {/* Casual (center bubble) */}
-      <Pressable
-        onPress={() => setTab("casual")}
-        style={styles.navItemCenter}
-      >
-        <LinearGradient
-          colors={[C.blue, C.blueLight]}
-          style={[
-            styles.navBubble,
-            tab !== "casual" && { opacity: 0.4 },
-          ]}
-        >
-          <Ionicons name="flash" size={26} color={C.white} />
-        </LinearGradient>
-        <Text style={[styles.navLabel, tab === "casual" && styles.navLabelActive]}>
-          Casual
-        </Text>
-      </Pressable>
+      <CasualBubble active={tab === "casual"} onPress={() => setTab("casual")} />
 
-      {/* Ranked (disabled) */}
+      {/* Ranked (disabled — looks like inactive bubble, not tappable) */}
       <View style={styles.navItem}>
-        <Ionicons
-          name="trophy-outline"
-          size={24}
-          color={C.disabled}
-        />
+        <View style={styles.navBubbleDisabled}>
+          <Ionicons name="trophy-outline" size={18} color={C.disabled} />
+        </View>
         <Text style={styles.navLabelDisabled}>Ranqueado</Text>
         <Text style={styles.navSoon}>Em Breve</Text>
       </View>
@@ -358,7 +495,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   tabContent: {
-    flex: 1,
+    ...StyleSheet.absoluteFillObject,
     justifyContent: "center",
     alignItems: "center",
     paddingHorizontal: 20,
@@ -506,24 +643,78 @@ const styles = StyleSheet.create({
     color: C.muted,
     marginBottom: 10,
   },
-  diffLabel: {
-    fontSize: 11,
-    color: C.muted,
-    letterSpacing: 2,
-    fontWeight: "600",
-  },
   diffRow: {
     flexDirection: "row",
     gap: 10,
     marginBottom: 16,
+    width: 280,
+  },
+  // ─── Modal ───
+  modalBackdrop: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.4)",
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 24,
+  },
+  modalCard: {
+    width: "100%",
+    maxWidth: 340,
+    backgroundColor: C.white,
+    borderRadius: 20,
+    padding: 24,
+    alignItems: "center",
+    shadowColor: C.blue,
+    shadowOpacity: 0.15,
+    shadowRadius: 20,
+    shadowOffset: { width: 0, height: 8 },
+    elevation: 10,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: "800",
+    color: C.navy,
+    marginBottom: 20,
+  },
+  modalActions: {
+    flexDirection: "row",
+    gap: 10,
+    marginTop: 20,
+    width: "100%",
+  },
+  modalBtnCancel: {
+    flex: 1,
+    paddingVertical: 13,
+    borderRadius: 12,
+    backgroundColor: C.cellBg,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  modalBtnCancelText: {
+    color: C.muted,
+    fontWeight: "700",
+    fontSize: 14,
+  },
+  modalBtnConfirm: {
+    paddingVertical: 13,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  modalBtnConfirmText: {
+    color: C.white,
+    fontWeight: "900",
+    fontSize: 15,
+    letterSpacing: 0.5,
   },
   diffPill: {
-    paddingHorizontal: 20,
+    flex: 1,
     paddingVertical: 10,
     borderRadius: 24,
     backgroundColor: C.white,
     borderWidth: 1.5,
     borderColor: C.muted,
+    alignItems: "center",
   },
   diffPillActive: {
     backgroundColor: C.blue,
@@ -578,6 +769,8 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: "rgba(61,111,255,0.08)",
     paddingTop: 8,
+    height: 100,
+    overflow: "visible",
     shadowColor: C.blue,
     shadowOpacity: 0.06,
     shadowRadius: 12,
@@ -590,17 +783,20 @@ const styles = StyleSheet.create({
     width: 80,
     gap: 2,
   },
-  navItemCenter: {
+  navBubbleDisabled: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: "#E8EEF8",
+    borderWidth: 3,
+    borderColor: C.white,
     alignItems: "center",
     justifyContent: "center",
-    width: 80,
-    marginTop: -20,
-    gap: 2,
+    opacity: 0.4,
   },
-  navBubble: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
+  navBubbleInner: {
+    flex: 1,
+    borderRadius: 999,
     alignItems: "center",
     justifyContent: "center",
     borderWidth: 3,
@@ -610,6 +806,7 @@ const styles = StyleSheet.create({
     shadowRadius: 10,
     shadowOffset: { width: 0, height: 4 },
     elevation: 6,
+    overflow: "hidden",
   },
   navLabel: {
     fontSize: 11,
