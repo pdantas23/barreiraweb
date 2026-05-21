@@ -1,5 +1,5 @@
 import { View } from "react-native";
-import type { WallPlacement } from "../game/types";
+import type { WallPlacement } from "@barreira/shared";
 import { theme } from "../theme";
 import type { BoardLayout } from "../hooks/useResponsiveBoard";
 

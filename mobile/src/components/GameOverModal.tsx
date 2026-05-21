@@ -1,7 +1,7 @@
 import { Modal, Pressable, StyleSheet, Text, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import Animated, { FadeIn, FadeInDown } from "react-native-reanimated";
-import type { PlayerId } from "../game/types";
+import type { PlayerId } from "@barreira/shared";
 import { theme } from "../theme";
 
 type Props = {

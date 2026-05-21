@@ -1,14 +1,20 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import Animated, { useAnimatedRef } from "react-native-reanimated";
-import { initialState } from "../src/game/board";
-import { applyMove } from "../src/game/engine";
-import { getValidMoves } from "../src/game/moves";
-import { easyOpponentMove } from "../src/game/easyOpponent";
-import { smartOpponentMove } from "../src/game/smartOpponent";
-import { minimaxOpponentMove } from "../src/game/minimaxOpponent";
-import type { GameState, Move, PlayerId, WallPlacement, WallType } from "../src/game/types";
-import { canPlaceWall } from "../src/game/walls";
+import {
+  applyMove,
+  canPlaceWall,
+  easyOpponentMove,
+  getValidMoves,
+  initialState,
+  minimaxOpponentMove,
+  smartOpponentMove,
+  type GameState,
+  type Move,
+  type PlayerId,
+  type WallPlacement,
+  type WallType,
+} from "@barreira/shared";
 import { Board } from "../src/components/Board";
 import { GameOverModal } from "../src/components/GameOverModal";
 import { TurnIndicator } from "../src/components/TurnIndicator";

@@ -6,20 +6,18 @@ Backlog vivo do Barreira. A ordem reflete prioridade — o que está no topo é 
 
 ## Próximas
 
-1. **Tela de fim de jogo** — revanche / voltar ao menu
-2. **Funcionalidade real do ícone de perfil** — tela de configurações / avatar / estatísticas
-3. **Som e haptics** — movimento, parede colocada, vitória
-4. **Animação de movimento da peça** — transição suave em vez de teleporte
-5. **Animação de queda da parede** — drop-in ao soltar
-6. **Persistência local** — placar e histórico de partidas (AsyncStorage / SQLite)
-7. **Modo Casual** — multiplayer não rankeado (requer backend ou P2P)
-8. **Modo Rankeada** — ELO, contas, backend dedicado
+1. **Funcionalidade real do ícone de perfil** — tela de configurações / avatar / estatísticas
+2. **Som e haptics** — movimento, parede colocada, vitória
+3. **Animação de movimento da peça** — transição suave em vez de teleporte
+4. **Animação de queda da parede** — drop-in ao soltar
+5. **Persistência local** — placar e histórico de partidas (AsyncStorage / SQLite)
+6. **Modo Casual** — multiplayer não rankeado (requer backend ou P2P)
+7. **Modo Rankeada** — ELO, contas, backend dedicado
 
 ---
 
 ## Futuro (nice-to-have)
 
-- Salto diagonal quando há parede atrás do adversário (regra oficial Quoridor que falta em `moves.ts`)
 - Testes unitários da engine (`engine.ts`, `walls.ts`, `moves.ts`) com Jest
 - Cache de `shortestPathDistance` no `smartOpponent` para acelerar avaliação de paredes
 - Alternar quem começa a partida no restart (hoje sempre P1)
@@ -31,6 +29,12 @@ Backlog vivo do Barreira. A ordem reflete prioridade — o que está no topo é 
 ---
 
 ## Histórico
+
+### 2026-05-21 — Tela de fim de jogo + salto diagonal
+
+- Componente `GameOverModal` — overlay com ícone (trophy/close), título colorido (ciano vitória, vermelho derrota), botões "Menu" e "Revanche", animações FadeIn/FadeInDown
+- `game.tsx` — removido botão "Jogar de novo" + estilos órfãos; modal abre automaticamente quando `state.winner !== null`; "Menu" usa `router.back()`, "Revanche" chama `onRestart`
+- Salto diagonal em `moves.ts` — quando o salto reto sobre o adversário está bloqueado (parede atrás OU borda), oferece as 2 casas perpendiculares ao movimento (regra oficial Quoridor)
 
 ### 2026-05-21 — Nova tela inicial + 3 dificuldades
 

@@ -6,8 +6,7 @@ import Animated, {
   type AnimatedRef,
   type SharedValue,
 } from "react-native-reanimated";
-import { BOARD_SIZE } from "../game/board";
-import type { WallType } from "../game/types";
+import { BOARD_SIZE, type WallType } from "@barreira/shared";
 import { theme } from "../theme";
 import type { BoardLayout } from "../hooks/useResponsiveBoard";
 

@@ -1,8 +1,14 @@
 import { ReactElement } from "react";
 import { View, StyleSheet } from "react-native";
 import Animated, { type AnimatedRef } from "react-native-reanimated";
-import { BOARD_SIZE, TOTAL_SQUARES, col, row } from "../game/board";
-import type { GameState, WallPlacement } from "../game/types";
+import {
+  BOARD_SIZE,
+  TOTAL_SQUARES,
+  col,
+  row,
+  type GameState,
+  type WallPlacement,
+} from "@barreira/shared";
 import { Piece } from "./Piece";
 import { Square } from "./Square";
 import { Wall } from "./Wall";

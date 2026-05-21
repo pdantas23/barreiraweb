@@ -1,5 +1,5 @@
 import { useWindowDimensions } from "react-native";
-import { BOARD_SIZE } from "../game/board";
+import { BOARD_SIZE } from "@barreira/shared";
 
 const BOARD_PADDING = 2;
 const GAP = 5;

@@ -10,6 +10,7 @@
     "tunnel": "expo start --tunnel"
   },
   "dependencies": {
+    "@barreira/shared": "*",
     "babel-preset-expo": "~54.0.10",
     "expo": "^54.0.0",
     "expo-router": "~6.0.0",
@@ -24,6 +25,7 @@
   },
   "devDependencies": {
     "@types/react": "~19.1.10",
+    "@types/react-native": "^0.72.8",
     "typescript": "^5.4.0"
   },
   "overrides": {

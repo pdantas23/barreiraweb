@@ -1,0 +1,13 @@
+{
+  "name": "barreira",
+  "version": "0.1.0",
+  "private": true,
+  "workspaces": [
+    "mobile",
+    "shared"
+  ],
+  "scripts": {
+    "mobile": "npm --workspace=mobile run start",
+    "typecheck:shared": "npm --workspace=@barreira/shared run typecheck"
+  }
+}

@@ -2,7 +2,7 @@ import Animated, {
   useAnimatedStyle,
   type SharedValue,
 } from "react-native-reanimated";
-import type { WallType } from "../game/types";
+import type { WallType } from "@barreira/shared";
 import { theme } from "../theme";
 import type { BoardLayout } from "../hooks/useResponsiveBoard";
 

@@ -1,5 +1,5 @@
 import { Text, View, StyleSheet } from "react-native";
-import type { PlayerId } from "../game/types";
+import type { PlayerId } from "@barreira/shared";
 import { theme } from "../theme";
 
 type Props = {

@@ -7,7 +7,7 @@ import {
   type ReactNode,
 } from "react";
 import { useSharedValue, type SharedValue } from "react-native-reanimated";
-import type { WallType } from "../game/types";
+import type { WallType } from "@barreira/shared";
 import type { BoardLayout } from "../hooks/useResponsiveBoard";
 
 type Overlay = { type: WallType; layout: BoardLayout } | null;
