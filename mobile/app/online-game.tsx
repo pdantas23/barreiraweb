@@ -19,6 +19,7 @@ import {
   goalRow,
   hasPathToRow,
   registerWall,
+  WALLS_PER_PLAYER,
   type Color,
   type GameOverPayload,
   type GameStartPayload,
@@ -34,8 +35,9 @@ import {
 import { Board } from "../src/components/Board";
 import { CountdownOverlay } from "../src/components/CountdownOverlay";
 import { GameOverModal } from "../src/components/GameOverModal";
-import { TurnIndicator } from "../src/components/TurnIndicator";
-import { OpponentWallBank, WallBank } from "../src/components/WallBank";
+import { GameTimer, useGameTimers } from "../src/components/GameTimer";
+import { PlayerCard, TurnArrow } from "../src/components/PlayerCard";
+import { WallBank } from "../src/components/WallBank";
 import { useResponsiveBoard } from "../src/hooks/useResponsiveBoard";
 import {
   leaveRoom,
@@ -50,6 +52,8 @@ import {
 } from "../src/net/socket";
 import { useDragOverlay } from "../src/state/dragOverlay";
 import { usePieceMoveSound } from "../src/hooks/usePieceSound";
+import { playButtonSound, useButtonSound } from "../src/hooks/useButtonSound";
+import { gc } from "../src/gameColors";
 import { theme } from "../src/theme";
 
 // Paleta clara — espelha a do lobby (online.tsx) pra consistência visual.
@@ -97,6 +101,24 @@ export default function OnlineGameScreen() {
   const [rematchRequesterName, setRematchRequesterName] = useState("");
 
   usePieceMoveSound(state?.p1 ?? -1, state?.p2 ?? -1);
+  useButtonSound();
+
+  // Fischer-clock timers
+  const myPlayer: PlayerId = meta?.yourEnginePlayer ?? 1;
+  const opponentPlayer: PlayerId = myPlayer === 1 ? 2 : 1;
+  const { p1TimeMs, p2TimeMs, timedOutPlayer, resetTimers } = useGameTimers(
+    state?.turn ?? 1,
+    state?.winner ?? null,
+    countdownActive,
+  );
+
+  // Timeout = loss
+  useEffect(() => {
+    if (timedOutPlayer !== null && state && state.winner === null) {
+      const winner = timedOutPlayer === 1 ? 2 : 1;
+      setState((prev) => prev ? { ...prev, winner } : prev);
+    }
+  }, [timedOutPlayer, state?.winner]);
 
   // Drag de parede — espelha o que game.tsx (CPU local) já faz.
   const [dragType, setDragType] = useState<WallType | null>(null);
@@ -193,7 +215,6 @@ export default function OnlineGameScreen() {
     };
   }, []);
 
-  const myPlayer: PlayerId = meta?.yourEnginePlayer ?? 1;
   const myTurn =
     state !== null && state.turn === myPlayer && state.winner === null && !countdownActive;
 
@@ -375,24 +396,55 @@ export default function OnlineGameScreen() {
 
   // === Render: partida em andamento ===
 
+  const myTimeMs = myPlayer === 1 ? p1TimeMs : p2TimeMs;
+  const opTimeMs = myPlayer === 1 ? p2TimeMs : p1TimeMs;
+
   return (
-    <View style={[styles.container, { paddingTop: insets.top + 10, paddingBottom: insets.bottom }]}>
+    <LinearGradient
+      colors={[gc.bgTop, gc.bgBottom]}
+      style={[styles.container, { paddingTop: insets.top + 8, paddingBottom: insets.bottom }]}
+    >
+      {/* Top bar */}
       <View style={styles.topBar}>
         <Pressable onPress={onLeave} style={styles.backButton}>
-          <Ionicons name="chevron-back" size={28} color={L.navy} />
+          <Ionicons name="chevron-back" size={24} color={gc.textDark} />
         </Pressable>
-        <View style={styles.turnWrapper}>
-          <TurnIndicator turn={state.turn} winner={state.winner} myPlayer={myPlayer} />
-        </View>
         <View style={styles.opponentChip}>
           <Text style={styles.opponentChipText} numberOfLines={1}>
-            {meta.opponentName}
+            vs {meta.opponentName}
           </Text>
         </View>
       </View>
 
-      <OpponentWallBank wallsLeft={state.wallsLeft[myPlayer === 1 ? 2 : 1]} />
+      {/* Player cards */}
+      <View style={styles.cardsRow}>
+        <PlayerCard
+          name={meta.opponentName}
+          wallsLeft={state.wallsLeft[opponentPlayer]}
+          totalWalls={WALLS_PER_PLAYER}
+          isActive={state.turn === opponentPlayer && state.winner === null}
+          isPlayer={false}
+        />
+        <TurnArrow isPlayerTurn={state.turn === myPlayer} />
+        <PlayerCard
+          name="Você"
+          wallsLeft={state.wallsLeft[myPlayer]}
+          totalWalls={WALLS_PER_PLAYER}
+          isActive={state.turn === myPlayer && state.winner === null}
+          isPlayer={true}
+        />
+      </View>
 
+      {/* Opponent timer */}
+      <View style={styles.timerRow}>
+        <GameTimer
+          timeRemainingMs={opTimeMs}
+          isActive={state.turn === opponentPlayer && state.winner === null && !countdownActive}
+          isPlayer={false}
+        />
+      </View>
+
+      {/* Board */}
       <View style={styles.boardArea}>
         <View
           style={[
@@ -412,6 +464,16 @@ export default function OnlineGameScreen() {
         </View>
       </View>
 
+      {/* Player timer */}
+      <View style={styles.timerRow}>
+        <GameTimer
+          timeRemainingMs={myTimeMs}
+          isActive={state.turn === myPlayer && state.winner === null && !countdownActive}
+          isPlayer={true}
+        />
+      </View>
+
+      {/* Wall bank */}
       <WallBank
         wallsLeft={state.wallsLeft[myPlayer]}
         disabled={!myTurn || state.winner !== null || opponentLeft}
@@ -427,10 +489,12 @@ export default function OnlineGameScreen() {
         onDragEnd={onDragEnd}
       />
 
+      {/* Hint */}
       <Text style={styles.hint}>
-        Toque numa casa verde pra mover. Arraste uma parede do banco até uma intersecção.
+        Toque para mover · Arraste para colocar parede
       </Text>
 
+      {/* Countdown overlay */}
       {countdownActive && countdownStartsAt !== null && (
         <CountdownOverlay
           startsAt={countdownStartsAt}
@@ -487,7 +551,7 @@ export default function OnlineGameScreen() {
         onBackToMenu={onBackToMenu}
       />
 
-    </View>
+    </LinearGradient>
   );
 }
 
@@ -507,11 +571,11 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     width: "100%",
     paddingHorizontal: 16,
-    marginBottom: 10,
+    marginBottom: 4,
   },
   backButton: {
-    width: 40,
-    height: 40,
+    width: 36,
+    height: 36,
     justifyContent: "center",
   },
   topTitle: {
@@ -522,26 +586,28 @@ const styles = StyleSheet.create({
     letterSpacing: 0.5,
     textAlign: "center",
   },
-  turnWrapper: {
-    flex: 1,
-    alignItems: "center",
-  },
   opponentChip: {
-    maxWidth: 110,
-    paddingHorizontal: 10,
+    paddingHorizontal: 12,
     paddingVertical: 4,
     borderRadius: 12,
-    backgroundColor: L.white,
-    borderWidth: 1,
-    borderColor: L.border,
-    alignItems: "center",
-    justifyContent: "center",
+    backgroundColor: "rgba(61,111,255,0.08)",
   },
   opponentChipText: {
-    color: L.navy,
+    color: gc.blue,
     fontSize: 11,
     fontWeight: "700",
-    letterSpacing: 0.3,
+    letterSpacing: 0.5,
+  },
+  cardsRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    width: "90%",
+    gap: 4,
+    marginBottom: 6,
+  },
+  timerRow: {
+    width: "88%",
+    marginVertical: 3,
   },
   boardArea: {
     flex: 1,
@@ -552,12 +618,12 @@ const styles = StyleSheet.create({
     // Wrapper só pra aplicar rotate sem afetar layout dos vizinhos.
   },
   hint: {
-    color: L.textSecondary,
-    fontSize: 12,
+    color: gc.labelColor,
+    fontSize: 11,
     textAlign: "center",
     paddingHorizontal: 16,
-    marginTop: 16,
-    marginBottom: 6,
+    marginTop: 8,
+    marginBottom: 8,
   },
   // === Tela de espera ===
   waitingBody: {
