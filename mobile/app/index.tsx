@@ -12,7 +12,7 @@ import { DifficultyModal, type Difficulty } from "../src/components/DifficultyMo
 import { ProfileButton } from "../src/components/ProfileButton";
 import { theme } from "../src/theme";
 
-type ModeKey = "cpu" | "casual" | "ranked";
+type ModeKey = "cpu" | "online" | "ranked";
 
 type Mode = {
   key: ModeKey;
@@ -31,11 +31,11 @@ const MODES: Mode[] = [
     available: true,
   },
   {
-    key: "casual",
-    label: "Casual",
-    sub: "Partidas online sem ranking",
+    key: "online",
+    label: "Jogo Online",
+    sub: "Jogue contra outras pessoas em tempo real",
     icon: "people-outline",
-    available: false,
+    available: true,
   },
   {
     key: "ranked",
@@ -56,6 +56,7 @@ export default function MenuScreen() {
       return;
     }
     if (mode.key === "cpu") setModalOpen(true);
+    else if (mode.key === "online") router.push("/online");
   };
 
   const onConfirmDifficulty = (difficulty: Difficulty) => {

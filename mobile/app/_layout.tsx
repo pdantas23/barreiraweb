@@ -42,6 +42,7 @@ export default function RootLayout() {
           {/* Declarando as telas só por garantia */}
           <Stack.Screen name="index" />
           <Stack.Screen name="game" />
+          <Stack.Screen name="online" />
         </Stack>
         <DragOverlayRenderer />
       </DragOverlayProvider>
