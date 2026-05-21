@@ -9,6 +9,8 @@
     "test-client": "tsx scripts/test-client.ts",
     "test-room": "tsx scripts/test-room.ts",
     "test-game": "tsx scripts/test-game.ts",
+    "test-reconnect": "tsx scripts/test-reconnect.ts",
+    "test-wo": "tsx scripts/test-wo.ts",
     "play-bot": "tsx scripts/play-bot.ts",
     "typecheck": "tsc --noEmit"
   },

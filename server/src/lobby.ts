@@ -6,7 +6,13 @@
 // - resolver cores e enginePlayer no momento que a sala fica cheia
 // - inicializar o GameState pra a partida começar
 //
-// Sem persistência. Se o processo cair, todas as salas somem — OK por enquanto.
+// Identidade (clientId, opcional):
+// - Quando o socket envia `auth.clientId` no handshake, entra em modo
+//   "reconectável": disconnect agenda timer de N ms; se outro socket
+//   reconectar com o mesmo clientId antes do timer, a sala é reanexada
+//   e o jogo continua. Se o timer estourar, a sala é encerrada e o
+//   oponente vence por W.O. (via callback `onPlayerTimeout`).
+// - Sem clientId, modo "volátil" (legacy): disconnect = leaveRoom imediato.
 
 import {
   initialState,
@@ -16,6 +22,7 @@ import {
   type PlayerId,
   type PublicRoom,
   type RoomDetail,
+  type RpcError,
 } from "@barreira/shared";
 
 // === Tipos internos ===
@@ -23,10 +30,15 @@ import {
 export type RoomStatus = "waiting" | "playing" | "finished";
 
 export type ServerPlayer = {
+  // null = socket "volátil" (não reconectável). Atribuído quando o cliente
+  // passa `auth.clientId` no handshake.
+  clientId: string | null;
   socketId: string;
   name: string;
   color: Color;
   enginePlayer: PlayerId;
+  // Timestamp quando o socket caiu. null = conectado.
+  disconnectedAt: number | null;
 };
 
 export type ServerRoom = {
@@ -34,26 +46,40 @@ export type ServerRoom = {
   status: RoomStatus;
   isPrivate: boolean;
   password: string | null;
-  // Host é sempre players[0] (o que criou a sala).
-  // hostColor guarda a escolha original (pode ser "random") só pra UI da lista.
   hostColor: ColorChoice;
   hostName: string;
   players: ServerPlayer[];
   gameState: GameState | null;
 };
 
-// === Estado global do lobby ===
+// === Estado global ===
 
 const rooms = new Map<string, ServerRoom>();
 const socketToRoom = new Map<string, string>();
+const clientToRoom = new Map<string, string>();
+const disconnectTimers = new Map<string, NodeJS.Timeout>();
+
+// Configurável via env pra acelerar testes (default 30s).
+const DISCONNECT_TIMEOUT_MS = Number(process.env.DISCONNECT_TIMEOUT_MS ?? 30_000);
+
+// === Callback de timeout (registrado pelo index.ts) ===
+
+export type TimeoutCallback = (
+  clientId: string,
+  room: ServerRoom,
+  remaining: ServerPlayer[],
+) => void;
+
+let onTimeoutCb: TimeoutCallback | null = null;
+export const setOnPlayerTimeout = (cb: TimeoutCallback) => {
+  onTimeoutCb = cb;
+};
 
 // === Helpers ===
 
-// Sem 0/O/1/I pra reduzir confusão visual quando o jogador soletra o código.
 const CODE_CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 
 const generateCode = (): string => {
-  // Gera até dar um código não usado. Probabilidade de colisão = 32^6 ≈ 1B.
   for (let attempt = 0; attempt < 10; attempt++) {
     let out = "";
     for (let i = 0; i < 6; i++) {
@@ -61,7 +87,7 @@ const generateCode = (): string => {
     }
     if (!rooms.has(out)) return out;
   }
-  throw new Error("não consegui gerar código único — o lobby está absurdamente cheio");
+  throw new Error("lobby cheio demais — códigos esgotados");
 };
 
 const generatePassword = (): string => {
@@ -72,7 +98,6 @@ const generatePassword = (): string => {
   return out;
 };
 
-// "random" → "cyan" ou "red" via sorteio.
 const resolveColor = (choice: ColorChoice): Color => {
   if (choice === "cyan") return "cyan";
   if (choice === "red") return "red";
@@ -98,29 +123,31 @@ export const toRoomDetail = (
   const isHost = room.players[0]?.socketId === forSocketId;
   return {
     ...toPublicRoom(room),
-    // Só o host enxerga a senha — convidados acham o código mas não
-    // precisam ver a senha pra entrar (eles digitaram pra conseguir entrar).
     password: isHost ? room.password : null,
   };
 };
 
-// === API pública ===
+// === API: criar / entrar / listar / sair ===
 
 export type CreateInput = {
   hostSocketId: string;
+  hostClientId: string | null;
   hostName: string;
   color: ColorChoice;
   isPrivate: boolean;
 };
 
 export const createRoom = (input: CreateInput): ServerRoom => {
+  // Bloqueia "duas salas pelo mesmo cliente" — tanto pelo socket
+  // (volátil) quanto pelo clientId (reconectável).
   if (socketToRoom.has(input.hostSocketId)) {
     throw new LobbyError("already-in-room");
   }
+  if (input.hostClientId && clientToRoom.has(input.hostClientId)) {
+    throw new LobbyError("already-in-room");
+  }
+
   const code = generateCode();
-  // hostColor aqui é a ESCOLHA do host ("random" ainda é possível).
-  // A cor REAL só vai ser fixada quando a sala fechar (2º jogador entrar) —
-  // assim host e convidado ficam definidos juntos sem inconsistência.
   const room: ServerRoom = {
     code,
     status: "waiting",
@@ -130,22 +157,25 @@ export const createRoom = (input: CreateInput): ServerRoom => {
     hostName: input.hostName,
     players: [
       {
+        clientId: input.hostClientId,
         socketId: input.hostSocketId,
         name: input.hostName,
-        // Cor temporária — vai ser sobrescrita em `startGame` se for "random".
         color: input.color === "random" ? "cyan" : input.color,
-        enginePlayer: 1, // host = engine player 1 (sai de baixo). Determinístico.
+        enginePlayer: 1,
+        disconnectedAt: null,
       },
     ],
     gameState: null,
   };
   rooms.set(code, room);
   socketToRoom.set(input.hostSocketId, code);
+  if (input.hostClientId) clientToRoom.set(input.hostClientId, code);
   return room;
 };
 
 export type JoinInput = {
   socketId: string;
+  clientId: string | null;
   playerName: string;
   code: string;
   password?: string;
@@ -153,6 +183,9 @@ export type JoinInput = {
 
 export const joinRoom = (input: JoinInput): ServerRoom => {
   if (socketToRoom.has(input.socketId)) {
+    throw new LobbyError("already-in-room");
+  }
+  if (input.clientId && clientToRoom.has(input.clientId)) {
     throw new LobbyError("already-in-room");
   }
   const code = input.code.toUpperCase().trim();
@@ -163,33 +196,47 @@ export const joinRoom = (input: JoinInput): ServerRoom => {
     throw new LobbyError("wrong-password");
   }
 
-  // Resolve cores no momento que a sala fecha — é a única hora que sabemos
-  // os 2 jogadores envolvidos e podemos garantir consistência.
+  // Resolve cores agora que sabemos os 2 jogadores.
   const hostColor = resolveColor(room.hostColor);
   room.players[0].color = hostColor;
 
   room.players.push({
+    clientId: input.clientId,
     socketId: input.socketId,
     name: input.playerName,
     color: oppositeColor(hostColor),
     enginePlayer: 2,
+    disconnectedAt: null,
   });
   room.status = "playing";
   room.gameState = initialState();
 
   socketToRoom.set(input.socketId, code);
+  if (input.clientId) clientToRoom.set(input.clientId, code);
   return room;
 };
 
+// Saída "voluntária": user clicou em voltar, ou socket sem clientId caiu.
+// Remove imediatamente, sem timer de graça.
 export const leaveRoom = (socketId: string): ServerRoom | null => {
   const code = socketToRoom.get(socketId);
   if (!code) return null;
   const room = rooms.get(code);
   socketToRoom.delete(socketId);
   if (!room) return null;
-  room.players = room.players.filter((p) => p.socketId !== socketId);
-  // Se ficou vazia, deleta. Se ainda tem alguém, marca como finished —
-  // o outro jogador será notificado pelo handler.
+
+  const player = room.players.find((p) => p.socketId === socketId);
+  if (player) {
+    if (player.clientId) {
+      // Cancela qualquer timer pendente — vamos remover agora mesmo.
+      const t = disconnectTimers.get(player.clientId);
+      if (t) clearTimeout(t);
+      disconnectTimers.delete(player.clientId);
+      clientToRoom.delete(player.clientId);
+    }
+    room.players = room.players.filter((p) => p.socketId !== socketId);
+  }
+
   if (room.players.length === 0) {
     rooms.delete(code);
     return null;
@@ -204,8 +251,6 @@ export const getRoomBySocket = (socketId: string): ServerRoom | null => {
   return rooms.get(code) ?? null;
 };
 
-// Lista só salas em "waiting" (a entrar). Salas em "playing" / "finished"
-// não interessam pro lobby.
 export const listPublicRooms = (): PublicRoom[] => {
   const out: PublicRoom[] = [];
   for (const room of rooms.values()) {
@@ -215,12 +260,98 @@ export const listPublicRooms = (): PublicRoom[] => {
   return out;
 };
 
-// === Erro tipado ===
+// === Reconexão ===
 
-import type { RpcError } from "@barreira/shared";
+// Chamado no socket.disconnect quando o socket tinha clientId.
+// Marca o player como desconectado e agenda timeout — o oponente NÃO
+// é notificado ainda. Se ele voltar dentro do prazo, ninguém perde nada.
+export const markDisconnected = (socketId: string): void => {
+  const room = getRoomBySocket(socketId);
+  if (!room) return;
+  const player = room.players.find((p) => p.socketId === socketId);
+  if (!player || !player.clientId) return;
+
+  player.disconnectedAt = Date.now();
+  // socketToRoom mantém apontando — mesmo "stale", deixa pra próxima
+  // reanexa atualizar. Limpar agora poderia atrapalhar o reanchor.
+
+  const existing = disconnectTimers.get(player.clientId);
+  if (existing) clearTimeout(existing);
+
+  const clientId = player.clientId;
+  const timer = setTimeout(() => {
+    disconnectTimers.delete(clientId);
+    finalizeTimeout(clientId);
+  }, DISCONNECT_TIMEOUT_MS);
+  disconnectTimers.set(clientId, timer);
+};
+
+// Player não voltou no tempo. Remove da sala + notifica callback (que vai
+// emitir gameOver/opponentLeft).
+const finalizeTimeout = (clientId: string): void => {
+  const code = clientToRoom.get(clientId);
+  if (!code) return;
+  const room = rooms.get(code);
+  if (!room) {
+    clientToRoom.delete(clientId);
+    return;
+  }
+  const player = room.players.find((p) => p.clientId === clientId);
+  if (!player) return;
+
+  // Remove dele da sala.
+  socketToRoom.delete(player.socketId);
+  clientToRoom.delete(clientId);
+  const remaining = room.players.filter((p) => p.clientId !== clientId);
+  room.players = remaining;
+
+  // Se ninguém sobrou, descarta a sala. Caso contrário marca como finished.
+  if (remaining.length === 0) {
+    rooms.delete(code);
+  } else {
+    room.status = "finished";
+  }
+
+  if (onTimeoutCb) onTimeoutCb(clientId, room, remaining);
+};
+
+// Tenta reanexar um socket novo a uma sala existente via clientId.
+// Devolve o par {room, player} já atualizado, ou null se não existe sala.
+export const attemptReanchor = (
+  clientId: string,
+  newSocketId: string,
+): { room: ServerRoom; player: ServerPlayer } | null => {
+  const code = clientToRoom.get(clientId);
+  if (!code) return null;
+  const room = rooms.get(code);
+  if (!room) {
+    clientToRoom.delete(clientId);
+    return null;
+  }
+  const player = room.players.find((p) => p.clientId === clientId);
+  if (!player) return null;
+
+  // Cancela timer (se houver) — player voltou a tempo.
+  const t = disconnectTimers.get(clientId);
+  if (t) clearTimeout(t);
+  disconnectTimers.delete(clientId);
+
+  // Atualiza mapping pro novo socketId.
+  socketToRoom.delete(player.socketId);
+  player.socketId = newSocketId;
+  player.disconnectedAt = null;
+  socketToRoom.set(newSocketId, code);
+
+  return { room, player };
+};
+
+// === Erro tipado ===
 
 export class LobbyError extends Error {
   constructor(public readonly code: RpcError, message?: string) {
     super(message ?? code);
   }
 }
+
+// Pra testes saberem o timeout configurado.
+export const getDisconnectTimeoutMs = () => DISCONNECT_TIMEOUT_MS;

@@ -18,12 +18,16 @@ import {
 } from "@barreira/shared";
 import {
   LobbyError,
+  attemptReanchor,
   createRoom,
   getRoomBySocket,
   joinRoom,
   leaveRoom,
   listPublicRooms,
+  markDisconnected,
+  setOnPlayerTimeout,
   toRoomDetail,
+  type ServerPlayer,
   type ServerRoom,
 } from "./lobby.js";
 
@@ -95,15 +99,64 @@ const broadcastGameStart = (room: ServerRoom) => {
   }
 };
 
+// Envia gameStart APENAS pro player especificado — usado em reanexa
+// pra um cliente que reconectou recuperar identidade + state.
+const sendGameStartTo = (room: ServerRoom, me: ServerPlayer) => {
+  if (!room.gameState) return;
+  const opponent = room.players.find((p) => p.socketId !== me.socketId);
+  if (!opponent) return;
+  const payload: GameStartPayload = {
+    state: serializeState(room.gameState),
+    yourEnginePlayer: me.enginePlayer,
+    yourColor: me.color,
+    opponentName: opponent.name,
+    opponentColor: opponent.color,
+  };
+  io.to(me.socketId).emit("gameStart", payload);
+};
+
+// Callback: timer de desconexão estourou — quem sobrou vence por W.O.
+setOnPlayerTimeout((_clientId, room, remaining) => {
+  if (remaining.length === 1 && room.gameState) {
+    const winner = remaining[0].enginePlayer;
+    console.log(
+      `[timeout] sala ${room.code}: ${winner} venceu por W.O. (oponente não voltou)`,
+    );
+    // Marca winner no state pra UI mostrar gameOver coerente.
+    room.gameState = { ...room.gameState, winner };
+    io.to(room.code).emit("stateUpdate", { state: serializeState(room.gameState) });
+    io.to(room.code).emit("gameOver", { winner });
+    io.to(room.code).emit("opponentLeft");
+  }
+});
+
 // === Conexões ===
 
 io.on("connection", (socket: TypedSocket) => {
-  console.log(`[+] conectou: ${socket.id}`);
+  // Cliente pode passar `auth.clientId` no handshake pra entrar em modo
+  // "reconectável". Sem clientId é modo legado (volátil).
+  const clientId = (socket.handshake.auth?.clientId as string | undefined) ?? null;
+  socket.data.clientId = clientId;
+  console.log(`[+] conectou: ${socket.id}${clientId ? ` (clientId ${clientId.slice(0, 8)}…)` : ""}`);
+
+  // Reanchor: cliente conhecido voltou a uma sala em andamento.
+  if (clientId) {
+    const anchor = attemptReanchor(clientId, socket.id);
+    if (anchor) {
+      socket.join(anchor.room.code);
+      console.log(`[reanchor] ${clientId.slice(0, 8)}… voltou pra ${anchor.room.code}`);
+      // Reentrega identidade + state atual.
+      if (anchor.room.gameState) {
+        sendGameStartTo(anchor.room, anchor.player);
+      }
+    }
+  }
 
   socket.on("createRoom", (payload, ack) =>
     rpc((p: typeof payload) => {
       const room = createRoom({
         hostSocketId: socket.id,
+        hostClientId: clientId,
         hostName: p.hostName,
         color: p.color,
         isPrivate: p.isPrivate,
@@ -118,6 +171,7 @@ io.on("connection", (socket: TypedSocket) => {
     rpc((p: typeof payload) => {
       const room = joinRoom({
         socketId: socket.id,
+        clientId,
         playerName: p.playerName,
         code: p.code,
         password: p.password,
@@ -125,7 +179,6 @@ io.on("connection", (socket: TypedSocket) => {
       socket.join(room.code);
       console.log(`[room] ${p.playerName} entrou em ${room.code}`);
 
-      // Sala fechou: dispara início de partida pros 2.
       broadcastGameStart(room);
       return toRoomDetail(room, socket.id);
     })(payload, socket, ack),
@@ -192,7 +245,15 @@ io.on("connection", (socket: TypedSocket) => {
   socket.on("disconnect", (reason) => {
     console.log(`[-] desconectou: ${socket.id} (${reason})`);
     const room = getRoomBySocket(socket.id);
-    if (room) {
+    if (!room) return;
+
+    if (clientId) {
+      // Modo reconectável: agenda timer, oponente não é avisado ainda.
+      // Se o player voltar dentro do timeout, ninguém perde nada.
+      console.log(`[disconnect] ${clientId.slice(0, 8)}… aguardando reanexa por até ${process.env.DISCONNECT_TIMEOUT_MS ?? 30_000}ms`);
+      markDisconnected(socket.id);
+    } else {
+      // Modo volátil: leaveRoom imediato, oponente recebe opponentLeft.
       leaveRoom(socket.id);
       io.to(room.code).emit("opponentLeft");
     }

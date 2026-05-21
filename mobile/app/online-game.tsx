@@ -24,7 +24,7 @@ import {
 import { Board } from "../src/components/Board";
 import { GameOverModal } from "../src/components/GameOverModal";
 import { TurnIndicator } from "../src/components/TurnIndicator";
-import { sendMove } from "../src/net/api";
+import { leaveRoom, sendMove } from "../src/net/api";
 import { getSocket } from "../src/net/socket";
 import { theme } from "../src/theme";
 
@@ -47,6 +47,9 @@ export default function OnlineGameScreen() {
   const [meta, setMeta] = useState<GameStartPayload | null>(null);
   const [state, setState] = useState<GameState | null>(null);
   const [opponentLeft, setOpponentLeft] = useState(false);
+  // Banner "Reconectando..." quando o socket cai e ainda não voltou.
+  // O server-side já segura a sala via clientId; aqui é só feedback visual.
+  const [reconnecting, setReconnecting] = useState(false);
 
   const boardRef = useAnimatedRef<Animated.View>();
 
@@ -73,16 +76,25 @@ export default function OnlineGameScreen() {
       setOpponentLeft(true);
     };
 
+    // Conexão caiu → mostra banner. Volta → some.
+    // O server espera o clientId voltar dentro do DISCONNECT_TIMEOUT_MS.
+    const onDisconnect = () => setReconnecting(true);
+    const onConnect = () => setReconnecting(false);
+
     socket.on("gameStart", onGameStart);
     socket.on("stateUpdate", onStateUpdate);
     socket.on("gameOver", onGameOver);
     socket.on("opponentLeft", onOpponentLeft);
+    socket.on("disconnect", onDisconnect);
+    socket.on("connect", onConnect);
 
     return () => {
       socket.off("gameStart", onGameStart);
       socket.off("stateUpdate", onStateUpdate);
       socket.off("gameOver", onGameOver);
       socket.off("opponentLeft", onOpponentLeft);
+      socket.off("disconnect", onDisconnect);
+      socket.off("connect", onConnect);
     };
   }, []);
 
@@ -107,8 +119,12 @@ export default function OnlineGameScreen() {
     }
   };
 
+  // Saída explícita: chama RPC pra server limpar imediatamente (sem esperar
+  // o timeout de disconnect). Fire-and-forget — não bloqueia a navegação.
   const onLeave = () => {
-    // TODO Fase 5: leaveRoom() RPC + cleanup. Por ora só volta.
+    void leaveRoom().catch(() => {
+      // ignora — se RPC falhar, o disconnect natural ainda vai limpar
+    });
     router.back();
   };
 
@@ -200,6 +216,15 @@ export default function OnlineGameScreen() {
           ? "Toque numa casa verde pra mover. (Paredes em breve no modo online.)"
           : "Toque numa casa verde pra mover."}
       </Text>
+
+      {reconnecting && !opponentLeft && state.winner === null && (
+        <View style={styles.reconnectBanner}>
+          <ActivityIndicator size="small" color={theme.player1} />
+          <Text style={styles.reconnectText}>
+            Reconectando... sua vaga está reservada por uns segundos.
+          </Text>
+        </View>
+      )}
 
       {opponentLeft && (
         <View style={styles.leftBanner}>
@@ -327,6 +352,26 @@ const styles = StyleSheet.create({
     fontWeight: "900",
     letterSpacing: 8,
     fontVariant: ["tabular-nums"],
+  },
+  // === Banner de reconexão ===
+  reconnectBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    backgroundColor: `${theme.player1}1f`,
+    borderRadius: 10,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    marginTop: 14,
+    marginHorizontal: 16,
+    borderWidth: 1,
+    borderColor: theme.player1,
+  },
+  reconnectText: {
+    color: theme.textPrimary,
+    fontSize: 12,
+    fontWeight: "600",
+    flex: 1,
   },
   // === Banner de oponente saiu ===
   leftBanner: {

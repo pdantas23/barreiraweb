@@ -10,6 +10,7 @@ import type {
   ClientToServerEvents,
   ServerToClientEvents,
 } from "@barreira/shared";
+import { getClientId } from "./clientId";
 
 // EXPO_PUBLIC_* é exposto pelo Expo em runtime via process.env.
 // Fallback pra localhost só pra não quebrar em dev se o .env sumir.
@@ -26,10 +27,14 @@ export const getSocket = (): AppSocket => {
     socket = io(SERVER_URL, {
       transports: ["websocket"],
       autoConnect: false,
-      // Reconexão automática — Fase 5 vai integrar com restore de state.
+      // Reconexão automática — server reanexa a sala via clientId.
       reconnection: true,
       reconnectionAttempts: 5,
       reconnectionDelay: 800,
+      // clientId vai no handshake auth → server lê via socket.handshake.auth.
+      // Permite que o server identifique esse cliente mesmo após o socket.id
+      // mudar (Wi-Fi caiu, app voltou de background, etc).
+      auth: { clientId: getClientId() },
     });
   }
   return socket;

@@ -9,3 +9,9 @@ dist/
 ios/
 android/
 *.tsbuildinfo
+
+# pm2 (gerado no VPS, não vai no repo)
+server/logs/
+
+# Backup local que pode aparecer ao mexer no VPS via sftp
+_archive*/
