@@ -15,21 +15,33 @@ import {
   canPlaceWall,
   deserializeState,
   getValidMoves,
+  goalRow,
+  hasPathToRow,
+  registerWall,
   type Color,
   type GameOverPayload,
   type GameStartPayload,
   type GameState,
   type PlayerId,
+  type RematchDeclinedPayload,
+  type RematchExpiredPayload,
+  type RematchRequestedPayload,
   type StateUpdatePayload,
   type WallPlacement,
   type WallType,
 } from "@barreira/shared";
 import { Board } from "../src/components/Board";
+import { CountdownOverlay } from "../src/components/CountdownOverlay";
 import { GameOverModal } from "../src/components/GameOverModal";
 import { TurnIndicator } from "../src/components/TurnIndicator";
-import { WallBank } from "../src/components/WallBank";
+import { OpponentWallBank, WallBank } from "../src/components/WallBank";
 import { useResponsiveBoard } from "../src/hooks/useResponsiveBoard";
-import { leaveRoom, sendMove } from "../src/net/api";
+import {
+  leaveRoom,
+  requestRematch as requestRematchRpc,
+  respondRematch as respondRematchRpc,
+  sendMove,
+} from "../src/net/api";
 import {
   clearLastGameStart,
   getLastGameStart,
@@ -57,13 +69,23 @@ export default function OnlineGameScreen() {
   const [meta, setMeta] = useState<GameStartPayload | null>(null);
   const [state, setState] = useState<GameState | null>(null);
   const [opponentLeft, setOpponentLeft] = useState(false);
-  // Banner "Reconectando..." quando o socket cai e ainda não voltou.
-  // O server-side já segura a sala via clientId; aqui é só feedback visual.
   const [reconnecting, setReconnecting] = useState(false);
+
+  // Countdown de 3s no início da partida
+  const [countdownStartsAt, setCountdownStartsAt] = useState<number | null>(null);
+  const [countdownActive, setCountdownActive] = useState(false);
+
+  // Rematch state
+  type RematchStatus = "idle" | "requesting" | "requested" | "declined" | "expired";
+  const [rematchStatus, setRematchStatus] = useState<RematchStatus>("idle");
+  const [rematchExpiresAt, setRematchExpiresAt] = useState(0);
+  const [rematchRequesterName, setRematchRequesterName] = useState("");
 
   // Drag de parede — espelha o que game.tsx (CPU local) já faz.
   const [dragType, setDragType] = useState<WallType | null>(null);
   const [ghost, setGhost] = useState<WallPlacement | null>(null);
+  const [ghostInvalid, setGhostInvalid] = useState(false);
+  const [showBlockedToast, setShowBlockedToast] = useState(false);
 
   const boardRef = useAnimatedRef<Animated.View>();
   const layout = useResponsiveBoard();
@@ -88,6 +110,8 @@ export default function OnlineGameScreen() {
     if (cached) {
       setMeta(cached);
       setState(deserializeState(cached.state));
+      setCountdownStartsAt(cached.countdownStartsAt);
+      setCountdownActive(true);
     }
 
     const socket = getSocket();
@@ -95,21 +119,37 @@ export default function OnlineGameScreen() {
     const onGameStart = (payload: GameStartPayload) => {
       setMeta(payload);
       setState(deserializeState(payload.state));
+      setOpponentLeft(false);
+      setCountdownStartsAt(payload.countdownStartsAt);
+      setCountdownActive(true);
+      // Reset rematch state for new game
+      setRematchStatus("idle");
+      setRematchExpiresAt(0);
+      setRematchRequesterName("");
     };
     const onStateUpdate = (payload: StateUpdatePayload) => {
       setState(deserializeState(payload.state));
     };
     const onGameOver = (_payload: GameOverPayload) => {
       // O winner já vem no state via stateUpdate (vem antes do gameOver).
-      // O evento gameOver é redundante de propósito — sirve como sinal
-      // explícito de "fim de partida" caso o cliente queira logar/analytics.
     };
     const onOpponentLeft = () => {
       setOpponentLeft(true);
     };
 
-    // Conexão caiu → mostra banner. Volta → some.
-    // O server espera o clientId voltar dentro do DISCONNECT_TIMEOUT_MS.
+    // Rematch events
+    const onRematchRequested = (payload: RematchRequestedPayload) => {
+      setRematchStatus("requested");
+      setRematchExpiresAt(payload.expiresAt);
+      setRematchRequesterName(payload.fromName);
+    };
+    const onRematchDeclined = (_payload: RematchDeclinedPayload) => {
+      setRematchStatus("declined");
+    };
+    const onRematchExpired = (_payload: RematchExpiredPayload) => {
+      setRematchStatus("expired");
+    };
+
     const onDisconnect = () => setReconnecting(true);
     const onConnect = () => setReconnecting(false);
 
@@ -117,6 +157,9 @@ export default function OnlineGameScreen() {
     socket.on("stateUpdate", onStateUpdate);
     socket.on("gameOver", onGameOver);
     socket.on("opponentLeft", onOpponentLeft);
+    socket.on("rematchRequested", onRematchRequested);
+    socket.on("rematchDeclined", onRematchDeclined);
+    socket.on("rematchExpired", onRematchExpired);
     socket.on("disconnect", onDisconnect);
     socket.on("connect", onConnect);
 
@@ -125,6 +168,9 @@ export default function OnlineGameScreen() {
       socket.off("stateUpdate", onStateUpdate);
       socket.off("gameOver", onGameOver);
       socket.off("opponentLeft", onOpponentLeft);
+      socket.off("rematchRequested", onRematchRequested);
+      socket.off("rematchDeclined", onRematchDeclined);
+      socket.off("rematchExpired", onRematchExpired);
       socket.off("disconnect", onDisconnect);
       socket.off("connect", onConnect);
     };
@@ -132,7 +178,7 @@ export default function OnlineGameScreen() {
 
   const myPlayer: PlayerId = meta?.yourEnginePlayer ?? 1;
   const myTurn =
-    state !== null && state.turn === myPlayer && state.winner === null;
+    state !== null && state.turn === myPlayer && state.winner === null && !countdownActive;
 
   // validMoves só preenche quando é a vez do jogador — evita highlight
   // verde durante o turno do oponente. Também zera durante drag de parede
@@ -167,42 +213,91 @@ export default function OnlineGameScreen() {
   const onIntersectionChange = (ir: number, ic: number, type: WallType) => {
     const placement: WallPlacement = { type, interRow: ir, interCol: ic };
     const s = stateRef.current;
-    // Predição local pra desenhar o ghost — só renderiza se o server provavelmente
-    // aceitaria. A autoridade ainda é o server: se ele rejeitar no onDragEnd,
-    // simplesmente nada acontece (state não muda).
     if (s && canPlaceWall(s.walls, placement)) {
+      const nextWalls = registerWall(s.walls, placement);
+      const blocksPath =
+        !hasPathToRow(nextWalls, s.p1, goalRow(1)) ||
+        !hasPathToRow(nextWalls, s.p2, goalRow(2));
       setGhost(placement);
+      setGhostInvalid(blocksPath);
+      setShowBlockedToast(blocksPath);
     } else {
       setGhost(null);
+      setGhostInvalid(false);
+      setShowBlockedToast(false);
     }
   };
 
-  const onIntersectionLeave = () => setGhost(null);
+  const onIntersectionLeave = () => {
+    setGhost(null);
+    setGhostInvalid(false);
+    setShowBlockedToast(false);
+  };
+
+  const ghostInvalidRef = useRef(ghostInvalid);
+  ghostInvalidRef.current = ghostInvalid;
 
   const onDragEnd = async () => {
     if (dragTypeRef.current === null) return;
     const g = ghostRef.current;
+    const invalid = ghostInvalidRef.current;
     setDragType(null);
     setGhost(null);
+    setGhostInvalid(false);
+    setShowBlockedToast(false);
     hide();
-    if (!g) return;
+    if (!g || invalid) return;
     const res = await sendMove({ kind: "wall", placement: g });
     if (!res.ok) {
       console.warn("[wall] rejeitado:", res.error, res.message);
     }
   };
 
-  // Saída explícita: chama RPC pra server limpar imediatamente (sem esperar
-  // o timeout de disconnect). Fire-and-forget — não bloqueia a navegação.
-  const onLeave = () => {
-    void leaveRoom().catch(() => {
-      // ignora — se RPC falhar, o disconnect natural ainda vai limpar
-    });
+  const doLeave = () => {
+    void leaveRoom().catch(() => {});
     router.back();
   };
 
+  const onLeave = () => {
+    if (state && state.winner === null && !opponentLeft) {
+      Alert.alert("Sair da partida", "Tem certeza que deseja sair?", [
+        { text: "Cancelar", style: "cancel" },
+        { text: "Sair", style: "destructive", onPress: doLeave },
+      ]);
+    } else {
+      doLeave();
+    }
+  };
+
   const onBackToMenu = () => router.replace("/");
-  const onBackToLobby = () => router.replace("/online");
+  const onBackToLobby = () => {
+    void leaveRoom().catch(() => {});
+    router.replace("/online");
+  };
+
+  // === Rematch callbacks ===
+  const onRequestRematch = async () => {
+    setRematchStatus("requesting");
+    const res = await requestRematchRpc();
+    if (!res.ok) {
+      // Se o servidor detectou mutual, a nova partida já vai chegar via gameStart.
+      // Se deu outro erro, reseta.
+      if (res.error !== "rematch-already-pending") {
+        setRematchStatus("idle");
+      }
+    }
+  };
+
+  const onAcceptRematch = async () => {
+    setRematchStatus("idle");
+    await respondRematchRpc(true);
+    // Nova partida chega via gameStart
+  };
+
+  const onDeclineRematch = async () => {
+    setRematchStatus("idle");
+    await respondRematchRpc(false);
+  };
 
   // === Render: tela de espera (host aguardando guest) ===
 
@@ -265,23 +360,25 @@ export default function OnlineGameScreen() {
         </View>
       </View>
 
-      {/* Wrapper que aplica flip 180° quando jogador é engine player 2,
-          pra ele sempre se ver "saindo de baixo". Eventos de toque
-          são corretamente reposicionados pelo RN. O WallBank tem prop
-          `flipped` que espelha o cálculo de intersecção pra coincidir. */}
-      <View
-        style={[
-          styles.boardWrap,
-          myPlayer === 2 && { transform: [{ rotate: "180deg" }] },
-        ]}
-      >
-        <Board
-          state={state}
-          validMoves={validMoves}
-          ghost={ghost}
-          onSquareTap={onSquareTap}
-          boardRef={boardRef}
-        />
+      <OpponentWallBank wallsLeft={state.wallsLeft[myPlayer === 1 ? 2 : 1]} />
+
+      <View style={styles.boardArea}>
+        <View
+          style={[
+            styles.boardWrap,
+            myPlayer === 2 && { transform: [{ rotate: "180deg" }] },
+          ]}
+        >
+          <Board
+            state={state}
+            validMoves={validMoves}
+            ghost={ghost}
+            ghostInvalid={ghostInvalid}
+            showBlockedToast={showBlockedToast}
+            onSquareTap={onSquareTap}
+            boardRef={boardRef}
+          />
+        </View>
       </View>
 
       <WallBank
@@ -303,6 +400,13 @@ export default function OnlineGameScreen() {
         Toque numa casa verde pra mover. Arraste uma parede do banco até uma intersecção.
       </Text>
 
+      {countdownActive && countdownStartsAt !== null && (
+        <CountdownOverlay
+          startsAt={countdownStartsAt}
+          onComplete={() => setCountdownActive(false)}
+        />
+      )}
+
       {reconnecting && !opponentLeft && state.winner === null && (
         <View style={styles.reconnectBanner}>
           <ActivityIndicator size="small" color={theme.player1} />
@@ -321,8 +425,6 @@ export default function OnlineGameScreen() {
 
       <GameOverModal
         visible={state.winner !== null && !opponentLeft}
-        // Mapeia winner real pra "perspectiva local": 1 = eu venci, 2 = perdi.
-        // O modal usa essa convenção (cyan = vitória, red = derrota).
         winner={
           state.winner === null
             ? null
@@ -330,17 +432,25 @@ export default function OnlineGameScreen() {
               ? 1
               : 2
         }
-        onRematch={onBackToLobby}
+        onRematch={onRequestRematch}
         onBackToMenu={onBackToMenu}
+        online
+        rematchStatus={rematchStatus}
+        rematchExpiresAt={rematchExpiresAt}
+        rematchRequesterName={rematchRequesterName}
+        onAcceptRematch={onAcceptRematch}
+        onDeclineRematch={onDeclineRematch}
+        onLeave={onBackToLobby}
       />
 
-      {/* Modal de "oponente saiu". Reusa GameOverModal pra manter visual. */}
+      {/* Modal de "oponente saiu". Sem rematch possível. */}
       <GameOverModal
         visible={opponentLeft}
         winner={2}
         onRematch={onBackToLobby}
         onBackToMenu={onBackToMenu}
       />
+
     </View>
   );
 }
@@ -393,6 +503,11 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     letterSpacing: 0.3,
   },
+  boardArea: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+  },
   boardWrap: {
     // Wrapper só pra aplicar rotate sem afetar layout dos vizinhos.
   },
@@ -401,7 +516,8 @@ const styles = StyleSheet.create({
     fontSize: 12,
     textAlign: "center",
     paddingHorizontal: 16,
-    marginTop: 14,
+    marginTop: 16,
+    marginBottom: 6,
   },
   // === Tela de espera ===
   waitingBody: {

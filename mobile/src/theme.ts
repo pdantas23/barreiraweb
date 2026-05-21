@@ -24,10 +24,10 @@ export const theme = {
   bg: "#121216",
   boardBg: "#1a1a20",
   boardBorder: "#2a2a35",
-  square: "#2a2a35",
-  squareAlt: "#333344",
-  validMove: "#2e4a3b", // verde sóbrio (movimento da peça)
-  wallTarget: "#2a3a5c", // azul sóbrio (vaga válida pra parede)
+  square: "#e8e8e8",
+  squareAlt: "#1a1a1a",
+  validMove: "#2e4a3b",
+  wallTarget: "#2a3a5c",
   wall: "#22569e",
   wallHighlight: "#3a7bd5",
   wallGhost: "rgba(34, 86, 158, 0.4)",

@@ -39,3 +39,13 @@ export const sendMove = async (move: Move): Promise<RpcResult<null>> => {
   const s = connectSocket();
   return await s.emitWithAck("move", { move });
 };
+
+export const requestRematch = async (): Promise<RpcResult<null>> => {
+  const s = connectSocket();
+  return await s.emitWithAck("requestRematch", {});
+};
+
+export const respondRematch = async (accept: boolean): Promise<RpcResult<null>> => {
+  const s = connectSocket();
+  return await s.emitWithAck("respondRematch", { accept });
+};

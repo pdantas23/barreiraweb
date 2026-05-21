@@ -65,6 +65,9 @@ export type GameStartPayload = {
   yourColor: Color;
   opponentName: string;
   opponentColor: Color;
+  // Timestamp (ms) a partir do qual o countdown de 3s começa.
+  // Ambos os clientes calculam o restante com base nesse valor.
+  countdownStartsAt: number;
 };
 
 export type StateUpdatePayload = {
@@ -79,6 +82,19 @@ export type MoveRejectedPayload = {
   error: string;
 };
 
+// === Rematch ===
+
+export type RequestRematchPayload = Record<string, never>;
+export type RespondRematchPayload = { accept: boolean };
+
+export type RematchRequestedPayload = {
+  fromName: string;
+  expiresAt: number; // timestamp ms
+};
+
+export type RematchDeclinedPayload = Record<string, never>;
+export type RematchExpiredPayload = Record<string, never>;
+
 // === RPC error envelope ===
 
 // Lista de erros conhecidos — qualquer outro vira "internal-error".
@@ -92,6 +108,9 @@ export type RpcError =
   | "not-your-turn"
   | "invalid-move"
   | "game-over"
+  | "game-not-over"
+  | "rematch-already-pending"
+  | "no-rematch-pending"
   | "invalid-payload"
   | "internal-error";
 
@@ -123,6 +142,14 @@ export type ClientToServerEvents = {
     payload: MovePayload,
     ack: (res: RpcResult<null>) => void,
   ) => void;
+  requestRematch: (
+    payload: RequestRematchPayload,
+    ack: (res: RpcResult<null>) => void,
+  ) => void;
+  respondRematch: (
+    payload: RespondRematchPayload,
+    ack: (res: RpcResult<null>) => void,
+  ) => void;
 };
 
 export type ServerToClientEvents = {
@@ -132,4 +159,7 @@ export type ServerToClientEvents = {
   moveRejected: (payload: MoveRejectedPayload) => void;
   gameOver: (payload: GameOverPayload) => void;
   opponentLeft: () => void;
+  rematchRequested: (payload: RematchRequestedPayload) => void;
+  rematchDeclined: (payload: RematchDeclinedPayload) => void;
+  rematchExpired: (payload: RematchExpiredPayload) => void;
 };

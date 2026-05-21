@@ -1,12 +1,11 @@
 import { Pressable, View, StyleSheet } from "react-native";
-import { theme } from "../theme";
+import { gc } from "../gameColors";
 
 type Props = {
   size: number;
   index: number;
   isAlt: boolean;
   isHighlighted: boolean;
-  highlightColor?: string;
   onPress?: (index: number) => void;
   children?: React.ReactNode;
 };
@@ -14,22 +13,26 @@ type Props = {
 export const Square = ({
   size,
   index,
-  isAlt,
+  isAlt: _isAlt,
   isHighlighted,
-  highlightColor,
   onPress,
   children,
 }: Props) => {
-  const bg = isHighlighted
-    ? highlightColor ?? theme.validMove
-    : isAlt
-      ? theme.squareAlt
-      : theme.square;
-
   return (
     <Pressable
       onPress={onPress ? () => onPress(index) : undefined}
-      style={[styles.square, { width: size, height: size, backgroundColor: bg }]}
+      style={[
+        styles.square,
+        {
+          width: size,
+          height: size,
+          backgroundColor: gc.cell,
+          borderColor: isHighlighted ? gc.validMoveBorder : gc.cellBorder,
+          borderWidth: isHighlighted ? 1.5 : 0.5,
+          borderStyle: isHighlighted ? "dashed" : "solid",
+        },
+        isHighlighted && styles.highlighted,
+      ]}
     >
       <View style={styles.center}>{children}</View>
     </Pressable>
@@ -37,6 +40,15 @@ export const Square = ({
 };
 
 const styles = StyleSheet.create({
-  square: { borderRadius: 6 },
-  center: { flex: 1, alignItems: "center", justifyContent: "center" },
+  square: {
+    borderRadius: gc.cellRadius,
+  },
+  highlighted: {
+    backgroundColor: gc.validMoveBg,
+  },
+  center: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+  },
 });

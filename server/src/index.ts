@@ -19,13 +19,18 @@ import {
 import {
   LobbyError,
   attemptReanchor,
+  clearRematch,
   createRoom,
   getRoomBySocket,
   joinRoom,
   leaveRoom,
   listPublicRooms,
   markDisconnected,
+  requestRematch,
+  respondRematch,
   setOnPlayerTimeout,
+  setOnRematchAccepted,
+  setOnRematchExpired,
   toRoomDetail,
   type ServerPlayer,
   type ServerRoom,
@@ -81,9 +86,12 @@ const rpc = <P, R>(
 
 // Quando a sala fecha (2 jogadores), envia gameStart pra cada socket com
 // payload personalizado (yourEnginePlayer / yourColor diferentes).
+const COUNTDOWN_DURATION_MS = 3_000;
+
 const broadcastGameStart = (room: ServerRoom) => {
   if (!room.gameState) return;
   const wireState = serializeState(room.gameState);
+  const countdownStartsAt = Date.now();
 
   for (const me of room.players) {
     const opponent = room.players.find((p) => p.socketId !== me.socketId);
@@ -94,6 +102,7 @@ const broadcastGameStart = (room: ServerRoom) => {
       yourColor: me.color,
       opponentName: opponent.name,
       opponentColor: opponent.color,
+      countdownStartsAt,
     };
     io.to(me.socketId).emit("gameStart", payload);
   }
@@ -111,6 +120,7 @@ const sendGameStartTo = (room: ServerRoom, me: ServerPlayer) => {
     yourColor: me.color,
     opponentName: opponent.name,
     opponentColor: opponent.color,
+    countdownStartsAt: Date.now(),
   };
   io.to(me.socketId).emit("gameStart", payload);
 };
@@ -128,6 +138,16 @@ setOnPlayerTimeout((_clientId, room, remaining) => {
     io.to(room.code).emit("gameOver", { winner });
     io.to(room.code).emit("opponentLeft");
   }
+});
+
+// Callback: 15s sem resposta ao pedido de revanche.
+setOnRematchExpired((room) => {
+  console.log(`[rematch] expirou em ${room.code}`);
+  io.to(room.code).emit("rematchExpired", {});
+});
+
+setOnRematchAccepted((_room) => {
+  // broadcastGameStart já foi chamado dentro do respondRematch.
 });
 
 // === Conexões ===
@@ -190,6 +210,8 @@ io.on("connection", (socket: TypedSocket) => {
 
   socket.on("leaveRoom", (payload, ack) =>
     rpc(() => {
+      const roomBefore = getRoomBySocket(socket.id);
+      if (roomBefore) clearRematch(roomBefore);
       const room = leaveRoom(socket.id);
       if (room) {
         socket.to(room.code).emit("opponentLeft");
@@ -238,6 +260,45 @@ io.on("connection", (socket: TypedSocket) => {
         io.to(room.code).emit("gameOver", { winner: result.state.winner });
       }
 
+      return null;
+    })(payload, socket, ack),
+  );
+
+  // === Rematch ===
+  socket.on("requestRematch", (payload, ack) =>
+    rpc(() => {
+      const result = requestRematch(socket.id);
+      if (result.kind === "mutual") {
+        // Ambos pediram dentro da janela — nova partida direto.
+        console.log(`[rematch] mutual em ${result.room.code}`);
+        broadcastGameStart(result.room);
+      } else {
+        // Notifica oponente do pedido.
+        const opponent = result.room.players.find((p) => p.socketId !== socket.id);
+        if (opponent && result.room.rematch) {
+          io.to(opponent.socketId).emit("rematchRequested", {
+            fromName: result.requester.name,
+            expiresAt: result.room.rematch.expiresAt,
+          });
+        }
+      }
+      return null;
+    })(payload, socket, ack),
+  );
+
+  socket.on("respondRematch", (payload, ack) =>
+    rpc((p: typeof payload) => {
+      const room = respondRematch(socket.id, p.accept);
+      if (p.accept) {
+        console.log(`[rematch] aceito em ${room.code}`);
+        broadcastGameStart(room);
+      } else {
+        // Notifica quem pediu que foi recusado.
+        const requesterSocket = room.players.find((p) => p.socketId !== socket.id);
+        if (requesterSocket) {
+          io.to(requesterSocket.socketId).emit("rematchDeclined", {});
+        }
+      }
       return null;
     })(payload, socket, ack),
   );

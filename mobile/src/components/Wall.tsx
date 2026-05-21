@@ -1,33 +1,36 @@
 import { View } from "react-native";
 import type { WallPlacement } from "@barreira/shared";
-import { theme } from "../theme";
+import { gc } from "../gameColors";
 import type { BoardLayout } from "../hooks/useResponsiveBoard";
 
 type Props = {
   placement: WallPlacement;
   layout: BoardLayout;
   ghost?: boolean;
+  ghostInvalid?: boolean;
 };
 
-// Cor: mesma da peça do dono. P1 (humano) → ciano, P2 (adversário) → vermelho.
 const colorFor = (placement: WallPlacement) =>
-  placement.owner === 2 ? theme.player2 : theme.player1;
+  placement.owner === 2 ? gc.red : gc.blue;
 
-export const Wall = ({ placement, layout, ghost = false }: Props) => {
+export const Wall = ({ placement, layout, ghost = false, ghostInvalid = false }: Props) => {
   const { interRow: ir, interCol: ic, type } = placement;
   const { squareSize, gap, padding, wallThickness } = layout;
   const cellSize = squareSize + gap;
-  const baseColor = colorFor(placement);
+  const baseColor = ghost
+    ? ghostInvalid
+      ? gc.red
+      : gc.blue
+    : colorFor(placement);
 
   const common = {
     position: "absolute" as const,
     backgroundColor: baseColor,
-    opacity: ghost ? 0.45 : 1,
+    opacity: ghost ? (ghostInvalid ? 0.7 : 0.6) : 1,
     borderRadius: 3,
     zIndex: 10,
-    // Sombrinha sutil pra parede parecer "em cima" do tabuleiro
-    shadowColor: "#000",
-    shadowOpacity: 0.4,
+    shadowColor: gc.boardShadow,
+    shadowOpacity: 0.25,
     shadowRadius: 3,
     shadowOffset: { width: 0, height: 1 },
     elevation: 3,

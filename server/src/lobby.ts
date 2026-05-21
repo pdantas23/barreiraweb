@@ -16,6 +16,7 @@
 
 import {
   initialState,
+  randomFirstTurn,
   type Color,
   type ColorChoice,
   type GameState,
@@ -41,6 +42,13 @@ export type ServerPlayer = {
   disconnectedAt: number | null;
 };
 
+export type RematchState = {
+  requestedBy: string; // clientId of requester
+  requestedAt: number;
+  expiresAt: number;
+  timer: NodeJS.Timeout;
+};
+
 export type ServerRoom = {
   code: string;
   status: RoomStatus;
@@ -50,6 +58,7 @@ export type ServerRoom = {
   hostName: string;
   players: ServerPlayer[];
   gameState: GameState | null;
+  rematch: RematchState | null;
 };
 
 // === Estado global ===
@@ -166,6 +175,7 @@ export const createRoom = (input: CreateInput): ServerRoom => {
       },
     ],
     gameState: null,
+    rematch: null,
   };
   rooms.set(code, room);
   socketToRoom.set(input.hostSocketId, code);
@@ -209,7 +219,7 @@ export const joinRoom = (input: JoinInput): ServerRoom => {
     disconnectedAt: null,
   });
   room.status = "playing";
-  room.gameState = initialState();
+  room.gameState = initialState(randomFirstTurn());
 
   socketToRoom.set(input.socketId, code);
   if (input.clientId) clientToRoom.set(input.clientId, code);
@@ -344,6 +354,98 @@ export const attemptReanchor = (
 
   return { room, player };
 };
+
+// === Rematch ===
+
+const REMATCH_TIMEOUT_MS = 15_000;
+const REMATCH_MUTUAL_WINDOW_MS = 2_000;
+
+export type RematchCallback = (room: ServerRoom) => void;
+let onRematchExpiredCb: RematchCallback | null = null;
+let onRematchAcceptedCb: RematchCallback | null = null;
+
+export const setOnRematchExpired = (cb: RematchCallback) => {
+  onRematchExpiredCb = cb;
+};
+export const setOnRematchAccepted = (cb: RematchCallback) => {
+  onRematchAcceptedCb = cb;
+};
+
+export const clearRematch = (room: ServerRoom) => {
+  if (room.rematch) {
+    clearTimeout(room.rematch.timer);
+    room.rematch = null;
+  }
+};
+
+export const requestRematch = (socketId: string): {
+  kind: "pending" | "mutual";
+  room: ServerRoom;
+  requester: ServerPlayer;
+} => {
+  const room = getRoomBySocket(socketId);
+  if (!room) throw new LobbyError("not-in-room");
+  if (room.status !== "finished") throw new LobbyError("game-not-over");
+  if (room.players.length < 2) throw new LobbyError("not-in-room", "oponente saiu");
+
+  const me = room.players.find((p) => p.socketId === socketId);
+  if (!me || !me.clientId) throw new LobbyError("internal-error");
+
+  // Se já existe um pedido pendente do OUTRO jogador → mutual
+  if (room.rematch && room.rematch.requestedBy !== me.clientId) {
+    const elapsed = Date.now() - room.rematch.requestedAt;
+    if (elapsed <= REMATCH_MUTUAL_WINDOW_MS) {
+      clearRematch(room);
+      startRematch(room);
+      return { kind: "mutual", room, requester: me };
+    }
+  }
+
+  if (room.rematch && room.rematch.requestedBy === me.clientId) {
+    throw new LobbyError("rematch-already-pending");
+  }
+
+  const now = Date.now();
+  const expiresAt = now + REMATCH_TIMEOUT_MS;
+  const timer = setTimeout(() => {
+    room.rematch = null;
+    if (onRematchExpiredCb) onRematchExpiredCb(room);
+  }, REMATCH_TIMEOUT_MS);
+
+  room.rematch = { requestedBy: me.clientId, requestedAt: now, expiresAt, timer };
+  return { kind: "pending", room, requester: me };
+};
+
+export const respondRematch = (socketId: string, accept: boolean): ServerRoom => {
+  const room = getRoomBySocket(socketId);
+  if (!room) throw new LobbyError("not-in-room");
+  if (!room.rematch) throw new LobbyError("no-rematch-pending");
+
+  const me = room.players.find((p) => p.socketId === socketId);
+  if (!me || !me.clientId) throw new LobbyError("internal-error");
+
+  // Quem pediu não pode responder ao próprio pedido
+  if (room.rematch.requestedBy === me.clientId) {
+    throw new LobbyError("internal-error", "não pode responder ao próprio pedido");
+  }
+
+  clearRematch(room);
+
+  if (accept) {
+    startRematch(room);
+    if (onRematchAcceptedCb) onRematchAcceptedCb(room);
+  }
+
+  return room;
+};
+
+const startRematch = (room: ServerRoom) => {
+  room.gameState = initialState(randomFirstTurn());
+  room.status = "playing";
+  room.rematch = null;
+};
+
+export const getRematchTimeoutMs = () => REMATCH_TIMEOUT_MS;
 
 // === Erro tipado ===
 

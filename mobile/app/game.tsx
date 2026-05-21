@@ -1,14 +1,20 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { Alert, Pressable, StyleSheet, Text, View } from "react-native";
 import Animated, { useAnimatedRef } from "react-native-reanimated";
+import { LinearGradient } from "expo-linear-gradient";
 import {
   applyMove,
   canPlaceWall,
   easyOpponentMove,
   getValidMoves,
+  goalRow,
+  hasPathToRow,
   initialState,
   minimaxOpponentMove,
+  randomFirstTurn,
+  registerWall,
   smartOpponentMove,
+  WALLS_PER_PLAYER,
   type GameState,
   type Move,
   type PlayerId,
@@ -16,12 +22,14 @@ import {
   type WallType,
 } from "@barreira/shared";
 import { Board } from "../src/components/Board";
+import { CountdownOverlay } from "../src/components/CountdownOverlay";
 import { GameOverModal } from "../src/components/GameOverModal";
-import { TurnIndicator } from "../src/components/TurnIndicator";
+import { GameTimer, useGameTimers } from "../src/components/GameTimer";
+import { PlayerCard, TurnArrow } from "../src/components/PlayerCard";
 import { WallBank } from "../src/components/WallBank";
 import { useResponsiveBoard } from "../src/hooks/useResponsiveBoard";
 import { useDragOverlay } from "../src/state/dragOverlay";
-import { theme } from "../src/theme";
+import { gc } from "../src/gameColors";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -60,19 +68,34 @@ export default function GameScreen() {
   const difficulty = parseDifficulty(params.difficulty);
   const botMove = useMemo(() => pickBot(difficulty), [difficulty]);
 
-  const [state, setState] = useState<GameState>(() => initialState());
+  const [state, setState] = useState<GameState>(() => initialState(randomFirstTurn()));
   const [dragType, setDragType] = useState<WallType | null>(null);
   const [ghost, setGhost] = useState<WallPlacement | null>(null);
+  const [ghostInvalid, setGhostInvalid] = useState(false);
+  const [showBlockedToast, setShowBlockedToast] = useState(false);
+  const [countdownStartsAt, setCountdownStartsAt] = useState(() => Date.now());
+  const [countdownActive, setCountdownActive] = useState(true);
 
   const layout = useResponsiveBoard();
-  const myTurn = state.turn === HUMAN && state.winner === null;
+  const myTurn = state.turn === HUMAN && state.winner === null && !countdownActive;
 
   const { dragX, dragY, lastInter, show, hide } = useDragOverlay();
-
-  // useAnimatedRef: ref especial do Reanimated que pode ser lida por
-  // measure() dentro de worklets (UI thread). Substitui o esquema antigo
-  // de boardOrigin medido com setTimeout / setState.
   const boardRef = useAnimatedRef<Animated.View>();
+
+  // Fischer-clock timers
+  const { p1TimeMs, p2TimeMs, timedOutPlayer, resetTimers } = useGameTimers(
+    state.turn,
+    state.winner,
+    countdownActive,
+  );
+
+  // Timeout = loss
+  useEffect(() => {
+    if (timedOutPlayer !== null && state.winner === null) {
+      const winner = timedOutPlayer === 1 ? 2 : 1;
+      setState((prev) => ({ ...prev, winner }));
+    }
+  }, [timedOutPlayer, state.winner]);
 
   const stateRef = useRef(state);
   stateRef.current = state;
@@ -81,7 +104,6 @@ export default function GameScreen() {
   const dragTypeRef = useRef(dragType);
   dragTypeRef.current = dragType;
 
-  // Hooks para navegação e cálculo da barra de status
   const router = useRouter();
   const insets = useSafeAreaInsets();
 
@@ -91,7 +113,7 @@ export default function GameScreen() {
   }, [state, myTurn, dragType]);
 
   useEffect(() => {
-    if (state.turn !== OPPONENT || state.winner !== null) return;
+    if (state.turn !== OPPONENT || state.winner !== null || countdownActive) return;
     const timer = setTimeout(() => {
       const move = botMove(state, OPPONENT);
       if (!move) return;
@@ -99,7 +121,7 @@ export default function GameScreen() {
       if (res.ok) setState(res.state);
     }, OPPONENT_THINK_MS);
     return () => clearTimeout(timer);
-  }, [state, botMove]);
+  }, [state, botMove, countdownActive]);
 
   const onSquareTap = (index: number) => {
     if (!myTurn) return;
@@ -116,61 +138,130 @@ export default function GameScreen() {
 
   const onIntersectionChange = (ir: number, ic: number, type: WallType) => {
     const placement: WallPlacement = { type, interRow: ir, interCol: ic };
-    if (canPlaceWall(stateRef.current.walls, placement)) {
+    const s = stateRef.current;
+    if (canPlaceWall(s.walls, placement)) {
+      const nextWalls = registerWall(s.walls, placement);
+      const blocksPath =
+        !hasPathToRow(nextWalls, s.p1, goalRow(1)) ||
+        !hasPathToRow(nextWalls, s.p2, goalRow(2));
       setGhost(placement);
+      setGhostInvalid(blocksPath);
+      setShowBlockedToast(blocksPath);
     } else {
       setGhost(null);
+      setGhostInvalid(false);
+      setShowBlockedToast(false);
     }
   };
 
-  const onIntersectionLeave = () => setGhost(null);
+  const onIntersectionLeave = () => {
+    setGhost(null);
+    setGhostInvalid(false);
+    setShowBlockedToast(false);
+  };
+
+  const ghostInvalidRef = useRef(ghostInvalid);
+  ghostInvalidRef.current = ghostInvalid;
 
   const onDragEnd = () => {
     if (dragTypeRef.current === null) return;
     const g = ghostRef.current;
-    if (g) {
+    if (g && !ghostInvalidRef.current) {
       const res = applyMove(stateRef.current, HUMAN, { kind: "wall", placement: g });
       if (res.ok) setState(res.state);
     }
     setDragType(null);
     setGhost(null);
+    setGhostInvalid(false);
+    setShowBlockedToast(false);
     hide();
   };
 
   const onRestart = () => {
-    setState(initialState());
+    setState(initialState(randomFirstTurn()));
     setDragType(null);
     setGhost(null);
+    setGhostInvalid(false);
+    setShowBlockedToast(false);
     hide();
+    setCountdownStartsAt(Date.now());
+    setCountdownActive(true);
+    resetTimers();
+  };
+
+  const confirmLeave = () => {
+    Alert.alert("Sair da partida", "Tem certeza que deseja sair?", [
+      { text: "Cancelar", style: "cancel" },
+      { text: "Sair", style: "destructive", onPress: () => router.back() },
+    ]);
   };
 
   return (
-    <View style={[styles.container, { paddingTop: insets.top + 10, paddingBottom: insets.bottom }]}>
-      
-      {/* TOPO CUSTOMIZADO: Seta de voltar e TurnIndicator na mesma linha */}
+    <LinearGradient
+      colors={[gc.bgTop, gc.bgBottom]}
+      style={[styles.container, { paddingTop: insets.top + 8, paddingBottom: insets.bottom }]}
+    >
+      {/* Top bar */}
       <View style={styles.topBar}>
-        <Pressable onPress={() => router.back()} style={styles.backButton}>
-          <Ionicons name="chevron-back" size={28} color={theme.textPrimary} />
+        <Pressable onPress={confirmLeave} style={styles.backButton}>
+          <Ionicons name="chevron-back" size={24} color={gc.textDark} />
         </Pressable>
-        
-        <View style={styles.turnWrapper}>
-          <TurnIndicator turn={state.turn} winner={state.winner} />
-        </View>
-        
-        {/* Chip de dificuldade — também serve pra equilibrar o flex */}
         <View style={styles.difficultyChip}>
           <Text style={styles.difficultyChipText}>{difficultyLabel(difficulty)}</Text>
         </View>
       </View>
 
-      <Board
-        state={state}
-        validMoves={validMoves}
-        ghost={ghost}
-        onSquareTap={onSquareTap}
-        boardRef={boardRef}
-      />
+      {/* Player cards */}
+      <View style={styles.cardsRow}>
+        <PlayerCard
+          name="Oponente"
+          wallsLeft={state.wallsLeft[OPPONENT]}
+          totalWalls={WALLS_PER_PLAYER}
+          isActive={state.turn === OPPONENT && state.winner === null}
+          isPlayer={false}
+        />
+        <TurnArrow isPlayerTurn={state.turn === HUMAN} />
+        <PlayerCard
+          name="Você"
+          wallsLeft={state.wallsLeft[HUMAN]}
+          totalWalls={WALLS_PER_PLAYER}
+          isActive={state.turn === HUMAN && state.winner === null}
+          isPlayer={true}
+        />
+      </View>
 
+      {/* Opponent timer */}
+      <View style={styles.timerRow}>
+        <GameTimer
+          timeRemainingMs={p2TimeMs}
+          isActive={state.turn === OPPONENT && state.winner === null && !countdownActive}
+          isPlayer={false}
+        />
+      </View>
+
+      {/* Board */}
+      <View style={styles.boardArea}>
+        <Board
+          state={state}
+          validMoves={validMoves}
+          ghost={ghost}
+          ghostInvalid={ghostInvalid}
+          showBlockedToast={showBlockedToast}
+          onSquareTap={onSquareTap}
+          boardRef={boardRef}
+        />
+      </View>
+
+      {/* Player timer */}
+      <View style={styles.timerRow}>
+        <GameTimer
+          timeRemainingMs={p1TimeMs}
+          isActive={state.turn === HUMAN && state.winner === null && !countdownActive}
+          isPlayer={true}
+        />
+      </View>
+
+      {/* Wall bank */}
       <WallBank
         wallsLeft={state.wallsLeft[HUMAN]}
         disabled={!myTurn}
@@ -185,6 +276,19 @@ export default function GameScreen() {
         onDragEnd={onDragEnd}
       />
 
+      {/* Hint */}
+      <Text style={styles.hint}>
+        Toque para mover · Arraste para colocar parede
+      </Text>
+
+      {/* Countdown overlay */}
+      {countdownActive && (
+        <CountdownOverlay
+          startsAt={countdownStartsAt}
+          onComplete={() => setCountdownActive(false)}
+        />
+      )}
+
       <GameOverModal
         visible={state.winner !== null}
         winner={state.winner}
@@ -192,16 +296,7 @@ export default function GameScreen() {
         onBackToMenu={() => router.back()}
       />
 
-      <Text style={styles.hint}>
-        Toque numa casa verde pra mover. Arraste uma parede do banco até uma intersecção.
-      </Text>
-
-      {/* ESPAÇO RESERVADO PARA O BANNER DE ANÚNCIO (AdMob) */}
-      <View style={styles.adContainer}>
-        <Text style={{ color: "#555", fontSize: 12 }}>Espaço para Anúncio (320x50)</Text>
-      </View>
-      
-    </View>
+    </LinearGradient>
   );
 }
 
@@ -209,8 +304,6 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     alignItems: "center",
-    justifyContent: "space-between", // Distribui o conteúdo para usar bem as bordas (topo/baixo)
-    backgroundColor: theme.bg,
   },
   topBar: {
     flexDirection: "row",
@@ -218,49 +311,47 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     width: "100%",
     paddingHorizontal: 16,
-    marginBottom: 10,
+    marginBottom: 4,
   },
   backButton: {
-    width: 40,
-    height: 40,
+    width: 36,
+    height: 36,
     justifyContent: "center",
-  },
-  turnWrapper: {
-    flex: 1,
-    alignItems: "center",
-  },
-  hint: {
-    color: theme.textMuted,
-    fontSize: 12,
-    textAlign: "center",
-    paddingHorizontal: 16,
   },
   difficultyChip: {
-    minWidth: 56,
-    paddingHorizontal: 10,
+    paddingHorizontal: 12,
     paddingVertical: 4,
     borderRadius: 12,
-    backgroundColor: "#22262e",
-    borderWidth: 1,
-    borderColor: "#33384a",
-    alignItems: "center",
-    justifyContent: "center",
+    backgroundColor: "rgba(61,111,255,0.08)",
   },
   difficultyChipText: {
-    color: theme.textMuted,
+    color: gc.blue,
     fontSize: 11,
     fontWeight: "700",
     letterSpacing: 0.5,
   },
-  adContainer: {
-    width: 320,
-    height: 50,
-    backgroundColor: "#1a1a20",
-    borderWidth: 1,
-    borderColor: "#333",
+  cardsRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    width: "90%",
+    gap: 4,
+    marginBottom: 6,
+  },
+  timerRow: {
+    width: "88%",
+    marginVertical: 3,
+  },
+  boardArea: {
+    flex: 1,
     justifyContent: "center",
     alignItems: "center",
-    marginTop: "auto", // Joga o anúncio pro limite inferior da tela
-    marginBottom: 10,
-  }
+  },
+  hint: {
+    color: gc.labelColor,
+    fontSize: 11,
+    textAlign: "center",
+    paddingHorizontal: 16,
+    marginTop: 8,
+    marginBottom: 8,
+  },
 });

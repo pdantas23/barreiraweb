@@ -23,10 +23,13 @@ const emptyWalls = (): WallSet => ({
   occupiedInter: new Set(),
 });
 
-export const initialState = (): GameState => ({
+export const randomFirstTurn = (): PlayerId =>
+  Math.random() < 0.5 ? 1 : 2;
+
+export const initialState = (firstTurn?: PlayerId): GameState => ({
   p1: INITIAL_P1,
   p2: INITIAL_P2,
-  turn: 1,
+  turn: firstTurn ?? 1,
   walls: emptyWalls(),
   wallsLeft: { 1: WALLS_PER_PLAYER, 2: WALLS_PER_PLAYER },
   winner: null,
