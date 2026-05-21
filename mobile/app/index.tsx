@@ -1,289 +1,633 @@
-import { useState } from "react";
-import { Alert, Pressable, StyleSheet, Text, View } from "react-native";
+import { useRef, useState } from "react";
+import {
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native";
 import { router } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import Animated, {
-  FadeIn,
-  FadeInDown,
-  FadeInUp,
-} from "react-native-reanimated";
-import { DifficultyModal, type Difficulty } from "../src/components/DifficultyModal";
-import { ProfileButton } from "../src/components/ProfileButton";
-import { theme } from "../src/theme";
+import { LinearGradient } from "expo-linear-gradient";
+import Animated, { FadeIn, FadeOut } from "react-native-reanimated";
 
-type ModeKey = "cpu" | "online" | "ranked";
+// ─── Palette (home-only) ───────────────────────────────────────────
+const C = {
+  blue: "#3D6FFF",
+  blueLight: "#6B9FFF",
+  navy: "#1A2A4A",
+  muted: "#9AAACA",
+  white: "#FFFFFF",
+  bgTop: "#F0F4FF",
+  bgBottom: "#E8EEF8",
+  gold: "rgba(245,166,35,0.3)",
+  goldShadow: "rgba(245,166,35,0.18)",
+  disabled: "#CCCCCC",
+  disabledBg: "#BBBBBB",
+  red: "#FF3D6F",
+} as const;
 
-type Mode = {
-  key: ModeKey;
-  label: string;
-  sub: string;
-  icon: keyof typeof Ionicons.glyphMap;
-  available: boolean;
-};
+type Tab = "offline" | "casual" | "ranked";
+type Difficulty = "easy" | "medium" | "hard";
 
-const MODES: Mode[] = [
-  {
-    key: "cpu",
-    label: "Usuário x CPU",
-    sub: "Treine contra o bot, 3 níveis",
-    icon: "hardware-chip-outline",
-    available: true,
-  },
-  {
-    key: "online",
-    label: "Jogo Online",
-    sub: "Jogue contra outras pessoas em tempo real",
-    icon: "people-outline",
-    available: true,
-  },
-  {
-    key: "ranked",
-    label: "Rankeada",
-    sub: "Suba no ranking competitivo",
-    icon: "trophy-outline",
-    available: false,
-  },
-];
+// ─── Component ─────────────────────────────────────────────────────
 
-export default function MenuScreen() {
+export default function HomeScreen() {
   const insets = useSafeAreaInsets();
-  const [modalOpen, setModalOpen] = useState(false);
+  const [tab, setTab] = useState<Tab>("casual");
+  const [difficulty, setDifficulty] = useState<Difficulty>("easy");
 
-  const onModePress = (mode: Mode) => {
-    if (!mode.available) {
-      Alert.alert(mode.label, "Modo em desenvolvimento 🚧");
-      return;
-    }
-    if (mode.key === "cpu") setModalOpen(true);
-    else if (mode.key === "online") router.push("/online");
+  const onPlay = () => {
+    router.push("/online");
   };
 
-  const onConfirmDifficulty = (difficulty: Difficulty) => {
-    setModalOpen(false);
+  const onTrain = () => {
     router.push({ pathname: "/game", params: { difficulty } });
   };
 
   return (
-    <View style={[styles.container, { paddingTop: insets.top + 12, paddingBottom: insets.bottom + 16 }]}>
-      {/* Top bar */}
-      <View style={styles.topBar}>
-        <View style={{ width: 44 }} />
-        <View style={{ flex: 1 }} />
-        <ProfileButton />
-      </View>
+    <LinearGradient colors={[C.bgTop, C.bgBottom]} style={styles.root}>
+      <View style={[styles.container, { paddingTop: insets.top + 8, paddingBottom: 0 }]}>
 
-      {/* Logo / título */}
-      <Animated.View entering={FadeInDown.duration(450).delay(80)} style={styles.brand}>
-        <View style={styles.logoBadge}>
-          <View style={[styles.wallSample, styles.wallH]} />
-          <View style={[styles.wallSample, styles.wallV]} />
-        </View>
-        <Text style={styles.brandName}>BARREIRA</Text>
-        <Text style={styles.brandTag}>Quoridor mobile</Text>
-      </Animated.View>
+        {/* ─── Floating elements ─── */}
+        <View style={styles.floatingRow}>
+          {/* Trophy chip */}
+          <View style={styles.trophyChip}>
+            <Text style={styles.trophyEmoji}>🏆</Text>
+            {/* TODO: replace hardcoded "0" with actual trophy count */}
+            <Text style={styles.trophyCount}>0</Text>
+          </View>
 
-      {/* Lista de modos */}
-      <Animated.View entering={FadeIn.duration(500).delay(200)} style={styles.modes}>
-        {MODES.map((m, i) => (
-          <Animated.View
-            key={m.key}
-            entering={FadeInUp.duration(450).delay(260 + i * 90)}
+          {/* Profile button */}
+          <Pressable
+            onPress={() => {}}
+            style={({ pressed }) => [styles.profileBtn, pressed && styles.btnPressed]}
           >
-            <Pressable
-              onPress={() => onModePress(m)}
-              style={({ pressed }) => [
-                styles.modeCard,
-                !m.available && styles.modeDisabled,
-                pressed && m.available && styles.modePressed,
-              ]}
+            <Ionicons name="person" size={20} color={C.white} />
+          </Pressable>
+        </View>
+
+        {/* ─── Tab content ─── */}
+        <View style={styles.content}>
+          {tab === "casual" && (
+            <Animated.View
+              key="casual"
+              entering={FadeIn.duration(150)}
+              exiting={FadeOut.duration(150)}
+              style={styles.tabContent}
             >
-              <View
-                style={[
-                  styles.modeIcon,
-                  !m.available && { backgroundColor: "#1f1f27" },
-                ]}
-              >
-                <Ionicons
-                  name={m.icon}
-                  size={24}
-                  color={m.available ? theme.player1 : "#555"}
-                />
-              </View>
-              <View style={styles.modeBody}>
-                <Text
-                  style={[
-                    styles.modeLabel,
-                    !m.available && styles.modeLabelDisabled,
-                  ]}
-                >
-                  {m.label}
-                </Text>
-                <Text
-                  style={[
-                    styles.modeSub,
-                    !m.available && { color: "#555" },
-                  ]}
-                >
-                  {m.sub}
-                </Text>
-              </View>
-              {m.available ? (
-                <Ionicons name="chevron-forward" size={22} color={theme.textMuted} />
-              ) : (
-                <View style={styles.soonBadge}>
-                  <Text style={styles.soonBadgeText}>EM BREVE</Text>
-                </View>
-              )}
-            </Pressable>
-          </Animated.View>
-        ))}
-      </Animated.View>
+              <CasualTab onPlay={onPlay} />
+            </Animated.View>
+          )}
+          {tab === "offline" && (
+            <Animated.View
+              key="offline"
+              entering={FadeIn.duration(150)}
+              exiting={FadeOut.duration(150)}
+              style={styles.tabContent}
+            >
+              <OfflineTab difficulty={difficulty} setDifficulty={setDifficulty} onTrain={onTrain} />
+            </Animated.View>
+          )}
+          {tab === "ranked" && (
+            <Animated.View
+              key="ranked"
+              entering={FadeIn.duration(150)}
+              exiting={FadeOut.duration(150)}
+              style={styles.tabContent}
+            >
+              <RankedTab />
+            </Animated.View>
+          )}
+        </View>
 
-      <Animated.Text
-        entering={FadeIn.duration(600).delay(700)}
-        style={styles.footerHint}
-      >
-        v0.1 · single-player local
-      </Animated.Text>
-
-      <DifficultyModal
-        visible={modalOpen}
-        onClose={() => setModalOpen(false)}
-        onConfirm={onConfirmDifficulty}
-      />
-    </View>
+        {/* ─── Bottom navbar ─── */}
+        <BottomNav tab={tab} setTab={setTab} bottomInset={insets.bottom} />
+      </View>
+    </LinearGradient>
   );
 }
 
+// ═══════════════════════════════════════════════════════════════════
+// CASUAL TAB
+// ═══════════════════════════════════════════════════════════════════
+
+const CasualTab = ({ onPlay }: { onPlay: () => void }) => (
+  <View style={styles.casualWrap}>
+    {/* Logo */}
+    <View style={styles.logoRow}>
+      <View style={styles.logoIcon}>
+        <View style={[styles.logoBar, { height: 18, backgroundColor: C.blue }]} />
+        <View style={[styles.logoBar, { height: 26, backgroundColor: C.blueLight }]} />
+        <View style={[styles.logoBar, { height: 14, backgroundColor: C.blue }]} />
+        <View style={[styles.logoBar, { height: 22, backgroundColor: C.blueLight }]} />
+      </View>
+      <Text style={styles.wordmark}>BARREIRA</Text>
+    </View>
+    <Text style={styles.logoSub}>Arena de Batalha</Text>
+
+    {/* Arena card placeholder */}
+    <View style={styles.arenaOuter}>
+      <LinearGradient
+        colors={[C.blue, C.blueLight]}
+        style={styles.arenaCard}
+      >
+        {/* TODO: replace placeholder grid with actual arena tier visual & name */}
+        {/* 6x6 grid */}
+        <View style={styles.arenaGrid}>
+          {Array.from({ length: 36 }).map((_, i) => (
+            <View key={i} style={styles.arenaCell} />
+          ))}
+        </View>
+        {/* Pawns */}
+        <View style={[styles.arenaPawn, styles.arenaPawnRed]} />
+        <View style={[styles.arenaPawn, styles.arenaPawnBlue]} />
+        {/* Walls */}
+        <View style={[styles.arenaWall, styles.arenaWallH]} />
+        <View style={[styles.arenaWall, styles.arenaWallV]} />
+      </LinearGradient>
+    </View>
+
+    {/* Play button */}
+    <Pressable
+      onPress={onPlay}
+      style={({ pressed }) => [pressed && styles.btnPressed]}
+    >
+      <LinearGradient
+        colors={[C.blue, C.blueLight]}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 0 }}
+        style={styles.playBtn}
+      >
+        <Ionicons name="play" size={20} color={C.white} />
+        <Text style={styles.playBtnText}>JOGAR</Text>
+      </LinearGradient>
+    </Pressable>
+    <Text style={styles.playBtnSub}>Encontrar partida casual</Text>
+  </View>
+);
+
+// ═══════════════════════════════════════════════════════════════════
+// OFFLINE TAB
+// ═══════════════════════════════════════════════════════════════════
+
+const DIFFICULTIES: { key: Difficulty; label: string }[] = [
+  { key: "easy", label: "Fácil" },
+  { key: "medium", label: "Médio" },
+  { key: "hard", label: "Difícil" },
+];
+
+const OfflineTab = ({
+  difficulty,
+  setDifficulty,
+  onTrain,
+}: {
+  difficulty: Difficulty;
+  setDifficulty: (d: Difficulty) => void;
+  onTrain: () => void;
+}) => (
+  <View style={styles.offlineWrap}>
+    {/* Bot icon */}
+    <LinearGradient
+      colors={[C.blue, C.navy]}
+      style={styles.botIcon}
+    >
+      <Text style={styles.botEmoji}>🤖</Text>
+    </LinearGradient>
+
+    <Text style={styles.offlineTitle}>Treino</Text>
+    <Text style={styles.offlineSub}>Jogue contra a IA. Sem pressão.</Text>
+
+    {/* Difficulty selector */}
+    <Text style={styles.diffLabel}>DIFICULDADE</Text>
+    <View style={styles.diffRow}>
+      {DIFFICULTIES.map((d) => {
+        const active = difficulty === d.key;
+        return (
+          <Pressable
+            key={d.key}
+            onPress={() => setDifficulty(d.key)}
+            style={[styles.diffPill, active && styles.diffPillActive]}
+          >
+            <Text style={[styles.diffPillText, active && styles.diffPillTextActive]}>
+              {d.label}
+            </Text>
+          </Pressable>
+        );
+      })}
+    </View>
+
+    {/* Train button */}
+    <Pressable
+      onPress={onTrain}
+      style={({ pressed }) => [styles.trainBtn, pressed && styles.btnPressed]}
+    >
+      <Text style={styles.trainBtnText}>🤖 TREINAR</Text>
+    </Pressable>
+  </View>
+);
+
+// ═══════════════════════════════════════════════════════════════════
+// RANKED TAB (locked)
+// ═══════════════════════════════════════════════════════════════════
+
+const RankedTab = () => (
+  <View style={styles.rankedWrap}>
+    <Text style={styles.rankedEmoji}>🏆</Text>
+    <Text style={styles.rankedTitle}>Ranqueado</Text>
+    <Text style={styles.rankedSub}>Em breve...</Text>
+  </View>
+);
+
+// ═══════════════════════════════════════════════════════════════════
+// BOTTOM NAV
+// ═══════════════════════════════════════════════════════════════════
+
+const BottomNav = ({
+  tab,
+  setTab,
+  bottomInset,
+}: {
+  tab: Tab;
+  setTab: (t: Tab) => void;
+  bottomInset: number;
+}) => {
+  return (
+    <View style={[styles.navbar, { paddingBottom: Math.max(bottomInset, 8) }]}>
+      {/* Offline */}
+      <Pressable
+        onPress={() => setTab("offline")}
+        style={styles.navItem}
+      >
+        <Ionicons
+          name={tab === "offline" ? "game-controller" : "game-controller-outline"}
+          size={tab === "offline" ? 28 : 24}
+          color={tab === "offline" ? C.blue : C.muted}
+        />
+        <Text style={[styles.navLabel, tab === "offline" && styles.navLabelActive]}>
+          Offline
+        </Text>
+      </Pressable>
+
+      {/* Casual (center bubble) */}
+      <Pressable
+        onPress={() => setTab("casual")}
+        style={styles.navItemCenter}
+      >
+        <LinearGradient
+          colors={[C.blue, C.blueLight]}
+          style={[
+            styles.navBubble,
+            tab !== "casual" && { opacity: 0.4 },
+          ]}
+        >
+          <Ionicons name="flash" size={26} color={C.white} />
+        </LinearGradient>
+        <Text style={[styles.navLabel, tab === "casual" && styles.navLabelActive]}>
+          Casual
+        </Text>
+      </Pressable>
+
+      {/* Ranked (disabled) */}
+      <View style={styles.navItem}>
+        <Ionicons
+          name="trophy-outline"
+          size={24}
+          color={C.disabled}
+        />
+        <Text style={styles.navLabelDisabled}>Ranqueado</Text>
+        <Text style={styles.navSoon}>Em Breve</Text>
+      </View>
+    </View>
+  );
+};
+
+// ═══════════════════════════════════════════════════════════════════
+// STYLES
+// ═══════════════════════════════════════════════════════════════════
+
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: theme.bg,
-    paddingHorizontal: 20,
-  },
-  topBar: {
+  root: { flex: 1 },
+  container: { flex: 1 },
+  // ─── Floating elements ───
+  floatingRow: {
     flexDirection: "row",
-    alignItems: "center",
     justifyContent: "space-between",
-  },
-  brand: {
     alignItems: "center",
-    marginTop: 32,
-    marginBottom: 36,
+    paddingHorizontal: 16,
+    marginBottom: 4,
+    zIndex: 10,
   },
-  logoBadge: {
-    width: 88,
-    height: 88,
-    borderRadius: 22,
-    backgroundColor: theme.boardBg,
-    borderWidth: 1,
-    borderColor: "#2a2a35",
-    alignItems: "center",
-    justifyContent: "center",
-    marginBottom: 16,
-    shadowColor: theme.player1,
-    shadowOpacity: 0.25,
-    shadowRadius: 18,
-    shadowOffset: { width: 0, height: 0 },
-  },
-  wallSample: {
-    position: "absolute",
-    backgroundColor: theme.player1,
-    borderRadius: 3,
-  },
-  wallH: {
-    width: 56,
-    height: 7,
-    transform: [{ translateY: -14 }],
-  },
-  wallV: {
-    width: 7,
-    height: 56,
-    transform: [{ translateX: 14 }],
-    backgroundColor: theme.player2,
-  },
-  brandName: {
-    color: theme.textPrimary,
-    fontSize: 36,
-    fontWeight: "900",
-    letterSpacing: 6,
-  },
-  brandTag: {
-    color: theme.textMuted,
-    fontSize: 12,
-    marginTop: 4,
-    letterSpacing: 1.5,
-    textTransform: "uppercase",
-  },
-  modes: {
-    gap: 12,
-    marginTop: 8,
-  },
-  modeCard: {
+  trophyChip: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: theme.boardBg,
-    borderRadius: 16,
-    paddingVertical: 16,
-    paddingHorizontal: 16,
+    gap: 6,
+    backgroundColor: C.white,
+    borderRadius: 20,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
     borderWidth: 1,
-    borderColor: "#2a2a35",
+    borderColor: C.gold,
+    shadowColor: C.goldShadow,
+    shadowOpacity: 1,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 3,
   },
-  modeDisabled: {
-    backgroundColor: "#16161c",
-    borderColor: "#22222b",
+  trophyEmoji: { fontSize: 16 },
+  trophyCount: {
+    fontSize: 14,
+    fontWeight: "800",
+    color: C.navy,
   },
-  modePressed: {
-    transform: [{ scale: 0.98 }],
-    borderColor: theme.player1,
-  },
-  modeIcon: {
+  profileBtn: {
     width: 44,
     height: 44,
     borderRadius: 22,
-    backgroundColor: "#1a1d28",
+    backgroundColor: C.blue,
     alignItems: "center",
     justifyContent: "center",
-    marginRight: 14,
+    shadowColor: C.blue,
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 4,
   },
-  modeBody: {
+  // ─── Content area ───
+  content: {
     flex: 1,
   },
-  modeLabel: {
-    color: theme.textPrimary,
-    fontSize: 16,
-    fontWeight: "800",
-    letterSpacing: 0.4,
+  tabContent: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    paddingHorizontal: 20,
   },
-  modeLabelDisabled: {
-    color: "#777",
+  btnPressed: {
+    opacity: 0.85,
+    transform: [{ scale: 0.97 }],
   },
-  modeSub: {
-    color: theme.textMuted,
+  // ─── CASUAL TAB ───
+  casualWrap: {
+    alignItems: "center",
+    gap: 16,
+  },
+  logoRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+  logoIcon: {
+    flexDirection: "row",
+    alignItems: "flex-end",
+    gap: 3,
+  },
+  logoBar: {
+    width: 6,
+    borderRadius: 3,
+  },
+  wordmark: {
+    fontSize: 26,
+    fontWeight: "900",
+    color: C.navy,
+    letterSpacing: 3,
+  },
+  logoSub: {
     fontSize: 12,
-    marginTop: 3,
+    color: C.muted,
+    marginTop: -10,
   },
-  soonBadge: {
-    backgroundColor: "#1f1f27",
-    borderWidth: 1,
-    borderColor: "#33384a",
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 8,
+  // Arena card
+  arenaOuter: {
+    shadowColor: C.blue,
+    shadowOpacity: 0.2,
+    shadowRadius: 20,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 8,
+    marginVertical: 8,
   },
-  soonBadgeText: {
-    color: theme.textMuted,
-    fontSize: 9,
-    fontWeight: "800",
-    letterSpacing: 1,
+  arenaCard: {
+    width: 280,
+    height: 196,
+    borderRadius: 20,
+    alignItems: "center",
+    justifyContent: "center",
+    overflow: "hidden",
   },
-  footerHint: {
-    marginTop: "auto",
-    color: theme.textMuted,
+  arenaGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    width: 180,
+    gap: 6,
+  },
+  arenaCell: {
+    width: 24,
+    height: 24,
+    borderRadius: 6,
+    backgroundColor: "rgba(255,255,255,0.15)",
+  },
+  arenaPawn: {
+    position: "absolute",
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+  },
+  arenaPawnRed: {
+    backgroundColor: C.red,
+    top: 28,
+    right: 50,
+  },
+  arenaPawnBlue: {
+    backgroundColor: C.blue,
+    bottom: 28,
+    left: 50,
+  },
+  arenaWall: {
+    position: "absolute",
+    backgroundColor: "rgba(255,255,255,0.6)",
+    borderRadius: 3,
+  },
+  arenaWallH: {
+    width: 48,
+    height: 6,
+    top: 80,
+    left: 40,
+  },
+  arenaWallV: {
+    width: 6,
+    height: 48,
+    bottom: 60,
+    right: 60,
+  },
+  // Play button
+  playBtn: {
+    width: 280,
+    height: 58,
+    borderRadius: 18,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+  },
+  playBtnText: {
+    color: C.white,
+    fontSize: 18,
+    fontWeight: "900",
+    letterSpacing: 2,
+  },
+  playBtnSub: {
     fontSize: 11,
-    textAlign: "center",
-    letterSpacing: 1,
-    opacity: 0.6,
+    color: C.muted,
+    marginTop: -8,
+  },
+  // ─── OFFLINE TAB ───
+  offlineWrap: {
+    alignItems: "center",
+    gap: 10,
+  },
+  botIcon: {
+    width: 120,
+    height: 120,
+    borderRadius: 24,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 6,
+  },
+  botEmoji: {
+    fontSize: 52,
+  },
+  offlineTitle: {
+    fontSize: 28,
+    fontWeight: "900",
+    color: C.navy,
+  },
+  offlineSub: {
+    fontSize: 14,
+    color: C.muted,
+    marginBottom: 10,
+  },
+  diffLabel: {
+    fontSize: 11,
+    color: C.muted,
+    letterSpacing: 2,
+    fontWeight: "600",
+  },
+  diffRow: {
+    flexDirection: "row",
+    gap: 10,
+    marginBottom: 16,
+  },
+  diffPill: {
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 24,
+    backgroundColor: C.white,
+    borderWidth: 1.5,
+    borderColor: C.muted,
+  },
+  diffPillActive: {
+    backgroundColor: C.blue,
+    borderColor: C.blue,
+  },
+  diffPillText: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: C.muted,
+  },
+  diffPillTextActive: {
+    color: C.white,
+  },
+  trainBtn: {
+    width: 280,
+    height: 58,
+    borderRadius: 18,
+    backgroundColor: C.navy,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  trainBtnText: {
+    color: C.white,
+    fontSize: 18,
+    fontWeight: "900",
+    letterSpacing: 2,
+  },
+  // ─── RANKED TAB ───
+  rankedWrap: {
+    alignItems: "center",
+    gap: 8,
+  },
+  rankedEmoji: {
+    fontSize: 64,
+    opacity: 0.4,
+  },
+  rankedTitle: {
+    fontSize: 24,
+    fontWeight: "900",
+    color: C.disabledBg,
+  },
+  rankedSub: {
+    fontSize: 14,
+    color: C.disabled,
+  },
+  // ─── BOTTOM NAV ───
+  navbar: {
+    flexDirection: "row",
+    alignItems: "flex-end",
+    justifyContent: "space-around",
+    backgroundColor: C.white,
+    borderTopWidth: 1,
+    borderTopColor: "rgba(61,111,255,0.08)",
+    paddingTop: 8,
+    shadowColor: C.blue,
+    shadowOpacity: 0.06,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: -4 },
+    elevation: 8,
+  },
+  navItem: {
+    alignItems: "center",
+    justifyContent: "center",
+    width: 80,
+    gap: 2,
+  },
+  navItemCenter: {
+    alignItems: "center",
+    justifyContent: "center",
+    width: 80,
+    marginTop: -20,
+    gap: 2,
+  },
+  navBubble: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 3,
+    borderColor: C.white,
+    shadowColor: C.blue,
+    shadowOpacity: 0.35,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 6,
+  },
+  navLabel: {
+    fontSize: 11,
+    fontWeight: "600",
+    color: C.muted,
+  },
+  navLabelActive: {
+    color: C.blue,
+    fontWeight: "800",
+  },
+  navLabelDisabled: {
+    fontSize: 11,
+    fontWeight: "600",
+    color: C.disabled,
+  },
+  navSoon: {
+    fontSize: 8,
+    color: C.disabled,
+    fontWeight: "600",
   },
 });
