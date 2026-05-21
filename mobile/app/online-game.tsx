@@ -10,6 +10,7 @@ import {
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { LinearGradient } from "expo-linear-gradient";
 import Animated, { useAnimatedRef } from "react-native-reanimated";
 import {
   canPlaceWall,
@@ -49,6 +50,19 @@ import {
 } from "../src/net/socket";
 import { useDragOverlay } from "../src/state/dragOverlay";
 import { theme } from "../src/theme";
+
+// Paleta clara — espelha a do lobby (online.tsx) pra consistência visual.
+const L = {
+  navy: "#1A2A4A",
+  textSecondary: "#5C6F8F",
+  muted: "#9AAACA",
+  white: "#FFFFFF",
+  cardBg: "#FFFFFF",
+  border: "#DDEAFF",
+  cellBg: "#EEF2FF",
+  bgTop: "#F0F4FF",
+  bgBottom: "#E8EEF8",
+};
 
 const EMPTY_SET: Set<number> = new Set();
 
@@ -315,42 +329,44 @@ export default function OnlineGameScreen() {
 
   if (!meta || !state) {
     return (
-      <View style={[styles.container, { paddingTop: insets.top + 10, paddingBottom: insets.bottom + 16 }]}>
-        <View style={styles.topBar}>
-          <Pressable onPress={onLeave} style={styles.backButton}>
-            <Ionicons name="chevron-back" size={28} color={theme.textPrimary} />
-          </Pressable>
-          <Text style={styles.topTitle}>Sala {code}</Text>
-          <View style={styles.backButton} />
-        </View>
+      <LinearGradient colors={[L.bgTop, L.bgBottom]} style={styles.root}>
+        <View style={[styles.container, { paddingTop: insets.top + 10, paddingBottom: insets.bottom + 16 }]}>
+          <View style={styles.topBar}>
+            <Pressable onPress={onLeave} style={styles.backButton}>
+              <Ionicons name="chevron-back" size={28} color={L.navy} />
+            </Pressable>
+            <Text style={styles.topTitle}>Sala {code}</Text>
+            <View style={styles.backButton} />
+          </View>
 
-        <View style={styles.waitingBody}>
-          <ActivityIndicator size="large" color={theme.player1} />
-          <Text style={styles.waitingTitle}>
-            {isHost ? "Aguardando oponente..." : "Entrando..."}
-          </Text>
-          {isHost && (
-            <>
-              <Text style={styles.waitingSub}>
-                Compartilhe esse código para alguém entrar:
-              </Text>
-              <View style={styles.codeBox}>
-                <Text style={styles.codeBoxValue}>{code}</Text>
-              </View>
-              {password && (
-                <>
-                  <Text style={styles.waitingSub}>Senha (sala privada):</Text>
-                  <View style={styles.codeBox}>
-                    <Text style={[styles.codeBoxValue, { color: theme.player2 }]}>
-                      {password}
-                    </Text>
-                  </View>
-                </>
-              )}
-            </>
-          )}
+          <View style={styles.waitingBody}>
+            <ActivityIndicator size="large" color={theme.player1} />
+            <Text style={styles.waitingTitle}>
+              {isHost ? "Aguardando oponente..." : "Entrando..."}
+            </Text>
+            {isHost && (
+              <>
+                <Text style={styles.waitingSub}>
+                  Compartilhe esse código para alguém entrar:
+                </Text>
+                <View style={styles.codeBox}>
+                  <Text style={styles.codeBoxValue}>{code}</Text>
+                </View>
+                {password && (
+                  <>
+                    <Text style={styles.waitingSub}>Senha (sala privada):</Text>
+                    <View style={styles.codeBox}>
+                      <Text style={[styles.codeBoxValue, { color: theme.player2 }]}>
+                        {password}
+                      </Text>
+                    </View>
+                  </>
+                )}
+              </>
+            )}
+          </View>
         </View>
-      </View>
+      </LinearGradient>
     );
   }
 
@@ -360,7 +376,7 @@ export default function OnlineGameScreen() {
     <View style={[styles.container, { paddingTop: insets.top + 10, paddingBottom: insets.bottom }]}>
       <View style={styles.topBar}>
         <Pressable onPress={onLeave} style={styles.backButton}>
-          <Ionicons name="chevron-back" size={28} color={theme.textPrimary} />
+          <Ionicons name="chevron-back" size={28} color={L.navy} />
         </Pressable>
         <View style={styles.turnWrapper}>
           <TurnIndicator turn={state.turn} winner={state.winner} myPlayer={myPlayer} />
@@ -428,15 +444,20 @@ export default function OnlineGameScreen() {
         </View>
       )}
 
-      {opponentLeft && (
+      {/* Banner "oponente saiu" só faz sentido se a partida ainda não terminou.
+          Se já tem winner, o resultado normal sobrescreve qualquer abandono
+          (oponente sair APÓS perder = reação natural ao gameOver, não desistência). */}
+      {opponentLeft && state.winner === null && (
         <View style={styles.leftBanner}>
           <Ionicons name="alert-circle" size={18} color={theme.player2} />
           <Text style={styles.leftBannerText}>Oponente saiu da partida</Text>
         </View>
       )}
 
+      {/* Modal de vitória/derrota normal — mostra independente de opponentLeft.
+          Se o winner já está decidido, é esse modal que vale. */}
       <GameOverModal
-        visible={state.winner !== null && !opponentLeft}
+        visible={state.winner !== null}
         winner={
           state.winner === null
             ? null
@@ -455,9 +476,9 @@ export default function OnlineGameScreen() {
         onLeave={onBackToLobby}
       />
 
-      {/* Modal de "oponente saiu". Sem rematch possível. */}
+      {/* Modal "Oponente saiu" — só durante partida ativa (sem winner). */}
       <GameOverModal
-        visible={opponentLeft}
+        visible={opponentLeft && state.winner === null}
         winner={2}
         onRematch={onBackToLobby}
         onBackToMenu={onBackToMenu}
@@ -468,10 +489,14 @@ export default function OnlineGameScreen() {
 }
 
 const styles = StyleSheet.create({
+  // Wrapper raiz pro LinearGradient (waiting screen). A tela de jogo ativa
+  // tem fundo claro vindo do GridBackground/Board, então não precisa.
+  root: {
+    flex: 1,
+  },
   container: {
     flex: 1,
     alignItems: "center",
-    backgroundColor: theme.bg,
   },
   topBar: {
     flexDirection: "row",
@@ -488,7 +513,7 @@ const styles = StyleSheet.create({
   },
   topTitle: {
     flex: 1,
-    color: theme.textPrimary,
+    color: L.navy,
     fontSize: 18,
     fontWeight: "800",
     letterSpacing: 0.5,
@@ -503,14 +528,14 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 4,
     borderRadius: 12,
-    backgroundColor: "#22262e",
+    backgroundColor: L.white,
     borderWidth: 1,
-    borderColor: "#33384a",
+    borderColor: L.border,
     alignItems: "center",
     justifyContent: "center",
   },
   opponentChipText: {
-    color: theme.textMuted,
+    color: L.navy,
     fontSize: 11,
     fontWeight: "700",
     letterSpacing: 0.3,
@@ -524,7 +549,7 @@ const styles = StyleSheet.create({
     // Wrapper só pra aplicar rotate sem afetar layout dos vizinhos.
   },
   hint: {
-    color: theme.textMuted,
+    color: L.textSecondary,
     fontSize: 12,
     textAlign: "center",
     paddingHorizontal: 16,
@@ -539,13 +564,13 @@ const styles = StyleSheet.create({
     paddingHorizontal: 24,
   },
   waitingTitle: {
-    color: theme.textPrimary,
+    color: L.navy,
     fontSize: 18,
     fontWeight: "800",
     marginTop: 20,
   },
   waitingSub: {
-    color: theme.textMuted,
+    color: L.muted,
     fontSize: 12,
     marginTop: 18,
     letterSpacing: 0.5,
@@ -556,9 +581,14 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     paddingHorizontal: 28,
     borderRadius: 14,
-    backgroundColor: theme.boardBg,
+    backgroundColor: L.white,
     borderWidth: 1,
-    borderColor: "#2a2a35",
+    borderColor: L.border,
+    shadowColor: L.navy,
+    shadowOpacity: 0.08,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 3,
   },
   codeBoxValue: {
     color: theme.player1,
@@ -567,12 +597,12 @@ const styles = StyleSheet.create({
     letterSpacing: 8,
     fontVariant: ["tabular-nums"],
   },
-  // === Banner de reconexão ===
+  // === Banner de reconexão (overlay durante partida) ===
   reconnectBanner: {
     flexDirection: "row",
     alignItems: "center",
     gap: 10,
-    backgroundColor: `${theme.player1}1f`,
+    backgroundColor: L.white,
     borderRadius: 10,
     paddingVertical: 10,
     paddingHorizontal: 14,
@@ -580,19 +610,24 @@ const styles = StyleSheet.create({
     marginHorizontal: 16,
     borderWidth: 1,
     borderColor: theme.player1,
+    shadowColor: L.navy,
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 3,
   },
   reconnectText: {
-    color: theme.textPrimary,
+    color: L.navy,
     fontSize: 12,
     fontWeight: "600",
     flex: 1,
   },
-  // === Banner de oponente saiu ===
+  // === Banner de oponente saiu (durante partida ativa) ===
   leftBanner: {
     flexDirection: "row",
     alignItems: "center",
     gap: 8,
-    backgroundColor: `${theme.player2}1f`,
+    backgroundColor: L.white,
     borderRadius: 10,
     paddingVertical: 10,
     paddingHorizontal: 14,
@@ -600,6 +635,11 @@ const styles = StyleSheet.create({
     marginHorizontal: 16,
     borderWidth: 1,
     borderColor: theme.player2,
+    shadowColor: L.navy,
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 3,
   },
   leftBannerText: {
     color: theme.player2,

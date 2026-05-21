@@ -76,7 +76,7 @@ export const GameOverModal = ({
             onPress={onBackToMenu}
             style={({ pressed }) => [styles.btnSecondary, pressed && styles.pressed]}
           >
-            <Ionicons name="home-outline" size={18} color={theme.textMuted} />
+            <Ionicons name="home-outline" size={18} color="#1A2A4A" />
             <Text style={styles.btnSecondaryText}>Menu</Text>
           </Pressable>
           <Pressable
@@ -103,7 +103,7 @@ export const GameOverModal = ({
               onPress={onLeave}
               style={({ pressed }) => [styles.btnSecondary, pressed && styles.pressed]}
             >
-              <Ionicons name="exit-outline" size={18} color={theme.textMuted} />
+              <Ionicons name="exit-outline" size={18} color="#1A2A4A" />
               <Text style={styles.btnSecondaryText}>Sair</Text>
             </Pressable>
             <Pressable
@@ -127,7 +127,7 @@ export const GameOverModal = ({
               onPress={onLeave}
               style={({ pressed }) => [styles.btnSecondary, pressed && styles.pressed]}
             >
-              <Ionicons name="exit-outline" size={18} color={theme.textMuted} />
+              <Ionicons name="exit-outline" size={18} color="#1A2A4A" />
               <Text style={styles.btnSecondaryText}>Sair</Text>
             </Pressable>
             <View style={[styles.btnDisabled]}>
@@ -188,7 +188,7 @@ export const GameOverModal = ({
               onPress={onLeave}
               style={({ pressed }) => [styles.btnSecondary, pressed && styles.pressed]}
             >
-              <Ionicons name="exit-outline" size={18} color={theme.textMuted} />
+              <Ionicons name="exit-outline" size={18} color="#1A2A4A" />
               <Text style={styles.btnSecondaryText}>Sair</Text>
             </Pressable>
             <View style={styles.btnDisabled}>
@@ -226,10 +226,21 @@ export const GameOverModal = ({
   );
 };
 
+// Paleta clara — espelha a do online.tsx pra consistência visual.
+const L = {
+  navy: "#1A2A4A",
+  textSecondary: "#5C6F8F",
+  muted: "#9AAACA",
+  white: "#FFFFFF",
+  cardBg: "#FFFFFF",
+  border: "#DDEAFF",
+  cellBg: "#EEF2FF",
+};
+
 const styles = StyleSheet.create({
   backdrop: {
     flex: 1,
-    backgroundColor: "rgba(0,0,0,0.7)",
+    backgroundColor: "rgba(26, 42, 74, 0.45)",
     alignItems: "center",
     justifyContent: "center",
     padding: 24,
@@ -237,15 +248,15 @@ const styles = StyleSheet.create({
   card: {
     width: "100%",
     maxWidth: 380,
-    backgroundColor: theme.boardBg,
+    backgroundColor: L.cardBg,
     borderRadius: 20,
     paddingVertical: 28,
     paddingHorizontal: 22,
     borderWidth: 1,
-    borderColor: "#2a2a35",
+    borderColor: L.border,
     alignItems: "center",
-    shadowColor: "#000",
-    shadowOpacity: 0.5,
+    shadowColor: L.navy,
+    shadowOpacity: 0.2,
     shadowRadius: 24,
     shadowOffset: { width: 0, height: 12 },
     elevation: 12,
@@ -267,7 +278,7 @@ const styles = StyleSheet.create({
     marginBottom: 6,
   },
   subtitle: {
-    color: theme.textMuted,
+    color: L.textSecondary,
     fontSize: 13,
     textAlign: "center",
     marginBottom: 22,
@@ -284,14 +295,14 @@ const styles = StyleSheet.create({
     gap: 8,
     paddingVertical: 13,
     borderRadius: 12,
-    backgroundColor: "transparent",
+    backgroundColor: L.white,
     borderWidth: 1,
-    borderColor: "#3a3a48",
+    borderColor: L.border,
     alignItems: "center",
     justifyContent: "center",
   },
   btnSecondaryText: {
-    color: theme.textMuted,
+    color: L.navy,
     fontWeight: "700",
     fontSize: 14,
   },
@@ -316,14 +327,14 @@ const styles = StyleSheet.create({
     gap: 8,
     paddingVertical: 13,
     borderRadius: 12,
-    backgroundColor: "#1a1a24",
+    backgroundColor: L.cellBg,
     borderWidth: 1,
-    borderColor: "#2a2a35",
+    borderColor: L.border,
     alignItems: "center",
     justifyContent: "center",
   },
   btnDisabledText: {
-    color: "#666",
+    color: L.muted,
     fontWeight: "700",
     fontSize: 13,
   },
@@ -341,16 +352,16 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 8,
-    backgroundColor: `${theme.player1}15`,
+    backgroundColor: `${theme.player1}1a`,
     borderRadius: 10,
     paddingVertical: 10,
     paddingHorizontal: 14,
     width: "100%",
     borderWidth: 1,
-    borderColor: `${theme.player1}40`,
+    borderColor: `${theme.player1}55`,
   },
   requestText: {
-    color: theme.textPrimary,
+    color: L.navy,
     fontSize: 13,
     fontWeight: "700",
     flex: 1,
@@ -367,7 +378,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
   },
   btnLeaveSmallText: {
-    color: theme.textMuted,
+    color: L.muted,
     fontSize: 12,
     fontWeight: "600",
     textDecorationLine: "underline",
