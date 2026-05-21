@@ -12,6 +12,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Animated, { useAnimatedRef } from "react-native-reanimated";
 import {
+  canPlaceWall,
   deserializeState,
   getValidMoves,
   type Color,
@@ -20,12 +21,21 @@ import {
   type GameState,
   type PlayerId,
   type StateUpdatePayload,
+  type WallPlacement,
+  type WallType,
 } from "@barreira/shared";
 import { Board } from "../src/components/Board";
 import { GameOverModal } from "../src/components/GameOverModal";
 import { TurnIndicator } from "../src/components/TurnIndicator";
+import { WallBank } from "../src/components/WallBank";
+import { useResponsiveBoard } from "../src/hooks/useResponsiveBoard";
 import { leaveRoom, sendMove } from "../src/net/api";
-import { getSocket } from "../src/net/socket";
+import {
+  clearLastGameStart,
+  getLastGameStart,
+  getSocket,
+} from "../src/net/socket";
+import { useDragOverlay } from "../src/state/dragOverlay";
 import { theme } from "../src/theme";
 
 const EMPTY_SET: Set<number> = new Set();
@@ -51,13 +61,35 @@ export default function OnlineGameScreen() {
   // O server-side já segura a sala via clientId; aqui é só feedback visual.
   const [reconnecting, setReconnecting] = useState(false);
 
+  // Drag de parede — espelha o que game.tsx (CPU local) já faz.
+  const [dragType, setDragType] = useState<WallType | null>(null);
+  const [ghost, setGhost] = useState<WallPlacement | null>(null);
+
   const boardRef = useAnimatedRef<Animated.View>();
+  const layout = useResponsiveBoard();
+  const { dragX, dragY, lastInter, show, hide } = useDragOverlay();
+
+  // Refs lidas dentro dos handlers do gesto (que rodam fora do ciclo React).
+  const stateRef = useRef<GameState | null>(null);
+  stateRef.current = state;
+  const ghostRef = useRef<WallPlacement | null>(null);
+  ghostRef.current = ghost;
+  const dragTypeRef = useRef<WallType | null>(null);
+  dragTypeRef.current = dragType;
 
   // === Listeners do socket ===
-  // Importante: gameStart pode chegar ANTES da tela montar (caso comum pro
-  // guest, que recebe a mensagem antes de a navegação completar). Por isso
-  // registramos com `on` (que dispara em qualquer ordem) e não `once`.
+  // gameStart pode chegar ANTES desta tela montar (race típica do guest:
+  // server emite gameStart logo após o ack do joinRoom, mas a navegação
+  // demora alguns ms). Pra evitar perder, o socket.ts mantém um cache
+  // global do último gameStart — aqui no mount lemos esse cache como
+  // bootstrap e depois ficamos ouvindo pra updates futuras (reanchor etc).
   useEffect(() => {
+    const cached = getLastGameStart();
+    if (cached) {
+      setMeta(cached);
+      setState(deserializeState(cached.state));
+    }
+
     const socket = getSocket();
 
     const onGameStart = (payload: GameStartPayload) => {
@@ -103,11 +135,12 @@ export default function OnlineGameScreen() {
     state !== null && state.turn === myPlayer && state.winner === null;
 
   // validMoves só preenche quando é a vez do jogador — evita highlight
-  // verde durante o turno do oponente.
+  // verde durante o turno do oponente. Também zera durante drag de parede
+  // pra UI ficar limpa (sem casas verdes E parede flutuante ao mesmo tempo).
   const validMoves = useMemo(() => {
-    if (!state || !myTurn) return EMPTY_SET;
+    if (!state || !myTurn || dragType !== null) return EMPTY_SET;
     return new Set(getValidMoves(state, myPlayer));
-  }, [state, myTurn, myPlayer]);
+  }, [state, myTurn, myPlayer, dragType]);
 
   // === Ações ===
 
@@ -116,6 +149,46 @@ export default function OnlineGameScreen() {
     const res = await sendMove({ kind: "piece", to: index });
     if (!res.ok) {
       console.warn("[move] rejeitado:", res.error, res.message);
+    }
+  };
+
+  // --- Drag de parede ---
+  // Espelha exatamente o fluxo do game.tsx (CPU local), trocando applyMove
+  // local por sendMove via socket. O server é a fonte da verdade.
+
+  const onDragStart = (type: WallType) => {
+    if (!myTurn || !state) return;
+    if (state.wallsLeft[myPlayer] <= 0) return;
+    setDragType(type);
+    setGhost(null);
+    show(type, layout);
+  };
+
+  const onIntersectionChange = (ir: number, ic: number, type: WallType) => {
+    const placement: WallPlacement = { type, interRow: ir, interCol: ic };
+    const s = stateRef.current;
+    // Predição local pra desenhar o ghost — só renderiza se o server provavelmente
+    // aceitaria. A autoridade ainda é o server: se ele rejeitar no onDragEnd,
+    // simplesmente nada acontece (state não muda).
+    if (s && canPlaceWall(s.walls, placement)) {
+      setGhost(placement);
+    } else {
+      setGhost(null);
+    }
+  };
+
+  const onIntersectionLeave = () => setGhost(null);
+
+  const onDragEnd = async () => {
+    if (dragTypeRef.current === null) return;
+    const g = ghostRef.current;
+    setDragType(null);
+    setGhost(null);
+    hide();
+    if (!g) return;
+    const res = await sendMove({ kind: "wall", placement: g });
+    if (!res.ok) {
+      console.warn("[wall] rejeitado:", res.error, res.message);
     }
   };
 
@@ -194,7 +267,8 @@ export default function OnlineGameScreen() {
 
       {/* Wrapper que aplica flip 180° quando jogador é engine player 2,
           pra ele sempre se ver "saindo de baixo". Eventos de toque
-          são corretamente reposicionados pelo RN. */}
+          são corretamente reposicionados pelo RN. O WallBank tem prop
+          `flipped` que espelha o cálculo de intersecção pra coincidir. */}
       <View
         style={[
           styles.boardWrap,
@@ -204,17 +278,29 @@ export default function OnlineGameScreen() {
         <Board
           state={state}
           validMoves={validMoves}
-          ghost={null}
+          ghost={ghost}
           onSquareTap={onSquareTap}
           boardRef={boardRef}
         />
       </View>
 
-      {/* Aviso enquanto drag de parede ainda não funciona com flip. */}
+      <WallBank
+        wallsLeft={state.wallsLeft[myPlayer]}
+        disabled={!myTurn || state.winner !== null || opponentLeft}
+        dragX={dragX}
+        dragY={dragY}
+        lastInter={lastInter}
+        boardRef={boardRef}
+        layout={layout}
+        flipped={myPlayer === 2}
+        onDragStart={onDragStart}
+        onIntersectionChange={onIntersectionChange}
+        onIntersectionLeave={onIntersectionLeave}
+        onDragEnd={onDragEnd}
+      />
+
       <Text style={styles.hint}>
-        {myPlayer === 1
-          ? "Toque numa casa verde pra mover. (Paredes em breve no modo online.)"
-          : "Toque numa casa verde pra mover."}
+        Toque numa casa verde pra mover. Arraste uma parede do banco até uma intersecção.
       </Text>
 
       {reconnecting && !opponentLeft && state.winner === null && (

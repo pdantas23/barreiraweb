@@ -19,7 +19,7 @@ import {
 } from "../src/components/CreateRoomModal";
 import { JoinByCodeModal } from "../src/components/JoinByCodeModal";
 import { createRoom, joinRoom, listRooms } from "../src/net/api";
-import { connectSocket } from "../src/net/socket";
+import { clearLastGameStart, connectSocket } from "../src/net/socket";
 import { theme } from "../src/theme";
 
 // Nome default do jogador. Quando tivermos perfil, vai vir do AsyncStorage.
@@ -62,8 +62,10 @@ export default function OnlineScreen() {
   }, []);
 
   // Conecta o socket ao montar a tela. O singleton garante que reconectar
-  // depois de já estar conectado é no-op.
+  // depois de já estar conectado é no-op. Limpa o cache de gameStart pra
+  // não vazar payload de partida anterior pra próxima sala que o user entrar.
   useEffect(() => {
+    clearLastGameStart();
     connectSocket();
     refresh();
   }, [refresh]);

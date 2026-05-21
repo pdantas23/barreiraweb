@@ -8,6 +8,7 @@
 import { io, type Socket } from "socket.io-client";
 import type {
   ClientToServerEvents,
+  GameStartPayload,
   ServerToClientEvents,
 } from "@barreira/shared";
 import { getClientId } from "./clientId";
@@ -21,6 +22,30 @@ const SERVER_URL = process.env.EXPO_PUBLIC_SERVER_URL ?? "http://localhost:3000"
 export type AppSocket = Socket<ServerToClientEvents, ClientToServerEvents>;
 
 let socket: AppSocket | null = null;
+
+// Cache global do último gameStart recebido.
+// Por que existe: quando o usuário entra como guest, o fluxo é:
+//   1. /online chama joinRoom() RPC
+//   2. server emite gameStart imediatamente
+//   3. server responde o ack
+//   4. /online navega pra /online-game após o ack
+//   5. /online-game monta e SÓ ENTÃO registra socket.on("gameStart", ...)
+// O passo 2 chega antes do passo 5 → evento sem listener, perdido →
+// tela trava em "Aguardando oponente...".
+// Esse cache armazena no nível do módulo (que persiste entre telas) e a
+// /online-game lê no mount como bootstrap.
+let lastGameStart: GameStartPayload | null = null;
+
+const wireGlobalListeners = (s: AppSocket) => {
+  s.on("gameStart", (payload) => {
+    lastGameStart = payload;
+  });
+};
+
+export const getLastGameStart = (): GameStartPayload | null => lastGameStart;
+export const clearLastGameStart = () => {
+  lastGameStart = null;
+};
 
 export const getSocket = (): AppSocket => {
   if (!socket) {
@@ -36,6 +61,7 @@ export const getSocket = (): AppSocket => {
       // mudar (Wi-Fi caiu, app voltou de background, etc).
       auth: { clientId: getClientId() },
     });
+    wireGlobalListeners(socket);
   }
   return socket;
 };

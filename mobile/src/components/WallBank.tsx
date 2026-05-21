@@ -18,6 +18,11 @@ type Props = {
   lastInter: SharedValue<string>;
   boardRef: AnimatedRef<Animated.View>;
   layout: BoardLayout;
+  // No online, quando o jogador é engine player 2, o Board é renderizado com
+  // transform: rotate(180deg) pra ele sempre se ver "saindo de baixo".
+  // O RN reporta os toques nas coords ORIGINAIS (sem rotação), então o cálculo
+  // de intersecção precisa espelhar — senão a parede vai parar no lado errado.
+  flipped?: boolean;
   onDragStart: (type: WallType) => void;
   onIntersectionChange: (ir: number, ic: number, type: WallType) => void;
   onIntersectionLeave: () => void;
@@ -32,6 +37,7 @@ export const WallBank = ({
   lastInter,
   boardRef,
   layout,
+  flipped,
   onDragStart,
   onIntersectionChange,
   onIntersectionLeave,
@@ -72,6 +78,14 @@ export const WallBank = ({
           localX > BOARD_SIZE * cellSize ||
           localY > BOARD_SIZE * cellSize;
 
+        // Quando o Board está rotacionado 180° (player 2 no online),
+        // espelhamos as coords antes de derivar a intersecção. Os toques
+        // continuam reportados em coords pré-rotação, então sem esse espelho
+        // a parede iria parar no canto oposto da tela.
+        const innerSize = BOARD_SIZE * cellSize;
+        const adjX = flipped ? innerSize - localX : localX;
+        const adjY = flipped ? innerSize - localY : localY;
+
         let key: string;
         let ir = 0;
         let ic = 0;
@@ -80,11 +94,11 @@ export const WallBank = ({
         } else {
           ic = Math.max(
             0,
-            Math.min(BOARD_SIZE - 2, Math.round((localX + gap / 2) / cellSize) - 1),
+            Math.min(BOARD_SIZE - 2, Math.round((adjX + gap / 2) / cellSize) - 1),
           );
           ir = Math.max(
             0,
-            Math.min(BOARD_SIZE - 2, Math.round((localY + gap / 2) / cellSize) - 1),
+            Math.min(BOARD_SIZE - 2, Math.round((adjY + gap / 2) / cellSize) - 1),
           );
           key = `${ir}-${ic}`;
         }
