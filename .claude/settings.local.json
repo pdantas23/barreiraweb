@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(ls \"C:\\\\Users\\\\paulo\\\\Desktop\\\\novo-validador\")",
+      "Bash(npm -v)",
+      "Bash(npm run *)"
+    ]
+  }
+}

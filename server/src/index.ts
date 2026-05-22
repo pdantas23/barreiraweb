@@ -36,7 +36,12 @@ import {
   type ServerRoom,
 } from "./lobby.js";
 import { getOrCreateProfile } from "./profiles.js";
-import { maybeScheduleBotMove, startBotManager } from "./botManager.js";
+import {
+  maybeScheduleBotMove,
+  scheduleBotRescue,
+  setOnBotRescueStarted,
+  startBotManager,
+} from "./botManager.js";
 
 const PORT = Number(process.env.PORT ?? 3000);
 
@@ -199,6 +204,9 @@ io.on("connection", (socket: TypedSocket) => {
       });
       socket.join(room.code);
       console.log(`[room] criada ${room.code} por ${p.hostName} (${socket.id})`);
+      // Agenda bot rescue: se ninguém entrar em 10-15s, bot entra como guest.
+      // (Salas privadas e salas criadas por bots são puladas dentro da função.)
+      scheduleBotRescue(room);
       return toRoomDetail(room, socket.id);
     })(payload, socket, ack),
   );
@@ -341,6 +349,13 @@ io.on("connection", (socket: TypedSocket) => {
       io.to(room.code).emit("opponentLeft");
     }
   });
+});
+
+// Quando o bot rescue injeta um bot guest, dispara o gameStart e
+// agenda eventual jogada inicial do bot (se for vez dele).
+setOnBotRescueStarted((room) => {
+  broadcastGameStart(room);
+  maybeScheduleBotMove(room);
 });
 
 httpServer.listen(PORT, () => {

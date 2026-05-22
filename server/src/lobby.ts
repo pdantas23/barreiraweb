@@ -62,6 +62,10 @@ export type ServerRoom = {
   players: ServerPlayer[];
   gameState: GameState | null;
   rematch: RematchState | null;
+  // Timer agendado pelo botManager pra injetar um bot guest se ninguém
+  // entrar em 10-15s. null = sem rescue pendente (sala de bot, sala
+  // privada, ou sala que já fechou).
+  botRescueTimer: NodeJS.Timeout | null;
 };
 
 // === Estado global ===
@@ -214,6 +218,7 @@ export const createRoom = (input: CreateInput): ServerRoom => {
     ],
     gameState: null,
     rematch: null,
+    botRescueTimer: null,
   };
   rooms.set(code, room);
   socketToRoom.set(input.hostSocketId, code);
@@ -257,6 +262,9 @@ export const joinRoom = (input: JoinInput): ServerRoom => {
   room.status = "playing";
   room.gameState = initialState(randomFirstTurn());
 
+  // Humano entrou — cancela bot rescue se estava pendente.
+  cancelBotRescue(room);
+
   socketToRoom.set(input.socketId, code);
   if (input.clientId) clientToRoom.set(input.clientId, code);
   return room;
@@ -270,6 +278,8 @@ export const leaveRoom = (socketId: string): ServerRoom | null => {
   const room = rooms.get(code);
   socketToRoom.delete(socketId);
   if (!room) return null;
+  // Se host saiu antes de qualquer guest entrar, cancela rescue.
+  cancelBotRescue(room);
 
   const player = room.players.find((p) => p.socketId === socketId);
   if (player) {
@@ -530,6 +540,7 @@ export const createBotHostRoom = (input: BotHostInput): ServerRoom => {
     ],
     gameState: null,
     rematch: null,
+    botRescueTimer: null,
   };
   rooms.set(code, room);
   // NÃO seta socketToRoom — o socketId é fake, não tem socket.io listener.
@@ -541,6 +552,8 @@ export const createBotHostRoom = (input: BotHostInput): ServerRoom => {
 export const removeBotFromRoom = (code: string): void => {
   const room = rooms.get(code);
   if (!room) return;
+  // Se ainda tinha timer de rescue pendente, cancela.
+  cancelBotRescue(room);
   room.players = room.players.filter((p) => !p.isBot);
   if (room.players.length === 0) {
     clearRematch(room);
@@ -548,4 +561,56 @@ export const removeBotFromRoom = (code: string): void => {
   } else {
     room.status = "finished";
   }
+};
+
+// === Bot Rescue ===
+//
+// Quando um humano cria sala, o botManager pode agendar um timer.
+// Se o timer dispara antes de outro humano entrar, addBotGuest é chamado
+// pra adicionar um bot como segundo jogador (a partida começa).
+// Se outro humano entra antes, o timer é cancelado.
+
+export const cancelBotRescue = (room: ServerRoom): void => {
+  if (room.botRescueTimer) {
+    clearTimeout(room.botRescueTimer);
+    room.botRescueTimer = null;
+  }
+};
+
+export type AddBotGuestInput = {
+  code: string;
+  botName: string;
+};
+
+// Adiciona um bot como segundo jogador na sala. Espelha o que joinRoom
+// faz pra um humano, mas sem mexer em socketToRoom (bot não tem socket).
+// Retorna a sala atualizada (com gameState inicializado) ou null se a
+// sala não existe / já não está em waiting.
+export const addBotGuest = (input: AddBotGuestInput): ServerRoom | null => {
+  const room = rooms.get(input.code);
+  if (!room) return null;
+  if (room.status !== "waiting") return null;
+  if (room.players.length >= 2) return null;
+
+  // Resolve cores (igual ao joinRoom)
+  const hostColor = resolveColor(room.hostColor);
+  room.players[0].color = hostColor;
+
+  const botSocketId = `bot-internal-${input.code}-guest`;
+  room.players.push({
+    clientId: null,
+    socketId: botSocketId,
+    name: input.botName,
+    color: oppositeColor(hostColor),
+    enginePlayer: 2,
+    disconnectedAt: null,
+    isBot: true,
+  });
+  room.status = "playing";
+  room.gameState = initialState(randomFirstTurn());
+
+  // Timer já não importa — cancela por garantia.
+  cancelBotRescue(room);
+
+  return room;
 };

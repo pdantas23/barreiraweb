@@ -29,6 +29,8 @@ import {
   type ServerToClientEvents,
 } from "@barreira/shared";
 import {
+  addBotGuest,
+  cancelBotRescue,
   createBotHostRoom,
   getAllRooms,
   removeBotFromRoom,
@@ -48,6 +50,10 @@ const MOVE_DELAY_MIN_MS = Number(process.env.BOT_MOVE_MIN_MS ?? 800);
 const MOVE_DELAY_MAX_MS = Number(process.env.BOT_MOVE_MAX_MS ?? 2_500);
 const LEAVE_DELAY_MIN_MS = Number(process.env.BOT_LEAVE_MIN_MS ?? 3_000);
 const LEAVE_DELAY_MAX_MS = Number(process.env.BOT_LEAVE_MAX_MS ?? 6_000);
+// Bot rescue: se um humano cria sala e ninguém entra em 10-15s, um bot
+// entra como guest pra começar a partida. Configurável via env pra testes.
+const RESCUE_DELAY_MIN_MS = Number(process.env.BOT_RESCUE_MIN_MS ?? 10_000);
+const RESCUE_DELAY_MAX_MS = Number(process.env.BOT_RESCUE_MAX_MS ?? 15_000);
 
 // Cores válidas pro bot escolher na criação da sala.
 const BOT_COLORS = ["cyan", "random", "red"] as const;
@@ -71,6 +77,14 @@ let pendingSpawns = 0;
 
 // === Public API ===
 
+// Callback que o index.ts registra: dispara broadcastGameStart + maybeScheduleBotMove
+// quando o bot rescue injeta um bot guest. Sem isso, o host não vê a partida começar.
+export type GameStartBroadcaster = (room: ServerRoom) => void;
+let onBotRescueStarted: GameStartBroadcaster | null = null;
+export const setOnBotRescueStarted = (cb: GameStartBroadcaster): void => {
+  onBotRescueStarted = cb;
+};
+
 let started = false;
 let io: TypedServer | null = null;
 
@@ -82,6 +96,43 @@ export const startBotManager = (server: TypedServer): void => {
   setInterval(scan, SCAN_INTERVAL_MS);
   // Scan imediato pra não esperar o primeiro tick
   scan();
+};
+
+// Agenda um bot pra entrar como guest se ninguém entrar em 10-15s.
+// Chamado pelo index.ts logo após createRoom (de um host humano).
+// Salas privadas e salas de bot são puladas — não fazem sentido pra rescue.
+export const scheduleBotRescue = (room: ServerRoom): void => {
+  if (room.isPrivate) return;
+  if (room.players.length === 0 || room.players[0].isBot) return;
+  // Já agendado? Não duplica.
+  if (room.botRescueTimer) return;
+
+  const delay = randomBetween(RESCUE_DELAY_MIN_MS, RESCUE_DELAY_MAX_MS);
+  const code = room.code;
+  console.log(`[botManager] rescue agendado pra sala ${code} em ${Math.round(delay)}ms`);
+
+  room.botRescueTimer = setTimeout(() => {
+    // Re-checa estado: humano pode ter entrado nesses ms.
+    const r = getAllRooms().get(code);
+    if (!r) return;
+    r.botRescueTimer = null;
+    if (r.status !== "waiting" || r.players.length >= 2) return;
+
+    const botName = generateBotName();
+    const updated = addBotGuest({ code, botName });
+    if (!updated) {
+      console.warn(`[botManager] rescue falhou pra sala ${code}`);
+      return;
+    }
+    console.log(`[botManager] rescue: ${botName} entrou em ${code}`);
+    if (onBotRescueStarted) onBotRescueStarted(updated);
+  }, delay);
+};
+
+// Cancela manualmente um rescue pendente. Útil pra index.ts cancelar
+// em cenários que o lobby não captura sozinho.
+export const cancelPendingBotRescue = (room: ServerRoom): void => {
+  cancelBotRescue(room);
 };
 
 // Chamado pelo index.ts após cada `move` aceito + após broadcastGameStart.
