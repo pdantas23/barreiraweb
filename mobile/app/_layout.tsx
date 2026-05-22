@@ -49,7 +49,6 @@ export default function RootLayout() {
         <ProfileProvider>
           <StatusBar style="light" />
           <Stack
-            // Colocando headerShown: false aqui, ele remove o cabeçalho de TODAS as telas!
             screenOptions={{
               headerShown: false,
               headerStyle: { backgroundColor: theme.bg },
@@ -57,11 +56,11 @@ export default function RootLayout() {
               contentStyle: { backgroundColor: theme.bg },
             }}
           >
-            {/* Declarando as telas só por garantia */}
             <Stack.Screen name="index" />
             <Stack.Screen name="game" />
             <Stack.Screen name="online" />
             <Stack.Screen name="online-game" />
+            <Stack.Screen name="privacy" />
           </Stack>
           <DragOverlayRenderer />
         </ProfileProvider>
