@@ -5,6 +5,11 @@ const SOUND_FILE = require("../../assets/peao.wav");
 
 let sharedSound: Audio.Sound | null = null;
 let loadingPromise: Promise<void> | null = null;
+let sfxEnabled = true;
+
+export const setSfxEnabledForPiece = (v: boolean) => {
+  sfxEnabled = v;
+};
 
 const ensureLoaded = async () => {
   if (sharedSound) return;
@@ -20,6 +25,7 @@ const ensureLoaded = async () => {
 };
 
 export const playPieceSound = async () => {
+  if (!sfxEnabled) return;
   try {
     await ensureLoaded();
     if (!sharedSound) return;
@@ -30,8 +36,6 @@ export const playPieceSound = async () => {
   }
 };
 
-// Plays the piece sound whenever p1 or p2 position changes.
-// Skips the initial mount to avoid playing on screen load.
 export const usePieceMoveSound = (p1: number, p2: number) => {
   const mounted = useRef(false);
 

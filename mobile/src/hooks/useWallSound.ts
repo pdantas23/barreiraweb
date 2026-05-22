@@ -5,6 +5,11 @@ const SOUND_FILE = require("../../assets/wall.wav");
 
 let sharedSound: Audio.Sound | null = null;
 let loadingPromise: Promise<void> | null = null;
+let sfxEnabled = true;
+
+export const setSfxEnabledForWall = (v: boolean) => {
+  sfxEnabled = v;
+};
 
 const ensureLoaded = async () => {
   if (sharedSound) return;
@@ -20,6 +25,7 @@ const ensureLoaded = async () => {
 };
 
 export const playWallSound = async () => {
+  if (!sfxEnabled) return;
   try {
     await ensureLoaded();
     if (!sharedSound) return;
@@ -30,8 +36,6 @@ export const playWallSound = async () => {
   }
 };
 
-// Plays the wall sound whenever the total wall count changes.
-// Skips the initial mount.
 export const useWallPlaceSound = (wallCount: number) => {
   const mounted = useRef(false);
 

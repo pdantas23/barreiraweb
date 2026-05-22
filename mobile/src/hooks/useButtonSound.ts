@@ -1,10 +1,15 @@
-import { useEffect, useRef } from "react";
+import { useEffect } from "react";
 import { Audio } from "expo-av";
 
 const SOUND_FILE = require("../../assets/buttonclick1.mp3");
 
 let sharedSound: Audio.Sound | null = null;
 let loadingPromise: Promise<void> | null = null;
+let sfxEnabled = true;
+
+export const setSfxEnabledForSounds = (v: boolean) => {
+  sfxEnabled = v;
+};
 
 const ensureLoaded = async () => {
   if (sharedSound) return;
@@ -20,6 +25,7 @@ const ensureLoaded = async () => {
 };
 
 export const playButtonSound = async () => {
+  if (!sfxEnabled) return;
   try {
     await ensureLoaded();
     if (!sharedSound) return;

@@ -28,7 +28,7 @@
 **Solução:**
 - Criada tela completa em `mobile/app/privacy.tsx` com todos os pontos exigidos (dados coletados, uso, compartilhamento, armazenamento, direitos, crianças, contato).
 - Modal de consentimento aparece automaticamente na primeira abertura do app (usa AsyncStorage para persistir aceitação).
-- Botão de escudo (shield) no canto superior esquerdo da home screen permite acessar a política a qualquer momento.
+- Acessível a qualquer momento pelo modal de Configurações (engrenagem no canto superior esquerdo da home).
 - Rota registrada no `_layout.tsx`.
 
 ---
@@ -38,8 +38,8 @@
 **Problema:** Aba "Ranqueado" mostrava apenas "Em breve..." — Apple rejeita funcionalidade incompleta/placeholder.
 
 **Solução:**
-- Removidos completamente: componente `RankedTab`, item na bottom nav, tipo `"ranked"` do union `Tab`, e todos os estilos associados (`rankedWrap`, `rankedEmoji`, `rankedTitle`, `rankedSub`, `navBubbleDisabled`, `navLabelDisabled`, `navSoon`).
-- A bottom nav agora mostra apenas Offline e Casual.
+- Removidos completamente: componente `RankedTab`, item na bottom nav, tipo `"ranked"` do union `Tab`, e todos os estilos associados.
+- A bottom nav agora mostra apenas Treino e Casual.
 
 ---
 
@@ -59,8 +59,8 @@
 **Problema:** Apple exige ícone sem transparência (sem canal alpha). O `icon.png` era RGBA.
 
 **Solução:**
-- Removido canal alpha do `mobile/assets/icon.png` usando composição com fundo branco (PIL/Python).
-- Confirmado: 1024x1024px, `hasAlpha: no`.
+- Novo ícone criado (tabuleiro 3D isométrico com peões e paredes, texto "BARREIRA").
+- Center-crop de 1200x1200 para 1024x1024, RGB sem alpha.
 
 ---
 
@@ -96,3 +96,54 @@
 ### 8. Sign in with Apple (Guideline 4.8) — NÃO NECESSÁRIO
 
 O app não possui nenhum sistema de login/cadastro. Se login social for adicionado no futuro, Sign in with Apple se tornará obrigatório.
+
+---
+
+## Melhorias implementadas (além da conformidade)
+
+### 9. Splash screen animado — RESOLVIDO
+
+- Componente `SplashOverlay` em `mobile/src/components/SplashOverlay.tsx`.
+- Sequência: tela preta → fade in do ícone (800ms) → hold (1.2s) → fade out (600ms) → app.
+- Splash nativo do Expo com `backgroundColor: "#000000"` para transição suave.
+
+---
+
+### 10. Configurações de áudio — RESOLVIDO
+
+- Modal de configurações acessível via ícone de engrenagem no canto superior esquerdo da home.
+- Toggle para música de fundo (piano.mp3 no menu) e efeitos sonoros (botão, peão, parede).
+- Preferências persistidas via AsyncStorage.
+- Context global `AudioSettingsProvider` em `mobile/src/state/audioSettings.tsx`.
+
+---
+
+### 11. Música de fundo com crossfade loop — RESOLVIDO
+
+- Dois players em paralelo (`useMenuMusic`) fazem crossfade de 3 segundos antes do fim da faixa.
+- Transição imperceptível, sem gap nem clique entre loops.
+- Música pausa automaticamente ao navegar para partida (via `useFocusEffect`) e retoma ao voltar.
+
+---
+
+### 12. Som de parede (wall.wav) — RESOLVIDO
+
+- Hook `useWallPlaceSound` em `mobile/src/hooks/useWallSound.ts`.
+- Toca `wall.wav` sempre que qualquer jogador (humano, CPU ou bot online) coloca uma parede.
+- Integrado tanto no jogo offline (`game.tsx`) quanto online (`online-game.tsx`).
+
+---
+
+### 13. Fix envio duplicado de parede online — RESOLVIDO
+
+- Guard `sendingWallRef` + reset síncrono de `dragTypeRef` no `onDragEnd` do `online-game.tsx`.
+- Impede múltiplos `sendMove` disparados pelo gesto, eliminando warnings "not-your-turn".
+
+---
+
+### 14. Navbar redesenhada — RESOLVIDO
+
+- Tabs "Treino" e "Casual" com animação de expansão (tab ativa cresce para cima com borda azul no topo).
+- Sem bolha circular elevada — container inteiro da aba expande.
+- Animação suave de 200ms (height, marginTop).
+- Logo "BARREIRA" sem barras verticais na aba Casual.

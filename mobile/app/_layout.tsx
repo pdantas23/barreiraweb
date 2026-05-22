@@ -7,6 +7,7 @@ import { DragLayer } from "../src/components/DragLayer";
 import { SplashOverlay } from "../src/components/SplashOverlay";
 import { initClientId } from "../src/net/clientId";
 import { DragOverlayProvider, useDragOverlay } from "../src/state/dragOverlay";
+import { AudioSettingsProvider } from "../src/state/audioSettings";
 import { ProfileProvider } from "../src/state/profile";
 import { theme } from "../src/theme";
 
@@ -46,6 +47,7 @@ export default function RootLayout() {
   return (
     <GestureHandlerRootView style={{ flex: 1, backgroundColor: theme.bg }}>
       <DragOverlayProvider>
+        <AudioSettingsProvider>
         <ProfileProvider>
           <StatusBar style="light" />
           <Stack
@@ -65,6 +67,7 @@ export default function RootLayout() {
           <DragOverlayRenderer />
           <SplashOverlay />
         </ProfileProvider>
+        </AudioSettingsProvider>
       </DragOverlayProvider>
     </GestureHandlerRootView>
   );
