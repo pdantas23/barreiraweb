@@ -40,6 +40,9 @@ export type ServerPlayer = {
   enginePlayer: PlayerId;
   // Timestamp quando o socket caiu. null = conectado.
   disconnectedAt: number | null;
+  // true = ator interno do server fingindo ser jogador. Não tem socket real,
+  // não recebe emits, é "jogado" pelo botManager via callbacks.
+  isBot: boolean;
 };
 
 export type RematchState = {
@@ -206,6 +209,7 @@ export const createRoom = (input: CreateInput): ServerRoom => {
         color: input.color === "random" ? "cyan" : input.color,
         enginePlayer: 1,
         disconnectedAt: null,
+        isBot: false,
       },
     ],
     gameState: null,
@@ -248,6 +252,7 @@ export const joinRoom = (input: JoinInput): ServerRoom => {
     color: oppositeColor(hostColor),
     enginePlayer: 2,
     disconnectedAt: null,
+    isBot: false,
   });
   room.status = "playing";
   room.gameState = initialState(randomFirstTurn());
@@ -488,3 +493,59 @@ export class LobbyError extends Error {
 
 // Pra testes saberem o timeout configurado.
 export const getDisconnectTimeoutMs = () => DISCONNECT_TIMEOUT_MS;
+
+// === Acesso ao map global (usado pelo botManager pra scan) ===
+export const getAllRooms = (): Map<string, ServerRoom> => rooms;
+
+// === Bot host room ===
+//
+// Cria uma sala com um bot como host. O bot tem socketId fake (não usado
+// nem pelo socket.io nem pelo socketToRoom global) e clientId null
+// (nada de reanchor). Identidade só pra UI.
+export type BotHostInput = {
+  hostName: string; // ex: "anonimo7508"
+  color: ColorChoice;
+};
+
+export const createBotHostRoom = (input: BotHostInput): ServerRoom => {
+  const code = generateCode();
+  const botSocketId = `bot-internal-${code}`; // único, não conflita com socket.io
+  const room: ServerRoom = {
+    code,
+    status: "waiting",
+    isPrivate: false, // bots sempre públicos
+    password: null,
+    hostColor: input.color,
+    hostName: input.hostName,
+    players: [
+      {
+        clientId: null, // bot não tem identidade persistente
+        socketId: botSocketId,
+        name: input.hostName,
+        color: input.color === "random" ? "cyan" : input.color,
+        enginePlayer: 1,
+        disconnectedAt: null,
+        isBot: true,
+      },
+    ],
+    gameState: null,
+    rematch: null,
+  };
+  rooms.set(code, room);
+  // NÃO seta socketToRoom — o socketId é fake, não tem socket.io listener.
+  return room;
+};
+
+// Remove um bot da sala (usado pelo botManager pós-partida).
+// Diferente de leaveRoom porque não precisa olhar socketToRoom.
+export const removeBotFromRoom = (code: string): void => {
+  const room = rooms.get(code);
+  if (!room) return;
+  room.players = room.players.filter((p) => !p.isBot);
+  if (room.players.length === 0) {
+    clearRematch(room);
+    rooms.delete(code);
+  } else {
+    room.status = "finished";
+  }
+};
