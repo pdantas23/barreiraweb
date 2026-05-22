@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import {
   Modal,
   Pressable,
+  ScrollView,
   StyleSheet,
   Text,
   View,
@@ -10,6 +11,7 @@ import { router } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import Animated, {
   Easing,
   useAnimatedStyle,
@@ -18,6 +20,8 @@ import Animated, {
 } from "react-native-reanimated";
 import { GridBackground } from "../src/components/GridBackground";
 import { playButtonSound, useButtonSound } from "../src/hooks/useButtonSound";
+
+const PRIVACY_ACCEPTED_KEY = "privacy_accepted";
 
 // ─── Palette (home-only) ───────────────────────────────────────────
 const C = {
@@ -44,7 +48,19 @@ export default function HomeScreen() {
   const [tab, setTab] = useState<Tab>("casual");
   const [difficulty, setDifficulty] = useState<Difficulty>("easy");
   const [offlineModal, setOfflineModal] = useState(false);
+  const [showPrivacy, setShowPrivacy] = useState(false);
   useButtonSound(); // preload
+
+  useEffect(() => {
+    AsyncStorage.getItem(PRIVACY_ACCEPTED_KEY).then((val) => {
+      if (!val) setShowPrivacy(true);
+    });
+  }, []);
+
+  const onAcceptPrivacy = () => {
+    AsyncStorage.setItem(PRIVACY_ACCEPTED_KEY, "1");
+    setShowPrivacy(false);
+  };
 
   const onPlay = () => {
     playButtonSound();
@@ -101,6 +117,42 @@ export default function HomeScreen() {
           onConfirm={onStartOffline}
           onClose={() => setOfflineModal(false)}
         />
+
+        {/* ─── Privacy consent modal (first launch) ─── */}
+        <Modal transparent visible={showPrivacy} animationType="fade" statusBarTranslucent>
+          <View style={styles.modalBackdrop}>
+            <View style={[styles.modalCard, { maxHeight: "80%" }]}>
+              <Ionicons name="shield-checkmark" size={36} color={C.blue} style={{ marginBottom: 8 }} />
+              <Text style={styles.modalTitle}>Política de Privacidade</Text>
+
+              <ScrollView style={{ maxHeight: 320, width: "100%" }} showsVerticalScrollIndicator={false}>
+                <Text style={styles.privacyText}>
+                  O Barreira coleta apenas um identificador de sessão aleatório para
+                  permitir reconexão durante partidas online. Não coletamos dados
+                  pessoais, não usamos analytics nem publicidade.{"\n\n"}
+                  Seu nome de exibição é visível aos oponentes durante a partida e
+                  não é armazenado permanentemente.{"\n\n"}
+                  Ao continuar, você concorda com nossa Política de Privacidade
+                  completa, acessível a qualquer momento no menu do app.
+                </Text>
+              </ScrollView>
+
+              <Pressable
+                onPress={onAcceptPrivacy}
+                style={({ pressed }) => [{ width: "100%", marginTop: 16 }, pressed && styles.btnPressed]}
+              >
+                <LinearGradient
+                  colors={[C.blue, C.blueLight]}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 0 }}
+                  style={styles.modalBtnConfirm}
+                >
+                  <Text style={styles.modalBtnConfirmText}>Aceitar e Continuar</Text>
+                </LinearGradient>
+              </Pressable>
+            </View>
+          </View>
+        </Modal>
       </View>
     </LinearGradient>
   );
@@ -672,6 +724,12 @@ const styles = StyleSheet.create({
     fontWeight: "900",
     fontSize: 15,
     letterSpacing: 0.5,
+  },
+  privacyText: {
+    fontSize: 13,
+    color: "#4A5C7A",
+    lineHeight: 20,
+    textAlign: "left",
   },
   diffPill: {
     flex: 1,
