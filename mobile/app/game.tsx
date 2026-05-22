@@ -32,6 +32,7 @@ import { useDragOverlay } from "../src/state/dragOverlay";
 import { gc } from "../src/gameColors";
 import { playButtonSound, useButtonSound } from "../src/hooks/useButtonSound";
 import { usePieceMoveSound } from "../src/hooks/usePieceSound";
+import { useWallPlaceSound } from "../src/hooks/useWallSound";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -73,6 +74,8 @@ export default function GameScreen() {
 
   const [state, setState] = useState<GameState>(() => initialState(randomFirstTurn()));
   usePieceMoveSound(state.p1, state.p2);
+  const totalWallsUsed = (WALLS_PER_PLAYER - state.wallsLeft[1]) + (WALLS_PER_PLAYER - state.wallsLeft[2]);
+  useWallPlaceSound(totalWallsUsed);
   const [dragType, setDragType] = useState<WallType | null>(null);
   const [ghost, setGhost] = useState<WallPlacement | null>(null);
   const [ghostInvalid, setGhostInvalid] = useState(false);

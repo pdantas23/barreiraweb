@@ -34,7 +34,6 @@ export default function RootLayout() {
   // tela que possa chamar getSocket(). Sem isso, getClientId() ficaria
   // sem cache e cairia no warning "chamado antes do initClientId".
   const [bootstrapped, setBootstrapped] = useState(false);
-  const [splashDone, setSplashDone] = useState(false);
 
   useEffect(() => {
     initClientId().finally(() => setBootstrapped(true));
@@ -64,7 +63,7 @@ export default function RootLayout() {
             <Stack.Screen name="privacy" />
           </Stack>
           <DragOverlayRenderer />
-          {!splashDone && <SplashOverlay onFinish={() => setSplashDone(true)} />}
+          <SplashOverlay />
         </ProfileProvider>
       </DragOverlayProvider>
     </GestureHandlerRootView>

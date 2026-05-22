@@ -54,6 +54,7 @@ import {
 import { useDragOverlay } from "../src/state/dragOverlay";
 import { usePlayerName } from "../src/state/profile";
 import { usePieceMoveSound } from "../src/hooks/usePieceSound";
+import { useWallPlaceSound } from "../src/hooks/useWallSound";
 import { playButtonSound, useButtonSound } from "../src/hooks/useButtonSound";
 import { gc } from "../src/gameColors";
 import { theme } from "../src/theme";
@@ -103,6 +104,8 @@ export default function OnlineGameScreen() {
   const [rematchRequesterName, setRematchRequesterName] = useState("");
 
   usePieceMoveSound(state?.p1 ?? -1, state?.p2 ?? -1);
+  const totalWallsUsed = state ? (WALLS_PER_PLAYER - state.wallsLeft[1]) + (WALLS_PER_PLAYER - state.wallsLeft[2]) : 0;
+  useWallPlaceSound(totalWallsUsed);
   useButtonSound();
   // Nome persistente do jogador (vem do server via evento `profile`).
   const myName = usePlayerName();
