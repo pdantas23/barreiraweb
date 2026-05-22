@@ -3,7 +3,12 @@
 // Os handlers RPC devolvem RpcResult<T> via ack; estado de partida vai
 // por push (gameStart / stateUpdate / profile / etc).
 
-import "dotenv/config"; // carrega server/.env ANTES de qualquer outro import
+import dotenv from "dotenv";
+import { resolve } from "node:path";
+
+// Tenta .env no cwd (raiz) e depois um nível acima (caso cwd seja server/)
+dotenv.config({ path: resolve(process.cwd(), ".env") }) ||
+  dotenv.config({ path: resolve(process.cwd(), "..", ".env") });
 import express from "express";
 import { createServer } from "node:http";
 import { Server, type Socket } from "socket.io";
