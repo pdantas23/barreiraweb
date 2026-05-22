@@ -1,114 +1,160 @@
 # Barreira
 
-Jogo de tabuleiro 9x9 estilo Quoridor, mobile (iOS/Android) via Expo.
+Jogo de tabuleiro 9x9 estilo **Quoridor** para iOS e Android, feito com Expo (React Native + TypeScript).
 
-**Modo atual:** single-player local — humano (P1, peça ciano, sai de baixo) vs CPU (P2, peça vermelha, sai de cima). Bot greedy 1-ply baseado em BFS (minimiza distância própria, maximiza a do oponente). Sem servidor, sem socket. Funciona offline.
-
-Roadmap em [TASKS.md](TASKS.md).
+**Modos de jogo:**
+- **Offline** — contra CPU com 3 níveis de dificuldade (fácil, médio, difícil)
+- **Online** — multiplayer em tempo real via WebSocket (criar/entrar em salas, rematch, reconexão automática)
 
 ## Estrutura
 
 ```
 barreira/
-├── README.md
-├── TASKS.md                    # backlog vivo
-└── mobile/                     # Expo (React Native + TS) — projeto único
-    ├── app/
-    │   ├── _layout.tsx         # root: GestureHandlerRootView + DragOverlayProvider + Stack
-    │   ├── index.tsx           # menu inicial (MULTIPLAYER / JOGO LOCAL)
-    │   └── game.tsx            # tela do jogo
-    ├── app.json                # config Expo (bundle id, splash, ícones)
-    ├── babel.config.js         # preset-expo + react-native-worklets/plugin
-    ├── metro.config.js
-    ├── tsconfig.json           # strict, alias @/* → src/*
-    ├── assets/                 # icon, splash, adaptive-icon, favicon
-    └── src/
-        ├── theme.ts            # paleta de cores
-        ├── hooks/
-        │   └── useResponsiveBoard.ts   # tamanhos do board a partir da janela
-        ├── state/
-        │   └── dragOverlay.tsx         # Context com SharedValues do drag
-        ├── components/
-        │   ├── Board.tsx       # grid 9x9 + paredes absolutas + ghost
-        │   ├── Square.tsx
-        │   ├── Piece.tsx
-        │   ├── Wall.tsx
-        │   ├── WallBank.tsx    # gesture Pan que arrasta parede
-        │   ├── DragLayer.tsx   # parede flutuante sob o dedo
-        │   └── TurnIndicator.tsx
-        └── game/               # regras puras, sem dependência de RN
-            ├── types.ts        # PlayerId, Move, GameState, WallSet
-            ├── board.ts        # 9x9, posições iniciais, helpers
-            ├── walls.ts        # canPlaceWall, registerWall, BFS, neighbors
-            ├── moves.ts        # getValidMoves (com salto sobre adversário)
-            ├── engine.ts       # applyMove (validação completa, imutável)
-            ├── smartOpponent.ts   # greedy 1-ply (em uso)
-            └── randomOpponent.ts  # bot uniforme (não utilizado)
+├── mobile/                     # App Expo (React Native + TS)
+│   ├── app/
+│   │   ├── _layout.tsx         # Root layout (Gesture, Drag, Audio, Profile providers)
+│   │   ├── index.tsx           # Menu principal (abas Offline / Casual)
+│   │   ├── game.tsx            # Partida offline vs CPU
+│   │   ├── online.tsx          # Lobby online (criar/entrar sala)
+│   │   ├── online-game.tsx     # Partida online multiplayer
+│   │   └── privacy.tsx         # Política de privacidade
+│   ├── src/
+│   │   ├── components/         # Board, Piece, Wall, WallBank, DragLayer, modais, etc.
+│   │   ├── hooks/              # useMenuMusic, useButtonSound, usePieceSound, useWallSound, etc.
+│   │   ├── state/              # dragOverlay, audioSettings, profile (contexts)
+│   │   ├── net/                # socket.ts, clientId.ts, api.ts
+│   │   └── theme.ts            # Paleta de cores
+│   ├── assets/                 # Ícone, splash, sons (piano.mp3, wall.wav, peao.wav, etc.)
+│   ├── app.json                # Config Expo (bundle id, splash, ícones)
+│   └── eas.json                # Profiles de build (dev, preview, production)
+│
+├── server/                     # Backend Node.js
+│   ├── src/
+│   │   ├── index.ts            # Express + Socket.io, handlers RPC
+│   │   ├── lobby.ts            # Salas, matchmaking, reconexão, timeout (W.O.)
+│   │   ├── botManager.ts       # Bots fantasma no lobby + bot rescue
+│   │   ├── profiles.ts         # Identidade anônima via Supabase
+│   │   └── db.ts               # Cliente Supabase
+│   ├── scripts/                # Testes manuais (test-client, test-room, test-game, etc.)
+│   └── ecosystem.config.cjs    # PM2 (produção)
+│
+├── shared/                     # Engine do jogo (puro TS, sem deps de RN)
+│   └── src/
+│       ├── engine.ts           # applyMove — estado autoritativo
+│       ├── board.ts            # Grid 9x9, posições iniciais
+│       ├── walls.ts            # Validação de paredes, BFS pathfinding
+│       ├── moves.ts            # Movimentos válidos (reto + salto diagonal)
+│       ├── types.ts            # PlayerId, Move, GameState, WallPlacement
+│       ├── protocol.ts         # Mensagens Client↔Server
+│       ├── serialization.ts    # GameState wire format
+│       ├── easyOpponent.ts     # Bot fácil (top-K greedy)
+│       ├── smartOpponent.ts    # Bot médio (greedy 1-ply BFS)
+│       ├── minimaxOpponent.ts  # Bot difícil (minimax α-β depth 2)
+│       └── randomOpponent.ts   # Bot aleatório (não usado no app)
+│
+├── deploy/                     # nginx config + docs de deploy no VPS
+├── .env                        # Variáveis de ambiente (todas centralizadas aqui)
+└── .env.example                # Template para deploy
 ```
 
-A separação `src/game/` (puro) × `src/components/` (UI) é proposital: regras são testáveis sem mockar RN, e a engine `applyMove` é autoritativa pra qualquer cliente futuro.
+## Como rodar
 
-## Como rodar (macOS → iPhone)
+### Pré-requisitos
 
-### Atenção: TCC do macOS
+- Node.js 18+
+- npm 9+
+- Expo Go no iPhone (ou Xcode para simulador)
 
-Se o projeto estiver dentro de `~/Desktop`, `~/Documents` ou `~/Downloads`, o macOS bloqueia `exec` de scripts do `node_modules/.bin/` com `Operation not permitted`, mesmo que tudo esteja com `+x`. Duas saídas:
-
-- **Mover o projeto pra fora dessas pastas** (recomendado): `mv ~/Desktop/Philip/empresa/barreira ~/dev/barreira`
-- Ou: System Settings → Privacy & Security → Files & Folders → Terminal → ligar **Desktop Folder**, fechar o terminal com ⌘Q e reabrir.
-
-### Primeira vez
+### Instalação
 
 ```bash
-cd ~/dev/barreira/mobile
+git clone https://github.com/paulovitortss/barreira.git
+cd barreira
 npm install
 ```
 
-### Dia a dia (Expo Go no iPhone físico)
-
-1. Instale **Expo Go** pela App Store no iPhone.
-2. Mac e iPhone na mesma rede Wi-Fi.
-3. No Mac:
-   ```bash
-   cd ~/dev/barreira/mobile
-   npx expo start --lan
-   ```
-4. Aponte a câmera do iPhone pro QR code → abre no Expo Go.
-
-Se a rede bloqueia comunicação entre dispositivos (Wi-Fi corporativo, hotspot isolado):
+### Development
 
 ```bash
-npx expo start --tunnel
+# Terminal 1 — servidor
+npm run dev:server
+
+# Terminal 2 — app mobile
+npm run mobile
+```
+
+Escaneie o QR code com o Expo Go (iPhone na mesma rede Wi-Fi).
+
+Se a rede bloqueia comunicação entre dispositivos:
+```bash
+cd mobile && npm run tunnel
 ```
 
 ### Simulador iOS (precisa de Xcode)
 
 ```bash
-npx expo start --ios
+cd mobile && npm run ios
 ```
 
-### Build standalone (.ipa para TestFlight / loja)
+## Build para App Store
 
 ```bash
 npm i -g eas-cli
 eas login
-eas build -p ios --profile preview     # ad-hoc, instala via QR
-eas build -p ios --profile production  # TestFlight / App Store
+cd mobile
+eas build -p ios --profile production
+eas submit -p ios --latest
 ```
 
-O `bundleIdentifier` já está como `com.barreira.app` em [mobile/app.json](mobile/app.json).
+O `bundleIdentifier` é `com.barreira.app` — configurado em [mobile/app.json](mobile/app.json).
 
-### Troubleshooting
+Preencha `appleId`, `ascAppId` e `appleTeamId` em [mobile/eas.json](mobile/eas.json) antes de submeter.
 
-- **`Permission denied` no expo**: `chmod +x mobile/node_modules/.bin/*`
-- **`bad interpreter: Operation not permitted`**: TCC — ver seção acima.
-- **`unable to resolve module …`** depois de mexer em deps: `rm -rf node_modules && npm install`
-- **Drag de parede com offset estranho**: ver comentário em [mobile/src/components/DragLayer.tsx](mobile/src/components/DragLayer.tsx).
+## Variáveis de ambiente
+
+Todas centralizadas no `.env` da raiz. Veja `.env.example` para referência.
+
+| Variável | Descrição |
+|----------|-----------|
+| `EXPO_PUBLIC_SERVER_URL` | URL do servidor (usado pelo app mobile) |
+| `PORT` | Porta do servidor Node (padrão: 3001) |
+| `DISCONNECT_TIMEOUT_MS` | Tempo de espera para reconexão (padrão: 30000) |
+| `NODE_ENV` | Ambiente (development/production) |
+| `SUPABASE_URL` | URL do projeto Supabase |
+| `SUPABASE_SERVICE_KEY` | Service role key do Supabase (nunca commitar) |
+
+## Deploy do servidor (VPS)
+
+```bash
+cd /var/www/barreira
+npm install
+mkdir -p server/logs
+pm2 start server/ecosystem.config.cjs
+```
+
+Nginx config em `deploy/nginx/barreira.conf`. TLS via Let's Encrypt (`certbot --nginx`).
 
 ## Como jogar
 
 - **Sua peça é a azul (ciano)**, parte de baixo. Objetivo: chegar em qualquer casa da linha de cima.
-- **Tap numa casa verde** = move (1 casa ortogonal, ou salto sobre o adversário se ele está adjacente sem parede entre vocês).
-- **Arrasta uma parede do banco** (H ou V) até a intersecção desejada. A parede fica azul-fantasma se for um encaixe legal; solte pra confirmar.
-- Você tem 10 paredes. Não pode colocar parede que feche totalmente o caminho de qualquer jogador (regra clássica do Quoridor — o app rejeita silenciosamente).
-- CPU joga 700 ms depois do seu turno.
+- **Tap numa casa verde** = mover (1 casa ortogonal, ou salto sobre o adversário).
+- **Arrasta uma parede do banco** (H ou V) até a intersecção desejada. A parede fica azul-fantasma se o encaixe for legal; solte para confirmar.
+- Você tem **10 paredes**. Não pode colocar parede que feche totalmente o caminho de qualquer jogador.
+
+## Scripts úteis
+
+```bash
+npm run dev:server        # Servidor com hot-reload
+npm run mobile            # App mobile (Expo LAN)
+npm run typecheck:shared  # Typecheck da engine
+npm run typecheck:server  # Typecheck do servidor
+npm run test:game         # Simulação de partida completa
+npm run test:reconnect    # Teste de reconexão
+npm run play:bot          # Bot vs bot
+```
+
+## Troubleshooting
+
+- **`Permission denied` no expo**: `chmod +x mobile/node_modules/.bin/*`
+- **`Operation not permitted`** (macOS TCC): mover o projeto para fora de `~/Desktop`, `~/Documents` ou `~/Downloads`, ou liberar em System Settings → Privacy & Security → Files & Folders.
+- **`unable to resolve module`**: `rm -rf node_modules && npm install`
