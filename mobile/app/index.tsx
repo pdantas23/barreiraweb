@@ -65,12 +65,7 @@ export default function HomeScreen() {
 
         {/* ─── Floating elements ─── */}
         <View style={styles.floatingRow}>
-          {/* Trophy chip */}
-          <View style={styles.trophyChip}>
-            <Text style={styles.trophyEmoji}>🏆</Text>
-            {/* TODO: replace hardcoded "0" with actual trophy count */}
-            <Text style={styles.trophyCount}>0</Text>
-          </View>
+          <View />
 
           {/* Profile button */}
           <Pressable
@@ -458,28 +453,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     marginBottom: 4,
     zIndex: 10,
-  },
-  trophyChip: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-    backgroundColor: C.white,
-    borderRadius: 20,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderWidth: 1,
-    borderColor: C.gold,
-    shadowColor: C.goldShadow,
-    shadowOpacity: 1,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 2 },
-    elevation: 3,
-  },
-  trophyEmoji: { fontSize: 16 },
-  trophyCount: {
-    fontSize: 14,
-    fontWeight: "800",
-    color: C.navy,
   },
   profileBtn: {
     width: 44,
