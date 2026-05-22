@@ -16,6 +16,8 @@
   },
   "dependencies": {
     "@barreira/shared": "*",
+    "@supabase/supabase-js": "^2.106.1",
+    "dotenv": "^17.4.2",
     "express": "^4.19.2",
     "socket.io": "^4.7.5"
   },

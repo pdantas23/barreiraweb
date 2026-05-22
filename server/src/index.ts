@@ -1,9 +1,9 @@
 // === Barreira — servidor multiplayer ===
 //
-// Fase 2: lobby + início de partida.
 // Os handlers RPC devolvem RpcResult<T> via ack; estado de partida vai
-// por push (gameStart / stateUpdate / etc).
+// por push (gameStart / stateUpdate / profile / etc).
 
+import "dotenv/config"; // carrega server/.env ANTES de qualquer outro import
 import express from "express";
 import { createServer } from "node:http";
 import { Server, type Socket } from "socket.io";
@@ -35,6 +35,7 @@ import {
   type ServerPlayer,
   type ServerRoom,
 } from "./lobby.js";
+import { getOrCreateProfile } from "./profiles.js";
 
 const PORT = Number(process.env.PORT ?? 3000);
 
@@ -158,6 +159,20 @@ io.on("connection", (socket: TypedSocket) => {
   const clientId = (socket.handshake.auth?.clientId as string | undefined) ?? null;
   socket.data.clientId = clientId;
   console.log(`[+] conectou: ${socket.id}${clientId ? ` (clientId ${clientId.slice(0, 8)}…)` : ""}`);
+
+  // Resolve identidade persistente via Supabase (fire-and-forget — não
+  // bloqueia outros handlers). Emite `profile` quando resolver.
+  // Se Supabase estiver fora do ar, o socket continua funcionando mas
+  // o display_name fica null no cliente até a próxima conexão.
+  if (clientId) {
+    void getOrCreateProfile(clientId)
+      .then((profile) => {
+        socket.emit("profile", profile);
+      })
+      .catch((err) => {
+        console.error(`[profile] falhou pra ${clientId.slice(0, 8)}…:`, err);
+      });
+  }
 
   // Reanchor: cliente conhecido voltou a uma sala em andamento.
   if (clientId) {
