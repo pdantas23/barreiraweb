@@ -14,20 +14,16 @@ const FADE_IN_MS = 800;
 const HOLD_MS = 1200;
 const FADE_OUT_MS = 600;
 
-type Props = { onFinish: () => void };
-
-export const SplashOverlay = ({ onFinish }: Props) => {
+export const SplashOverlay = () => {
   const opacity = useSharedValue(0);
+  const containerOpacity = useSharedValue(1);
   const [done, setDone] = useState(false);
 
   useEffect(() => {
     opacity.value = withSequence(
-      // fade in
       withTiming(1, { duration: FADE_IN_MS, easing: Easing.out(Easing.ease) }),
-      // hold
       withDelay(
         HOLD_MS,
-        // fade out
         withTiming(0, { duration: FADE_OUT_MS, easing: Easing.in(Easing.ease) }, () => {
           runOnJS(setDone)(true);
         }),
@@ -35,16 +31,15 @@ export const SplashOverlay = ({ onFinish }: Props) => {
     );
   }, []);
 
-  useEffect(() => {
-    if (done) onFinish();
-  }, [done]);
+  const animStyle = useAnimatedStyle(() => ({ opacity: opacity.value }));
+  const containerStyle = useAnimatedStyle(() => ({
+    opacity: containerOpacity.value,
+  }));
 
   if (done) return null;
 
-  const animStyle = useAnimatedStyle(() => ({ opacity: opacity.value }));
-
   return (
-    <View style={styles.container}>
+    <Animated.View style={[styles.container, containerStyle]}>
       <Animated.View style={[styles.logoWrap, animStyle]}>
         <Image
           source={require("../../assets/icon.png")}
@@ -52,7 +47,7 @@ export const SplashOverlay = ({ onFinish }: Props) => {
           resizeMode="contain"
         />
       </Animated.View>
-    </View>
+    </Animated.View>
   );
 };
 
