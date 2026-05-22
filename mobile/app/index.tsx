@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import {
   Modal,
   Pressable,
+  ScrollView,
   StyleSheet,
   Text,
   View,
@@ -10,6 +11,7 @@ import { router } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import Animated, {
   Easing,
   useAnimatedStyle,
@@ -18,6 +20,8 @@ import Animated, {
 } from "react-native-reanimated";
 import { GridBackground } from "../src/components/GridBackground";
 import { playButtonSound, useButtonSound } from "../src/hooks/useButtonSound";
+
+const PRIVACY_ACCEPTED_KEY = "privacy_accepted";
 
 // ─── Palette (home-only) ───────────────────────────────────────────
 const C = {
@@ -31,12 +35,10 @@ const C = {
   gold: "rgba(245,166,35,0.3)",
   goldShadow: "rgba(245,166,35,0.18)",
   cellBg: "#EEF2FF",
-  disabled: "#CCCCCC",
-  disabledBg: "#BBBBBB",
   red: "#FF3D6F",
 } as const;
 
-type Tab = "offline" | "casual" | "ranked";
+type Tab = "offline" | "casual";
 type Difficulty = "easy" | "medium" | "hard";
 
 // ─── Component ─────────────────────────────────────────────────────
@@ -46,7 +48,19 @@ export default function HomeScreen() {
   const [tab, setTab] = useState<Tab>("casual");
   const [difficulty, setDifficulty] = useState<Difficulty>("easy");
   const [offlineModal, setOfflineModal] = useState(false);
+  const [showPrivacy, setShowPrivacy] = useState(false);
   useButtonSound(); // preload
+
+  useEffect(() => {
+    AsyncStorage.getItem(PRIVACY_ACCEPTED_KEY).then((val) => {
+      if (!val) setShowPrivacy(true);
+    });
+  }, []);
+
+  const onAcceptPrivacy = () => {
+    AsyncStorage.setItem(PRIVACY_ACCEPTED_KEY, "1");
+    setShowPrivacy(false);
+  };
 
   const onPlay = () => {
     playButtonSound();
@@ -65,12 +79,12 @@ export default function HomeScreen() {
 
         {/* ─── Floating elements ─── */}
         <View style={styles.floatingRow}>
-          {/* Trophy chip */}
-          <View style={styles.trophyChip}>
-            <Text style={styles.trophyEmoji}>🏆</Text>
-            {/* TODO: replace hardcoded "0" with actual trophy count */}
-            <Text style={styles.trophyCount}>0</Text>
-          </View>
+          <Pressable
+            onPress={() => router.push("/privacy" as never)}
+            style={({ pressed }) => [styles.privacyBtn, pressed && styles.btnPressed]}
+          >
+            <Ionicons name="shield-checkmark-outline" size={18} color={C.muted} />
+          </Pressable>
 
           {/* Profile button */}
           <Pressable
@@ -83,15 +97,12 @@ export default function HomeScreen() {
 
         {/* ─── Tab content ─── */}
         <View style={styles.content}>
-          {tab !== "ranked" && <GridBackground />}
+          <GridBackground />
           <TabPane visible={tab === "casual"}>
             <CasualTab onPlay={onPlay} />
           </TabPane>
           <TabPane visible={tab === "offline"}>
             <OfflineTab onPlay={() => { playButtonSound(); setOfflineModal(true); }} />
-          </TabPane>
-          <TabPane visible={tab === "ranked"}>
-            <RankedTab />
           </TabPane>
         </View>
 
@@ -106,6 +117,42 @@ export default function HomeScreen() {
           onConfirm={onStartOffline}
           onClose={() => setOfflineModal(false)}
         />
+
+        {/* ─── Privacy consent modal (first launch) ─── */}
+        <Modal transparent visible={showPrivacy} animationType="fade" statusBarTranslucent>
+          <View style={styles.modalBackdrop}>
+            <View style={[styles.modalCard, { maxHeight: "80%" }]}>
+              <Ionicons name="shield-checkmark" size={36} color={C.blue} style={{ marginBottom: 8 }} />
+              <Text style={styles.modalTitle}>Política de Privacidade</Text>
+
+              <ScrollView style={{ maxHeight: 320, width: "100%" }} showsVerticalScrollIndicator={false}>
+                <Text style={styles.privacyText}>
+                  O Barreira coleta apenas um identificador de sessão aleatório para
+                  permitir reconexão durante partidas online. Não coletamos dados
+                  pessoais, não usamos analytics nem publicidade.{"\n\n"}
+                  Seu nome de exibição é visível aos oponentes durante a partida e
+                  não é armazenado permanentemente.{"\n\n"}
+                  Ao continuar, você concorda com nossa Política de Privacidade
+                  completa, acessível a qualquer momento no menu do app.
+                </Text>
+              </ScrollView>
+
+              <Pressable
+                onPress={onAcceptPrivacy}
+                style={({ pressed }) => [{ width: "100%", marginTop: 16 }, pressed && styles.btnPressed]}
+              >
+                <LinearGradient
+                  colors={[C.blue, C.blueLight]}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 0 }}
+                  style={styles.modalBtnConfirm}
+                >
+                  <Text style={styles.modalBtnConfirmText}>Aceitar e Continuar</Text>
+                </LinearGradient>
+              </Pressable>
+            </View>
+          </View>
+        </Modal>
       </View>
     </LinearGradient>
   );
@@ -225,18 +272,6 @@ const OfflineTab = ({ onPlay }: { onPlay: () => void }) => (
     >
       <Text style={styles.trainBtnText}>JOGAR</Text>
     </Pressable>
-  </View>
-);
-
-// ═══════════════════════════════════════════════════════════════════
-// RANKED TAB (locked)
-// ═══════════════════════════════════════════════════════════════════
-
-const RankedTab = () => (
-  <View style={styles.rankedWrap}>
-    <Text style={styles.rankedEmoji}>🏆</Text>
-    <Text style={styles.rankedTitle}>Ranqueado</Text>
-    <Text style={styles.rankedSub}>Em breve...</Text>
   </View>
 );
 
@@ -430,15 +465,6 @@ const BottomNav = ({
       />
 
       <CasualBubble active={tab === "casual"} onPress={() => setTab("casual")} />
-
-      {/* Ranked (disabled — looks like inactive bubble, not tappable) */}
-      <View style={styles.navItem}>
-        <View style={styles.navBubbleDisabled}>
-          <Ionicons name="trophy-outline" size={18} color={C.disabled} />
-        </View>
-        <Text style={styles.navLabelDisabled}>Ranqueado</Text>
-        <Text style={styles.navSoon}>Em Breve</Text>
-      </View>
     </View>
   );
 };
@@ -459,27 +485,15 @@ const styles = StyleSheet.create({
     marginBottom: 4,
     zIndex: 10,
   },
-  trophyChip: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
+  privacyBtn: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     backgroundColor: C.white,
-    borderRadius: 20,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
     borderWidth: 1,
-    borderColor: C.gold,
-    shadowColor: C.goldShadow,
-    shadowOpacity: 1,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 2 },
-    elevation: 3,
-  },
-  trophyEmoji: { fontSize: 16 },
-  trophyCount: {
-    fontSize: 14,
-    fontWeight: "800",
-    color: C.navy,
+    borderColor: C.cellBg,
+    alignItems: "center",
+    justifyContent: "center",
   },
   profileBtn: {
     width: 44,
@@ -711,6 +725,12 @@ const styles = StyleSheet.create({
     fontSize: 15,
     letterSpacing: 0.5,
   },
+  privacyText: {
+    fontSize: 13,
+    color: "#4A5C7A",
+    lineHeight: 20,
+    textAlign: "left",
+  },
   diffPill: {
     flex: 1,
     paddingVertical: 10,
@@ -746,24 +766,6 @@ const styles = StyleSheet.create({
     fontWeight: "900",
     letterSpacing: 2,
   },
-  // ─── RANKED TAB ───
-  rankedWrap: {
-    alignItems: "center",
-    gap: 8,
-  },
-  rankedEmoji: {
-    fontSize: 64,
-    opacity: 0.4,
-  },
-  rankedTitle: {
-    fontSize: 24,
-    fontWeight: "900",
-    color: C.disabledBg,
-  },
-  rankedSub: {
-    fontSize: 14,
-    color: C.disabled,
-  },
   // ─── BOTTOM NAV ───
   navbar: {
     flexDirection: "row",
@@ -787,17 +789,6 @@ const styles = StyleSheet.create({
     width: 80,
     gap: 2,
   },
-  navBubbleDisabled: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: "#E8EEF8",
-    borderWidth: 3,
-    borderColor: C.white,
-    alignItems: "center",
-    justifyContent: "center",
-    opacity: 0.4,
-  },
   navBubbleInner: {
     flex: 1,
     borderRadius: 999,
@@ -820,15 +811,5 @@ const styles = StyleSheet.create({
   navLabelActive: {
     color: C.blue,
     fontWeight: "800",
-  },
-  navLabelDisabled: {
-    fontSize: 11,
-    fontWeight: "600",
-    color: C.disabled,
-  },
-  navSoon: {
-    fontSize: 8,
-    color: C.disabled,
-    fontWeight: "600",
   },
 });

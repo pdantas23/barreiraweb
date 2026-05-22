@@ -11,41 +11,46 @@ import type {
 } from "@barreira/shared";
 import { connectSocket } from "./socket";
 
-export const createRoom = async (
+const RPC_TIMEOUT_MS = 8000;
+
+function withTimeout<T>(promise: Promise<T>, ms = RPC_TIMEOUT_MS): Promise<T> {
+  return Promise.race([
+    promise,
+    new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error("timeout")), ms),
+    ),
+  ]);
+}
+
+function safeRpc<T>(fn: () => Promise<RpcResult<T>>): Promise<RpcResult<T>> {
+  return withTimeout(fn()).catch(() => ({
+    ok: false as const,
+    error: "internal-error" as const,
+    message: "Sem conexão com o servidor. Verifique sua internet.",
+  }));
+}
+
+export const createRoom = (
   payload: CreateRoomPayload,
-): Promise<RpcResult<RoomDetail>> => {
-  const s = connectSocket();
-  return await s.emitWithAck("createRoom", payload);
-};
+): Promise<RpcResult<RoomDetail>> =>
+  safeRpc(() => connectSocket().emitWithAck("createRoom", payload));
 
-export const joinRoom = async (
+export const joinRoom = (
   payload: JoinRoomPayload,
-): Promise<RpcResult<RoomDetail>> => {
-  const s = connectSocket();
-  return await s.emitWithAck("joinRoom", payload);
-};
+): Promise<RpcResult<RoomDetail>> =>
+  safeRpc(() => connectSocket().emitWithAck("joinRoom", payload));
 
-export const listRooms = async (): Promise<RpcResult<{ rooms: PublicRoom[] }>> => {
-  const s = connectSocket();
-  return await s.emitWithAck("listRooms", {});
-};
+export const listRooms = (): Promise<RpcResult<{ rooms: PublicRoom[] }>> =>
+  safeRpc(() => connectSocket().emitWithAck("listRooms", {}));
 
-export const leaveRoom = async (): Promise<RpcResult<null>> => {
-  const s = connectSocket();
-  return await s.emitWithAck("leaveRoom", {});
-};
+export const leaveRoom = (): Promise<RpcResult<null>> =>
+  safeRpc(() => connectSocket().emitWithAck("leaveRoom", {}));
 
-export const sendMove = async (move: Move): Promise<RpcResult<null>> => {
-  const s = connectSocket();
-  return await s.emitWithAck("move", { move });
-};
+export const sendMove = (move: Move): Promise<RpcResult<null>> =>
+  safeRpc(() => connectSocket().emitWithAck("move", { move }));
 
-export const requestRematch = async (): Promise<RpcResult<null>> => {
-  const s = connectSocket();
-  return await s.emitWithAck("requestRematch", {});
-};
+export const requestRematch = (): Promise<RpcResult<null>> =>
+  safeRpc(() => connectSocket().emitWithAck("requestRematch", {}));
 
-export const respondRematch = async (accept: boolean): Promise<RpcResult<null>> => {
-  const s = connectSocket();
-  return await s.emitWithAck("respondRematch", { accept });
-};
+export const respondRematch = (accept: boolean): Promise<RpcResult<null>> =>
+  safeRpc(() => connectSocket().emitWithAck("respondRematch", { accept }));

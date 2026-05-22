@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
+  Linking,
   Pressable,
   StyleSheet,
   Text,
@@ -319,6 +320,27 @@ export default function OnlineGameScreen() {
     }
   };
 
+  const onReportPlayer = () => {
+    Alert.alert(
+      "Denunciar jogador",
+      `Deseja denunciar "${meta?.opponentName ?? "jogador"}" por comportamento inadequado?`,
+      [
+        { text: "Cancelar", style: "cancel" },
+        {
+          text: "Denunciar",
+          style: "destructive",
+          onPress: () => {
+            const subject = encodeURIComponent("Denúncia de jogador - Barreira");
+            const body = encodeURIComponent(
+              `Jogador denunciado: ${meta?.opponentName ?? "?"}\nSala: ${code}\nMotivo: `,
+            );
+            Linking.openURL(`mailto:contato@barreira.app?subject=${subject}&body=${body}`);
+          },
+        },
+      ],
+    );
+  };
+
   const onBackToMenu = () => router.replace("/");
   const onBackToLobby = async () => {
     // Mesmo motivo do doLeave: espera ack pra evitar sala fantasma.
@@ -418,6 +440,9 @@ export default function OnlineGameScreen() {
             vs {meta.opponentName}
           </Text>
         </View>
+        <Pressable onPress={onReportPlayer} style={styles.reportBtn}>
+          <Ionicons name="flag-outline" size={18} color={L.muted} />
+        </Pressable>
       </View>
 
       {/* Player cards */}
@@ -596,6 +621,13 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
     borderRadius: 12,
     backgroundColor: "rgba(61,111,255,0.08)",
+  },
+  reportBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: "center",
+    justifyContent: "center",
   },
   opponentChipText: {
     color: gc.blue,

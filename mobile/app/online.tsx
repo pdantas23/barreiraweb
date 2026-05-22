@@ -72,7 +72,7 @@ export default function OnlineScreen() {
     const res = await listRooms();
     setLoading(false);
     if (!res.ok) {
-      Alert.alert("Erro", `Não consegui listar salas (${res.error}).`);
+      Alert.alert("Erro", res.message ?? errorMessage(res.error));
       return;
     }
     setRooms(res.data.rooms);
@@ -111,7 +111,7 @@ export default function OnlineScreen() {
     });
     setBusy(false);
     if (!res.ok) {
-      Alert.alert("Não consegui entrar", errorMessage(res.error));
+      Alert.alert("Não consegui entrar", res.message ?? errorMessage(res.error));
       return;
     }
     goToOnlineGame({ role: "guest", code: room.code });
@@ -128,7 +128,7 @@ export default function OnlineScreen() {
     });
     setBusy(false);
     if (!res.ok) {
-      Alert.alert("Não consegui criar a sala", errorMessage(res.error));
+      Alert.alert("Não consegui criar a sala", res.message ?? errorMessage(res.error));
       return;
     }
     goToOnlineGame({
@@ -147,7 +147,7 @@ export default function OnlineScreen() {
     });
     setBusy(false);
     if (!res.ok) {
-      Alert.alert("Não consegui entrar", errorMessage(res.error));
+      Alert.alert("Não consegui entrar", res.message ?? errorMessage(res.error));
       return;
     }
     goToOnlineGame({ role: "guest", code });
