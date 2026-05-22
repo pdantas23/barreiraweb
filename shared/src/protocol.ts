@@ -95,6 +95,14 @@ export type RematchRequestedPayload = {
 export type RematchDeclinedPayload = Record<string, never>;
 export type RematchExpiredPayload = Record<string, never>;
 
+// === Profile (identidade persistente anônima) ===
+// Emitido pelo server logo após connect/reanchor, ANTES de qualquer
+// gameStart. Cliente guarda em estado global pra mostrar em todas as telas.
+export type ProfilePayload = {
+  clientId: string;
+  displayName: string; // ex: "anonimo276"
+};
+
 // === RPC error envelope ===
 
 // Lista de erros conhecidos — qualquer outro vira "internal-error".
@@ -153,6 +161,7 @@ export type ClientToServerEvents = {
 };
 
 export type ServerToClientEvents = {
+  profile: (payload: ProfilePayload) => void;
   roomUpdate: (room: PublicRoom) => void;
   gameStart: (payload: GameStartPayload) => void;
   stateUpdate: (payload: StateUpdatePayload) => void;

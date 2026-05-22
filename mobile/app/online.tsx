@@ -22,6 +22,7 @@ import { JoinByCodeModal } from "../src/components/JoinByCodeModal";
 import { createRoom, joinRoom, listRooms } from "../src/net/api";
 import { clearLastGameStart, connectSocket } from "../src/net/socket";
 import { playButtonSound, useButtonSound } from "../src/hooks/useButtonSound";
+import { usePlayerName } from "../src/state/profile";
 
 // Palette — matches Home & Game screens
 const C = {
@@ -38,6 +39,8 @@ const C = {
   red: "#FF3D6F",
 } as const;
 
+// Fallback caso o profile ainda não tenha chegado do server. Em produção
+// (server online), o `usePlayerName` retorna o anonimoXXXX persistente.
 const DEFAULT_PLAYER_NAME = "Jogador";
 
 const colorAccent = (c: ColorChoice): string => {
@@ -55,6 +58,9 @@ const colorLabel = (c: ColorChoice): string => {
 export default function OnlineScreen() {
   useButtonSound(); // preload
   const insets = useSafeAreaInsets();
+  // Nome persistente do jogador (vem do server via evento `profile`).
+  // Fallback "Jogador" só na primeira conexão antes do ack — ~200ms.
+  const playerName = usePlayerName();
   const [createOpen, setCreateOpen] = useState(false);
   const [joinOpen, setJoinOpen] = useState(false);
   const [rooms, setRooms] = useState<PublicRoom[]>([]);
@@ -101,7 +107,7 @@ export default function OnlineScreen() {
     setBusy(true);
     const res = await joinRoom({
       code: room.code,
-      playerName: DEFAULT_PLAYER_NAME,
+      playerName,
     });
     setBusy(false);
     if (!res.ok) {
@@ -116,7 +122,7 @@ export default function OnlineScreen() {
     setCreateOpen(false);
     setBusy(true);
     const res = await createRoom({
-      hostName: DEFAULT_PLAYER_NAME,
+      hostName: playerName,
       color: config.color,
       isPrivate: config.isPrivate,
     });
@@ -137,7 +143,7 @@ export default function OnlineScreen() {
     setBusy(true);
     const res = await joinRoom({
       code,
-      playerName: DEFAULT_PLAYER_NAME,
+      playerName,
     });
     setBusy(false);
     if (!res.ok) {
