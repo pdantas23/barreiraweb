@@ -7,7 +7,7 @@ import {
   Text,
   View,
 } from "react-native";
-import { router } from "expo-router";
+import { router, useFocusEffect } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
@@ -19,7 +19,12 @@ import Animated, {
   withTiming,
 } from "react-native-reanimated";
 import { GridBackground } from "../src/components/GridBackground";
-import { playButtonSound, useButtonSound } from "../src/hooks/useButtonSound";
+import { playButtonSound, useButtonSound, setSfxEnabledForSounds } from "../src/hooks/useButtonSound";
+import { setSfxEnabledForPiece } from "../src/hooks/usePieceSound";
+import { setSfxEnabledForWall } from "../src/hooks/useWallSound";
+import { useMenuMusic } from "../src/hooks/useMenuMusic";
+import { useCallback } from "react";
+import { useAudioSettings } from "../src/state/audioSettings";
 
 const PRIVACY_ACCEPTED_KEY = "privacy_accepted";
 
@@ -49,7 +54,24 @@ export default function HomeScreen() {
   const [difficulty, setDifficulty] = useState<Difficulty>("easy");
   const [offlineModal, setOfflineModal] = useState(false);
   const [showPrivacy, setShowPrivacy] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
+  const { musicEnabled, sfxEnabled, setMusicEnabled, setSfxEnabled } = useAudioSettings();
   useButtonSound(); // preload
+  const [focused, setFocused] = useState(true);
+  useFocusEffect(
+    useCallback(() => {
+      setFocused(true);
+      return () => setFocused(false);
+    }, []),
+  );
+  useMenuMusic(musicEnabled && focused);
+
+  // Sync sfx flag to all sound modules
+  useEffect(() => {
+    setSfxEnabledForSounds(sfxEnabled);
+    setSfxEnabledForPiece(sfxEnabled);
+    setSfxEnabledForWall(sfxEnabled);
+  }, [sfxEnabled]);
 
   useEffect(() => {
     AsyncStorage.getItem(PRIVACY_ACCEPTED_KEY).then((val) => {
@@ -80,10 +102,10 @@ export default function HomeScreen() {
         {/* ─── Floating elements ─── */}
         <View style={styles.floatingRow}>
           <Pressable
-            onPress={() => router.push("/privacy" as never)}
-            style={({ pressed }) => [styles.privacyBtn, pressed && styles.btnPressed]}
+            onPress={() => { playButtonSound(); setShowSettings(true); }}
+            style={({ pressed }) => [styles.settingsBtn, pressed && styles.btnPressed]}
           >
-            <Ionicons name="shield-checkmark-outline" size={18} color={C.muted} />
+            <Ionicons name="settings-outline" size={20} color={C.muted} />
           </Pressable>
 
           {/* Profile button */}
@@ -153,6 +175,59 @@ export default function HomeScreen() {
             </View>
           </View>
         </Modal>
+        {/* ─── Settings modal ─── */}
+        <Modal transparent visible={showSettings} animationType="fade" statusBarTranslucent>
+          <Pressable style={styles.modalBackdrop} onPress={() => setShowSettings(false)}>
+            <Pressable style={styles.modalCard} onPress={(e) => e.stopPropagation?.()}>
+              <Ionicons name="settings" size={32} color={C.blue} style={{ marginBottom: 8 }} />
+              <Text style={styles.modalTitle}>Configurações</Text>
+
+              <View style={styles.settingRow}>
+                <View style={styles.settingInfo}>
+                  <Ionicons name="musical-notes" size={20} color={C.navy} />
+                  <Text style={styles.settingLabel}>Música</Text>
+                </View>
+                <Pressable
+                  onPress={() => setMusicEnabled(!musicEnabled)}
+                  style={[styles.toggle, musicEnabled && styles.toggleActive]}
+                >
+                  <View style={[styles.toggleThumb, musicEnabled && styles.toggleThumbActive]} />
+                </Pressable>
+              </View>
+
+              <View style={styles.settingRow}>
+                <View style={styles.settingInfo}>
+                  <Ionicons name="volume-high" size={20} color={C.navy} />
+                  <Text style={styles.settingLabel}>Efeitos sonoros</Text>
+                </View>
+                <Pressable
+                  onPress={() => setSfxEnabled(!sfxEnabled)}
+                  style={[styles.toggle, sfxEnabled && styles.toggleActive]}
+                >
+                  <View style={[styles.toggleThumb, sfxEnabled && styles.toggleThumbActive]} />
+                </Pressable>
+              </View>
+
+              <Pressable
+                onPress={() => { setShowSettings(false); router.push("/privacy" as never); }}
+                style={styles.settingRow}
+              >
+                <View style={styles.settingInfo}>
+                  <Ionicons name="shield-checkmark-outline" size={20} color={C.navy} />
+                  <Text style={styles.settingLabel}>Política de Privacidade</Text>
+                </View>
+                <Ionicons name="chevron-forward" size={18} color={C.muted} />
+              </Pressable>
+
+              <Pressable
+                onPress={() => setShowSettings(false)}
+                style={({ pressed }) => [styles.settingsCloseBtn, pressed && styles.btnPressed]}
+              >
+                <Text style={styles.settingsCloseBtnText}>Fechar</Text>
+              </Pressable>
+            </Pressable>
+          </Pressable>
+        </Modal>
       </View>
     </LinearGradient>
   );
@@ -193,16 +268,7 @@ const TabPane = ({ visible, children }: { visible: boolean; children: React.Reac
 const CasualTab = ({ onPlay }: { onPlay: () => void }) => (
   <View style={styles.casualWrap}>
     {/* Logo */}
-    <View style={styles.logoRow}>
-      <View style={styles.logoIcon}>
-        <View style={[styles.logoBar, { height: 18, backgroundColor: C.blue }]} />
-        <View style={[styles.logoBar, { height: 26, backgroundColor: C.blueLight }]} />
-        <View style={[styles.logoBar, { height: 14, backgroundColor: C.blue }]} />
-        <View style={[styles.logoBar, { height: 22, backgroundColor: C.blueLight }]} />
-      </View>
-      <Text style={styles.wordmark}>BARREIRA</Text>
-    </View>
-    <Text style={styles.logoSub}>Arena de Batalha</Text>
+    <Text style={styles.wordmark}>BARREIRA</Text>
 
     {/* Arena card placeholder */}
     <View style={styles.arenaOuter}>
@@ -346,7 +412,9 @@ const DifficultyPickerModal = ({
 
 const ANIM_CFG = { duration: 200, easing: Easing.out(Easing.ease) };
 
-const NavIcon = ({
+const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
+
+const NavTab = ({
   active,
   iconActive,
   iconInactive,
@@ -359,89 +427,37 @@ const NavIcon = ({
   label: string;
   onPress: () => void;
 }) => {
-  const bubbleSize = useSharedValue(active ? 56 : 36);
-  const bubbleOpacity = useSharedValue(active ? 1 : 0.4);
-  const liftY = useSharedValue(active ? -20 : 0);
+  const mt = useSharedValue(active ? -12 : 0);
+  const h = useSharedValue(active ? 82 : 70);
 
   useEffect(() => {
-    bubbleSize.value = withTiming(active ? 56 : 36, ANIM_CFG);
-    bubbleOpacity.value = withTiming(active ? 1 : 0.4, ANIM_CFG);
-    liftY.value = withTiming(active ? -20 : 0, ANIM_CFG);
+    mt.value = withTiming(active ? -12 : 0, ANIM_CFG);
+    h.value = withTiming(active ? 82 : 70, ANIM_CFG);
   }, [active]);
 
-  const wrapStyle = useAnimatedStyle(() => ({
-    transform: [{ translateY: liftY.value }],
-  }));
-
-  const sizeStyle = useAnimatedStyle(() => ({
-    width: bubbleSize.value,
-    height: bubbleSize.value,
-    borderRadius: bubbleSize.value / 2,
-    opacity: bubbleOpacity.value,
+  const animStyle = useAnimatedStyle(() => ({
+    marginTop: mt.value,
+    height: h.value,
   }));
 
   return (
-    <Pressable onPress={onPress} style={styles.navItem}>
-      <Animated.View style={wrapStyle}>
-        <Animated.View style={sizeStyle}>
-          <LinearGradient
-            colors={[C.blue, C.blueLight]}
-            style={styles.navBubbleInner}
-          >
-            <Ionicons
-              name={active ? iconActive : iconInactive}
-              size={active ? 26 : 18}
-              color={C.white}
-            />
-          </LinearGradient>
-        </Animated.View>
-      </Animated.View>
+    <AnimatedPressable
+      onPress={onPress}
+      style={[
+        styles.navTab,
+        active && styles.navTabActive,
+        animStyle,
+      ]}
+    >
+      <Ionicons
+        name={active ? iconActive : iconInactive}
+        size={active ? 28 : 22}
+        color={active ? C.blue : C.muted}
+      />
       <Text style={[styles.navLabel, active && styles.navLabelActive]}>
         {label}
       </Text>
-    </Pressable>
-  );
-};
-
-// Animated bubble for Casual tab — grows/lifts when active
-const CasualBubble = ({ active, onPress }: { active: boolean; onPress: () => void }) => {
-  const bubbleSize = useSharedValue(active ? 56 : 36);
-  const bubbleOpacity = useSharedValue(active ? 1 : 0.4);
-  const liftY = useSharedValue(active ? -20 : 0);
-
-  useEffect(() => {
-    bubbleSize.value = withTiming(active ? 56 : 36, ANIM_CFG);
-    bubbleOpacity.value = withTiming(active ? 1 : 0.4, ANIM_CFG);
-    liftY.value = withTiming(active ? -20 : 0, ANIM_CFG);
-  }, [active]);
-
-  const wrapStyle = useAnimatedStyle(() => ({
-    transform: [{ translateY: liftY.value }],
-  }));
-
-  const sizeStyle = useAnimatedStyle(() => ({
-    width: bubbleSize.value,
-    height: bubbleSize.value,
-    borderRadius: bubbleSize.value / 2,
-    opacity: bubbleOpacity.value,
-  }));
-
-  return (
-    <Pressable onPress={onPress} style={styles.navItem}>
-      <Animated.View style={wrapStyle}>
-        <Animated.View style={sizeStyle}>
-          <LinearGradient
-            colors={[C.blue, C.blueLight]}
-            style={styles.navBubbleInner}
-          >
-            <Ionicons name="flash" size={active ? 26 : 18} color={C.white} />
-          </LinearGradient>
-        </Animated.View>
-      </Animated.View>
-      <Text style={[styles.navLabel, active && styles.navLabelActive]}>
-        Casual
-      </Text>
-    </Pressable>
+    </AnimatedPressable>
   );
 };
 
@@ -456,15 +472,20 @@ const BottomNav = ({
 }) => {
   return (
     <View style={[styles.navbar, { paddingBottom: Math.max(bottomInset, 8) }]}>
-      <NavIcon
+      <NavTab
         active={tab === "offline"}
         iconActive="game-controller"
         iconInactive="game-controller-outline"
-        label="Offline"
+        label="Treino"
         onPress={() => setTab("offline")}
       />
-
-      <CasualBubble active={tab === "casual"} onPress={() => setTab("casual")} />
+      <NavTab
+        active={tab === "casual"}
+        iconActive="flash"
+        iconInactive="flash-outline"
+        label="Casual"
+        onPress={() => setTab("casual")}
+      />
     </View>
   );
 };
@@ -485,7 +506,7 @@ const styles = StyleSheet.create({
     marginBottom: 4,
     zIndex: 10,
   },
-  privacyBtn: {
+  settingsBtn: {
     width: 44,
     height: 44,
     borderRadius: 22,
@@ -731,6 +752,63 @@ const styles = StyleSheet.create({
     lineHeight: 20,
     textAlign: "left",
   },
+  // ─── SETTINGS MODAL ───
+  settingRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    width: "100%",
+    paddingVertical: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: C.cellBg,
+  },
+  settingInfo: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+  settingLabel: {
+    fontSize: 15,
+    fontWeight: "600",
+    color: C.navy,
+  },
+  toggle: {
+    width: 48,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: "#D1D5DB",
+    justifyContent: "center",
+    paddingHorizontal: 2,
+  },
+  toggleActive: {
+    backgroundColor: C.blue,
+  },
+  toggleThumb: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: C.white,
+    shadowColor: "#000",
+    shadowOpacity: 0.15,
+    shadowRadius: 2,
+    shadowOffset: { width: 0, height: 1 },
+    elevation: 2,
+  },
+  toggleThumbActive: {
+    alignSelf: "flex-end",
+  },
+  settingsCloseBtn: {
+    marginTop: 18,
+    paddingVertical: 12,
+    paddingHorizontal: 32,
+    borderRadius: 12,
+    backgroundColor: C.cellBg,
+  },
+  settingsCloseBtnText: {
+    color: C.muted,
+    fontWeight: "700",
+    fontSize: 14,
+  },
   diffPill: {
     flex: 1,
     paddingVertical: 10,
@@ -769,13 +847,11 @@ const styles = StyleSheet.create({
   // ─── BOTTOM NAV ───
   navbar: {
     flexDirection: "row",
-    alignItems: "flex-end",
-    justifyContent: "space-around",
+    alignItems: "flex-start",
     backgroundColor: C.white,
     borderTopWidth: 1,
     borderTopColor: "rgba(61,111,255,0.08)",
-    paddingTop: 8,
-    height: 100,
+    height: 70,
     overflow: "visible",
     shadowColor: C.blue,
     shadowOpacity: 0.06,
@@ -783,32 +859,31 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: -4 },
     elevation: 8,
   },
-  navItem: {
-    alignItems: "center",
-    justifyContent: "center",
-    width: 80,
-    gap: 2,
-  },
-  navBubbleInner: {
+  navTab: {
     flex: 1,
-    borderRadius: 999,
     alignItems: "center",
     justifyContent: "center",
-    borderWidth: 3,
-    borderColor: C.white,
+    gap: 3,
+    borderTopLeftRadius: 12,
+    borderTopRightRadius: 12,
+  },
+  navTabActive: {
+    backgroundColor: C.white,
+    borderTopWidth: 3,
+    borderTopColor: C.blue,
     shadowColor: C.blue,
-    shadowOpacity: 0.35,
-    shadowRadius: 10,
-    shadowOffset: { width: 0, height: 4 },
-    elevation: 6,
-    overflow: "hidden",
+    shadowOpacity: 0.12,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: -3 },
+    elevation: 4,
   },
   navLabel: {
-    fontSize: 11,
+    fontSize: 10,
     fontWeight: "600",
     color: C.muted,
   },
   navLabelActive: {
+    fontSize: 11,
     color: C.blue,
     fontWeight: "800",
   },
