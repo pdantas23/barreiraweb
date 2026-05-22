@@ -3,7 +3,12 @@
 // Os handlers RPC devolvem RpcResult<T> via ack; estado de partida vai
 // por push (gameStart / stateUpdate / profile / etc).
 
-import "dotenv/config"; // carrega server/.env ANTES de qualquer outro import
+import dotenv from "dotenv";
+import { resolve, dirname } from "node:path";
+import { fileURLToPath } from "node:url";
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
+dotenv.config({ path: resolve(__dirname, "../../.env") }); // carrega .env da raiz do monorepo
 import express from "express";
 import { createServer } from "node:http";
 import { Server, type Socket } from "socket.io";
