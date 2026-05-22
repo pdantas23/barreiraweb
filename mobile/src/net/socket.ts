@@ -49,17 +49,15 @@ export const clearLastGameStart = () => {
 
 export const getSocket = (): AppSocket => {
   if (!socket) {
+    const cid = getClientId();
+    console.log("[socket] criando com clientId:", cid, "URL:", SERVER_URL);
     socket = io(SERVER_URL, {
       transports: ["websocket"],
       autoConnect: false,
-      // Reconexão automática — server reanexa a sala via clientId.
       reconnection: true,
       reconnectionAttempts: 5,
       reconnectionDelay: 800,
-      // clientId vai no handshake auth → server lê via socket.handshake.auth.
-      // Permite que o server identifique esse cliente mesmo após o socket.id
-      // mudar (Wi-Fi caiu, app voltou de background, etc).
-      auth: { clientId: getClientId() },
+      auth: { clientId: cid },
     });
     wireGlobalListeners(socket);
   }

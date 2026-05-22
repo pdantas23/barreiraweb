@@ -7,6 +7,10 @@
     "server",
     "shared"
   ],
+  "overrides": {
+    "react": "19.1.0",
+    "react-native": "0.81.5"
+  },
   "scripts": {
     "mobile": "npm --workspace=mobile run start",
     "dev:server": "npm --workspace=@barreira/server run dev",
