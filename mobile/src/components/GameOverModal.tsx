@@ -5,7 +5,12 @@ import Animated, { FadeIn, FadeInDown } from "react-native-reanimated";
 import type { PlayerId } from "@barreira/shared";
 import { useGameResultSound } from "../hooks/useGameResultSound";
 import { useAudioSettings } from "../state/audioSettings";
-import { theme } from "../theme";
+
+// Paleta alinhada com a home (index.tsx) e tela de jogo (gameColors.ts)
+const ACCENT = {
+  blue: "#3D6FFF",
+  red: "#FF3D6F",
+} as const;
 
 type RematchStatus = "idle" | "requesting" | "requested" | "declined" | "expired";
 
@@ -74,7 +79,7 @@ export const GameOverModal = ({
     : isTimeout
       ? "Seu tempo acabou."
       : "O adversário cruzou a linha primeiro.";
-  const accent = isVictory ? theme.player1 : theme.player2;
+  const accent = isVictory ? ACCENT.blue : ACCENT.red;
   const icon = isVictory
     ? isTimeout ? "timer-outline" : "trophy"
     : isTimeout ? "timer-outline" : "close-circle";
@@ -161,7 +166,7 @@ export const GameOverModal = ({
         return (
           <View style={styles.requestedSection}>
             <View style={styles.requestBanner}>
-              <Ionicons name="game-controller" size={20} color={theme.player1} />
+              <Ionicons name="game-controller" size={20} color={ACCENT.blue} />
               <Text style={styles.requestText}>
                 {rematchRequesterName} quer uma revanche!
               </Text>
@@ -172,8 +177,8 @@ export const GameOverModal = ({
                 onPress={onDeclineRematch}
                 style={({ pressed }) => [styles.btnSecondary, pressed && styles.pressed]}
               >
-                <Ionicons name="close" size={18} color={theme.player2} />
-                <Text style={[styles.btnSecondaryText, { color: theme.player2 }]}>
+                <Ionicons name="close" size={18} color={ACCENT.red} />
+                <Text style={[styles.btnSecondaryText, { color: ACCENT.red }]}>
                   Recusar
                 </Text>
               </Pressable>
@@ -181,7 +186,7 @@ export const GameOverModal = ({
                 onPress={onAcceptRematch}
                 style={({ pressed }) => [
                   styles.btnPrimary,
-                  { backgroundColor: theme.player1 },
+                  { backgroundColor: ACCENT.blue },
                   pressed && styles.pressed,
                 ]}
               >
@@ -370,13 +375,13 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 8,
-    backgroundColor: `${theme.player1}1a`,
+    backgroundColor: `${ACCENT.blue}1a`,
     borderRadius: 10,
     paddingVertical: 10,
     paddingHorizontal: 14,
     width: "100%",
     borderWidth: 1,
-    borderColor: `${theme.player1}55`,
+    borderColor: `${ACCENT.blue}55`,
   },
   requestText: {
     color: L.navy,
@@ -385,7 +390,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   requestCountdown: {
-    color: theme.player1,
+    color: ACCENT.blue,
     fontSize: 15,
     fontWeight: "900",
     minWidth: 30,

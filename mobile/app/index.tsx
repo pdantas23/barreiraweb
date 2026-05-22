@@ -322,22 +322,48 @@ const DIFFICULTIES: { key: Difficulty; label: string }[] = [
 ];
 
 const OfflineTab = ({ onPlay }: { onPlay: () => void }) => (
-  <View style={styles.offlineWrap}>
-    <LinearGradient
-      colors={[C.blue, C.navy]}
-      style={styles.botIcon}
-    >
-      <Ionicons name="hardware-chip-outline" size={52} color={C.white} />
-    </LinearGradient>
+  <View style={styles.casualWrap}>
+    {/* Logo */}
+    <Text style={styles.wordmark}>BARREIRA</Text>
 
-    <Text style={styles.offlineTitle}>Treino</Text>
+    {/* Arena card (training) */}
+    <View style={styles.arenaOuter}>
+      <LinearGradient
+        colors={[C.blue, C.blueLight]}
+        style={styles.arenaCard}
+      >
+        {/* 6x6 grid */}
+        <View style={styles.arenaGrid}>
+          {Array.from({ length: 36 }).map((_, i) => (
+            <View key={i} style={styles.arenaCell} />
+          ))}
+        </View>
+        {/* Bot pawn (top) */}
+        <View style={[styles.arenaPawn, styles.arenaPawnRed]} />
+        {/* Player pawn (bottom) */}
+        <View style={[styles.arenaPawn, styles.arenaPawnBlue]} />
+        {/* Walls */}
+        <View style={[styles.arenaWall, styles.arenaWallH]} />
+        <View style={[styles.arenaWall, styles.arenaWallV]} />
+      </LinearGradient>
+    </View>
 
+    {/* Play button — identical to casual */}
     <Pressable
       onPress={onPlay}
-      style={({ pressed }) => [styles.trainBtn, pressed && styles.btnPressed]}
+      style={({ pressed }) => [pressed && styles.btnPressed]}
     >
-      <Text style={styles.trainBtnText}>JOGAR</Text>
+      <LinearGradient
+        colors={[C.blue, C.blueLight]}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 0 }}
+        style={styles.playBtn}
+      >
+        <Ionicons name="play" size={20} color={C.white} />
+        <Text style={styles.playBtnText}>JOGAR</Text>
+      </LinearGradient>
     </Pressable>
+    <Text style={styles.playBtnSub}>Treinar contra o bot</Text>
   </View>
 );
 
@@ -656,32 +682,6 @@ const styles = StyleSheet.create({
     color: C.muted,
     marginTop: -8,
   },
-  // ─── OFFLINE TAB ───
-  offlineWrap: {
-    alignItems: "center",
-    gap: 10,
-  },
-  botIcon: {
-    width: 120,
-    height: 120,
-    borderRadius: 24,
-    alignItems: "center",
-    justifyContent: "center",
-    marginBottom: 6,
-  },
-  botEmoji: {
-    fontSize: 52,
-  },
-  offlineTitle: {
-    fontSize: 28,
-    fontWeight: "900",
-    color: C.navy,
-  },
-  offlineSub: {
-    fontSize: 14,
-    color: C.muted,
-    marginBottom: 10,
-  },
   diffRow: {
     flexDirection: "row",
     gap: 10,
@@ -829,20 +829,6 @@ const styles = StyleSheet.create({
   },
   diffPillTextActive: {
     color: C.white,
-  },
-  trainBtn: {
-    width: 280,
-    height: 58,
-    borderRadius: 18,
-    backgroundColor: C.navy,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  trainBtnText: {
-    color: C.white,
-    fontSize: 18,
-    fontWeight: "900",
-    letterSpacing: 2,
   },
   // ─── BOTTOM NAV ───
   navbar: {
