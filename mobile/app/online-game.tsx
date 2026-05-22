@@ -34,7 +34,7 @@ import {
 } from "@barreira/shared";
 import { Board } from "../src/components/Board";
 import { CountdownOverlay } from "../src/components/CountdownOverlay";
-import { GameOverModal } from "../src/components/GameOverModal";
+import { GameOverModal, type GameOverReason } from "../src/components/GameOverModal";
 import { GameTimer, useGameTimers } from "../src/components/GameTimer";
 import { PlayerCard, TurnArrow } from "../src/components/PlayerCard";
 import { WallBank } from "../src/components/WallBank";
@@ -112,10 +112,13 @@ export default function OnlineGameScreen() {
     countdownActive,
   );
 
+  const [gameOverReason, setGameOverReason] = useState<GameOverReason>("goal");
+
   // Timeout = loss
   useEffect(() => {
     if (timedOutPlayer !== null && state && state.winner === null) {
       const winner = timedOutPlayer === 1 ? 2 : 1;
+      setGameOverReason("timeout");
       setState((prev) => prev ? { ...prev, winner } : prev);
     }
   }, [timedOutPlayer, state?.winner]);
@@ -165,6 +168,7 @@ export default function OnlineGameScreen() {
       setRematchStatus("idle");
       setRematchExpiresAt(0);
       setRematchRequesterName("");
+      setGameOverReason("goal");
     };
     const onStateUpdate = (payload: StateUpdatePayload) => {
       setState(deserializeState(payload.state));
@@ -532,6 +536,7 @@ export default function OnlineGameScreen() {
               ? 1
               : 2
         }
+        reason={gameOverReason}
         onRematch={onRequestRematch}
         onBackToMenu={onBackToMenu}
         online

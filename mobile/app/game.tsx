@@ -23,7 +23,7 @@ import {
 } from "@barreira/shared";
 import { Board } from "../src/components/Board";
 import { CountdownOverlay } from "../src/components/CountdownOverlay";
-import { GameOverModal } from "../src/components/GameOverModal";
+import { GameOverModal, type GameOverReason } from "../src/components/GameOverModal";
 import { GameTimer, useGameTimers } from "../src/components/GameTimer";
 import { PlayerCard, TurnArrow } from "../src/components/PlayerCard";
 import { WallBank } from "../src/components/WallBank";
@@ -77,6 +77,7 @@ export default function GameScreen() {
   const [ghost, setGhost] = useState<WallPlacement | null>(null);
   const [ghostInvalid, setGhostInvalid] = useState(false);
   const [showBlockedToast, setShowBlockedToast] = useState(false);
+  const [gameOverReason, setGameOverReason] = useState<GameOverReason>("goal");
   const [countdownStartsAt, setCountdownStartsAt] = useState(() => Date.now());
   const [countdownActive, setCountdownActive] = useState(true);
 
@@ -97,6 +98,7 @@ export default function GameScreen() {
   useEffect(() => {
     if (timedOutPlayer !== null && state.winner === null) {
       const winner = timedOutPlayer === 1 ? 2 : 1;
+      setGameOverReason("timeout");
       setState((prev) => ({ ...prev, winner }));
     }
   }, [timedOutPlayer, state.winner]);
@@ -187,6 +189,7 @@ export default function GameScreen() {
     setGhost(null);
     setGhostInvalid(false);
     setShowBlockedToast(false);
+    setGameOverReason("goal");
     hide();
     setCountdownStartsAt(Date.now());
     setCountdownActive(true);
@@ -297,6 +300,7 @@ export default function GameScreen() {
       <GameOverModal
         visible={state.winner !== null}
         winner={state.winner}
+        reason={gameOverReason}
         onRematch={onRestart}
         onBackToMenu={() => router.back()}
       />

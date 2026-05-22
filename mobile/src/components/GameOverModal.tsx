@@ -7,9 +7,12 @@ import { theme } from "../theme";
 
 type RematchStatus = "idle" | "requesting" | "requested" | "declined" | "expired";
 
+export type GameOverReason = "goal" | "timeout";
+
 type Props = {
   visible: boolean;
   winner: PlayerId | null;
+  reason?: GameOverReason;
   onRematch: () => void;
   onBackToMenu: () => void;
   // Online rematch props (optional — omit for local/bot games)
@@ -43,6 +46,7 @@ const useCountdown = (expiresAt: number, active: boolean) => {
 export const GameOverModal = ({
   visible,
   winner,
+  reason = "goal",
   onRematch,
   onBackToMenu,
   online = false,
@@ -54,12 +58,22 @@ export const GameOverModal = ({
   onLeave,
 }: Props) => {
   const isVictory = winner === 1;
-  const title = isVictory ? "Vitória!" : "Derrota";
+  const isTimeout = reason === "timeout";
+
+  const title = isVictory
+    ? isTimeout ? "Tempo esgotado!" : "Vitória!"
+    : isTimeout ? "Tempo esgotado!" : "Derrota";
   const subtitle = isVictory
-    ? "Você chegou na linha de cima."
-    : "O adversário cruzou a linha primeiro.";
+    ? isTimeout
+      ? "O adversário ficou sem tempo."
+      : "Você chegou na linha de cima."
+    : isTimeout
+      ? "Seu tempo acabou."
+      : "O adversário cruzou a linha primeiro.";
   const accent = isVictory ? theme.player1 : theme.player2;
-  const icon = isVictory ? "trophy" : "close-circle";
+  const icon = isVictory
+    ? isTimeout ? "timer-outline" : "trophy"
+    : isTimeout ? "timer-outline" : "close-circle";
 
   const countdown = useCountdown(
     rematchExpiresAt,
