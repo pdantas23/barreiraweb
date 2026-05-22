@@ -31,12 +31,10 @@ const C = {
   gold: "rgba(245,166,35,0.3)",
   goldShadow: "rgba(245,166,35,0.18)",
   cellBg: "#EEF2FF",
-  disabled: "#CCCCCC",
-  disabledBg: "#BBBBBB",
   red: "#FF3D6F",
 } as const;
 
-type Tab = "offline" | "casual" | "ranked";
+type Tab = "offline" | "casual";
 type Difficulty = "easy" | "medium" | "hard";
 
 // ─── Component ─────────────────────────────────────────────────────
@@ -65,7 +63,12 @@ export default function HomeScreen() {
 
         {/* ─── Floating elements ─── */}
         <View style={styles.floatingRow}>
-          <View />
+          <Pressable
+            onPress={() => router.push("/privacy" as never)}
+            style={({ pressed }) => [styles.privacyBtn, pressed && styles.btnPressed]}
+          >
+            <Ionicons name="shield-checkmark-outline" size={18} color={C.muted} />
+          </Pressable>
 
           {/* Profile button */}
           <Pressable
@@ -78,15 +81,12 @@ export default function HomeScreen() {
 
         {/* ─── Tab content ─── */}
         <View style={styles.content}>
-          {tab !== "ranked" && <GridBackground />}
+          <GridBackground />
           <TabPane visible={tab === "casual"}>
             <CasualTab onPlay={onPlay} />
           </TabPane>
           <TabPane visible={tab === "offline"}>
             <OfflineTab onPlay={() => { playButtonSound(); setOfflineModal(true); }} />
-          </TabPane>
-          <TabPane visible={tab === "ranked"}>
-            <RankedTab />
           </TabPane>
         </View>
 
@@ -220,18 +220,6 @@ const OfflineTab = ({ onPlay }: { onPlay: () => void }) => (
     >
       <Text style={styles.trainBtnText}>JOGAR</Text>
     </Pressable>
-  </View>
-);
-
-// ═══════════════════════════════════════════════════════════════════
-// RANKED TAB (locked)
-// ═══════════════════════════════════════════════════════════════════
-
-const RankedTab = () => (
-  <View style={styles.rankedWrap}>
-    <Text style={styles.rankedEmoji}>🏆</Text>
-    <Text style={styles.rankedTitle}>Ranqueado</Text>
-    <Text style={styles.rankedSub}>Em breve...</Text>
   </View>
 );
 
@@ -425,15 +413,6 @@ const BottomNav = ({
       />
 
       <CasualBubble active={tab === "casual"} onPress={() => setTab("casual")} />
-
-      {/* Ranked (disabled — looks like inactive bubble, not tappable) */}
-      <View style={styles.navItem}>
-        <View style={styles.navBubbleDisabled}>
-          <Ionicons name="trophy-outline" size={18} color={C.disabled} />
-        </View>
-        <Text style={styles.navLabelDisabled}>Ranqueado</Text>
-        <Text style={styles.navSoon}>Em Breve</Text>
-      </View>
     </View>
   );
 };
@@ -453,6 +432,16 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     marginBottom: 4,
     zIndex: 10,
+  },
+  privacyBtn: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: C.white,
+    borderWidth: 1,
+    borderColor: C.cellBg,
+    alignItems: "center",
+    justifyContent: "center",
   },
   profileBtn: {
     width: 44,
@@ -719,24 +708,6 @@ const styles = StyleSheet.create({
     fontWeight: "900",
     letterSpacing: 2,
   },
-  // ─── RANKED TAB ───
-  rankedWrap: {
-    alignItems: "center",
-    gap: 8,
-  },
-  rankedEmoji: {
-    fontSize: 64,
-    opacity: 0.4,
-  },
-  rankedTitle: {
-    fontSize: 24,
-    fontWeight: "900",
-    color: C.disabledBg,
-  },
-  rankedSub: {
-    fontSize: 14,
-    color: C.disabled,
-  },
   // ─── BOTTOM NAV ───
   navbar: {
     flexDirection: "row",
@@ -760,17 +731,6 @@ const styles = StyleSheet.create({
     width: 80,
     gap: 2,
   },
-  navBubbleDisabled: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: "#E8EEF8",
-    borderWidth: 3,
-    borderColor: C.white,
-    alignItems: "center",
-    justifyContent: "center",
-    opacity: 0.4,
-  },
   navBubbleInner: {
     flex: 1,
     borderRadius: 999,
@@ -793,15 +753,5 @@ const styles = StyleSheet.create({
   navLabelActive: {
     color: C.blue,
     fontWeight: "800",
-  },
-  navLabelDisabled: {
-    fontSize: 11,
-    fontWeight: "600",
-    color: C.disabled,
-  },
-  navSoon: {
-    fontSize: 8,
-    color: C.disabled,
-    fontWeight: "600",
   },
 });
