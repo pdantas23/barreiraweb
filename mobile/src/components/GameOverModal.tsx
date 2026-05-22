@@ -3,6 +3,8 @@ import { Modal, Pressable, StyleSheet, Text, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import Animated, { FadeIn, FadeInDown } from "react-native-reanimated";
 import type { PlayerId } from "@barreira/shared";
+import { useGameResultSound } from "../hooks/useGameResultSound";
+import { useAudioSettings } from "../state/audioSettings";
 import { theme } from "../theme";
 
 type RematchStatus = "idle" | "requesting" | "requested" | "declined" | "expired";
@@ -59,6 +61,8 @@ export const GameOverModal = ({
 }: Props) => {
   const isVictory = winner === 1;
   const isTimeout = reason === "timeout";
+  const { sfxEnabled } = useAudioSettings();
+  useGameResultSound(visible, isVictory, sfxEnabled);
 
   const title = isVictory
     ? isTimeout ? "Tempo esgotado!" : "Vitória!"
