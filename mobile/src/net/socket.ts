@@ -16,6 +16,7 @@ import { getClientId } from "./clientId";
 // EXPO_PUBLIC_* é exposto pelo Expo em runtime via process.env.
 // Fallback pra localhost só pra não quebrar em dev se o .env sumir.
 const SERVER_URL = process.env.EXPO_PUBLIC_SERVER_URL ?? "http://localhost:3000";
+console.log("[socket] SERVER_URL:", SERVER_URL);
 
 // Convenção do socket.io-client: ServerToClient vai primeiro (eventos
 // que o cliente RECEBE), ClientToServer vai depois (eventos que EMITE).
@@ -40,6 +41,9 @@ const wireGlobalListeners = (s: AppSocket) => {
   s.on("gameStart", (payload) => {
     lastGameStart = payload;
   });
+  s.on("connect", () => console.log("[socket] conectado, id:", s.id));
+  s.on("connect_error", (err) => console.warn("[socket] connect_error:", err.message));
+  s.on("disconnect", (reason) => console.warn("[socket] desconectado:", reason));
 };
 
 export const getLastGameStart = (): GameStartPayload | null => lastGameStart;
@@ -50,7 +54,7 @@ export const clearLastGameStart = () => {
 export const getSocket = (): AppSocket => {
   if (!socket) {
     socket = io(SERVER_URL, {
-      transports: ["websocket"],
+      transports: ["polling", "websocket"],
       autoConnect: false,
       // Reconexão automática — server reanexa a sala via clientId.
       reconnection: true,

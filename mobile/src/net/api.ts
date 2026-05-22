@@ -23,11 +23,14 @@ function withTimeout<T>(promise: Promise<T>, ms = RPC_TIMEOUT_MS): Promise<T> {
 }
 
 function safeRpc<T>(fn: () => Promise<RpcResult<T>>): Promise<RpcResult<T>> {
-  return withTimeout(fn()).catch(() => ({
-    ok: false as const,
-    error: "internal-error" as const,
-    message: "Sem conexão com o servidor. Verifique sua internet.",
-  }));
+  return withTimeout(fn()).catch((err) => {
+    console.warn("[safeRpc] erro capturado:", err?.message ?? err, "| socket connected:", connectSocket().connected);
+    return {
+      ok: false as const,
+      error: "internal-error" as const,
+      message: "Sem conexão com o servidor. Verifique sua internet.",
+    };
+  });
 }
 
 export const createRoom = (

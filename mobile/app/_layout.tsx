@@ -4,6 +4,7 @@ import { Stack } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { DragLayer } from "../src/components/DragLayer";
+import { SplashOverlay } from "../src/components/SplashOverlay";
 import { initClientId } from "../src/net/clientId";
 import { DragOverlayProvider, useDragOverlay } from "../src/state/dragOverlay";
 import { ProfileProvider } from "../src/state/profile";
@@ -33,14 +34,14 @@ export default function RootLayout() {
   // tela que possa chamar getSocket(). Sem isso, getClientId() ficaria
   // sem cache e cairia no warning "chamado antes do initClientId".
   const [bootstrapped, setBootstrapped] = useState(false);
+  const [splashDone, setSplashDone] = useState(false);
+
   useEffect(() => {
     initClientId().finally(() => setBootstrapped(true));
   }, []);
 
   if (!bootstrapped) {
-    // Tela vazia durante o bootstrap (geralmente <50ms).
-    // O splash do Expo cobre a transição visualmente.
-    return <View style={{ flex: 1, backgroundColor: theme.bg }} />;
+    return <View style={{ flex: 1, backgroundColor: "#000000" }} />;
   }
 
   return (
@@ -63,6 +64,7 @@ export default function RootLayout() {
             <Stack.Screen name="privacy" />
           </Stack>
           <DragOverlayRenderer />
+          {!splashDone && <SplashOverlay onFinish={() => setSplashDone(true)} />}
         </ProfileProvider>
       </DragOverlayProvider>
     </GestureHandlerRootView>

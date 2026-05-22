@@ -283,17 +283,22 @@ export default function OnlineGameScreen() {
   const ghostInvalidRef = useRef(ghostInvalid);
   ghostInvalidRef.current = ghostInvalid;
 
+  const sendingWallRef = useRef(false);
+
   const onDragEnd = async () => {
     if (dragTypeRef.current === null) return;
     const g = ghostRef.current;
     const invalid = ghostInvalidRef.current;
+    dragTypeRef.current = null;
     setDragType(null);
     setGhost(null);
     setGhostInvalid(false);
     setShowBlockedToast(false);
     hide();
-    if (!g || invalid) return;
+    if (!g || invalid || sendingWallRef.current) return;
+    sendingWallRef.current = true;
     const res = await sendMove({ kind: "wall", placement: g });
+    sendingWallRef.current = false;
     if (!res.ok) {
       console.warn("[wall] rejeitado:", res.error, res.message);
     }
