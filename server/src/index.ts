@@ -4,11 +4,11 @@
 // por push (gameStart / stateUpdate / profile / etc).
 
 import dotenv from "dotenv";
-import { resolve, dirname } from "node:path";
-import { fileURLToPath } from "node:url";
+import { resolve } from "node:path";
 
-const __dirname = dirname(fileURLToPath(import.meta.url));
-dotenv.config({ path: resolve(__dirname, "../../.env") }); // carrega .env da raiz do monorepo
+// Tenta .env no cwd (raiz) e depois um nível acima (caso cwd seja server/)
+dotenv.config({ path: resolve(process.cwd(), ".env") }) ||
+  dotenv.config({ path: resolve(process.cwd(), "..", ".env") });
 import express from "express";
 import { createServer } from "node:http";
 import { Server, type Socket } from "socket.io";
