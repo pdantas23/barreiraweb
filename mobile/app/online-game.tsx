@@ -52,6 +52,7 @@ import {
   getSocket,
 } from "../src/net/socket";
 import { useDragOverlay } from "../src/state/dragOverlay";
+import { usePlayerName } from "../src/state/profile";
 import { usePieceMoveSound } from "../src/hooks/usePieceSound";
 import { playButtonSound, useButtonSound } from "../src/hooks/useButtonSound";
 import { gc } from "../src/gameColors";
@@ -103,6 +104,8 @@ export default function OnlineGameScreen() {
 
   usePieceMoveSound(state?.p1 ?? -1, state?.p2 ?? -1);
   useButtonSound();
+  // Nome persistente do jogador (vem do server via evento `profile`).
+  const myName = usePlayerName();
 
   // Fischer-clock timers
   const myPlayer: PlayerId = meta?.yourEnginePlayer ?? 1;
@@ -456,7 +459,7 @@ export default function OnlineGameScreen() {
         />
         <TurnArrow isPlayerTurn={state.turn === myPlayer} />
         <PlayerCard
-          name="Você"
+          name={myName}
           wallsLeft={state.wallsLeft[myPlayer]}
           totalWalls={WALLS_PER_PLAYER}
           isActive={state.turn === myPlayer && state.winner === null}
