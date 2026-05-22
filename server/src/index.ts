@@ -36,6 +36,7 @@ import {
   type ServerRoom,
 } from "./lobby.js";
 import { getOrCreateProfile } from "./profiles.js";
+import { maybeScheduleBotMove, startBotManager } from "./botManager.js";
 
 const PORT = Number(process.env.PORT ?? 3000);
 
@@ -215,6 +216,8 @@ io.on("connection", (socket: TypedSocket) => {
       console.log(`[room] ${p.playerName} entrou em ${room.code}`);
 
       broadcastGameStart(room);
+      // Se a sala era de bot, ele é P1 e começa (50% das vezes via random).
+      maybeScheduleBotMove(room);
       return toRoomDetail(room, socket.id);
     })(payload, socket, ack),
   );
@@ -275,6 +278,9 @@ io.on("connection", (socket: TypedSocket) => {
         io.to(room.code).emit("gameOver", { winner: result.state.winner });
       }
 
+      // Se o oponente é um bot e agora é a vez dele, agenda jogada.
+      maybeScheduleBotMove(room);
+
       return null;
     })(payload, socket, ack),
   );
@@ -307,6 +313,7 @@ io.on("connection", (socket: TypedSocket) => {
       if (p.accept) {
         console.log(`[rematch] aceito em ${room.code}`);
         broadcastGameStart(room);
+        maybeScheduleBotMove(room);
       } else {
         // Notifica quem pediu que foi recusado.
         const requesterSocket = room.players.find((p) => p.socketId !== socket.id);
@@ -340,4 +347,6 @@ httpServer.listen(PORT, () => {
   console.log(`Barreira server rodando em http://localhost:${PORT}`);
   console.log(`Health:  http://localhost:${PORT}/health`);
   console.log(`Socket:  ws://localhost:${PORT}`);
+  // Inicializa o bot manager — vai povoar o lobby com salas fantasmas.
+  startBotManager(io);
 });
