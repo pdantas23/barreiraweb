@@ -149,7 +149,11 @@ export const maybeScheduleBotMove = (room: ServerRoom): void => {
   );
   if (!currentPlayer || !currentPlayer.isBot) return;
 
-  const delay = randomBetween(MOVE_DELAY_MIN_MS, MOVE_DELAY_MAX_MS);
+  // Wait for countdown to finish before bot plays
+  const countdownRemaining = room.countdownEndsAt
+    ? Math.max(0, room.countdownEndsAt - Date.now())
+    : 0;
+  const delay = countdownRemaining + randomBetween(MOVE_DELAY_MIN_MS, MOVE_DELAY_MAX_MS);
   setTimeout(() => playBotMove(room, currentPlayer), delay);
 };
 

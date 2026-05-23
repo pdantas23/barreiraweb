@@ -3,16 +3,15 @@
   "version": "0.1.0",
   "private": true,
   "workspaces": [
-    "mobile",
+    "web",
     "server",
     "shared"
   ],
   "overrides": {
-    "react": "19.1.0",
-    "react-native": "0.81.5"
+    "react": "19.1.0"
   },
   "scripts": {
-    "mobile": "npm --workspace=mobile run start",
+    "dev:web": "npm --workspace=barreira-web run dev",
     "dev:server": "npm --workspace=@barreira/server run dev",
     "test:client": "npm --workspace=@barreira/server run test-client",
     "test:room": "npm --workspace=@barreira/server run test-room",

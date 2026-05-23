@@ -66,6 +66,9 @@ export type ServerRoom = {
   // entrar em 10-15s. null = sem rescue pendente (sala de bot, sala
   // privada, ou sala que já fechou).
   botRescueTimer: NodeJS.Timeout | null;
+  // Timestamp (ms) de quando o countdown termina e moves são aceitos.
+  // null = sem countdown ativo (moves liberados).
+  countdownEndsAt: number | null;
 };
 
 // === Estado global ===
@@ -219,6 +222,7 @@ export const createRoom = (input: CreateInput): ServerRoom => {
     gameState: null,
     rematch: null,
     botRescueTimer: null,
+    countdownEndsAt: null,
   };
   rooms.set(code, room);
   socketToRoom.set(input.hostSocketId, code);
@@ -541,6 +545,7 @@ export const createBotHostRoom = (input: BotHostInput): ServerRoom => {
     gameState: null,
     rematch: null,
     botRescueTimer: null,
+    countdownEndsAt: null,
   };
   rooms.set(code, room);
   // NÃO seta socketToRoom — o socketId é fake, não tem socket.io listener.

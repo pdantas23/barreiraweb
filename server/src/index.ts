@@ -104,6 +104,7 @@ const broadcastGameStart = (room: ServerRoom) => {
   if (!room.gameState) return;
   const wireState = serializeState(room.gameState);
   const countdownStartsAt = Date.now();
+  room.countdownEndsAt = countdownStartsAt + COUNTDOWN_DURATION_MS;
 
   for (const me of room.players) {
     const opponent = room.players.find((p) => p.socketId !== me.socketId);
@@ -126,13 +127,14 @@ const sendGameStartTo = (room: ServerRoom, me: ServerPlayer) => {
   if (!room.gameState) return;
   const opponent = room.players.find((p) => p.socketId !== me.socketId);
   if (!opponent) return;
+  // Reanchor: countdown already passed, set startsAt in the past so client skips it
   const payload: GameStartPayload = {
     state: serializeState(room.gameState),
     yourEnginePlayer: me.enginePlayer,
     yourColor: me.color,
     opponentName: opponent.name,
     opponentColor: opponent.color,
-    countdownStartsAt: Date.now(),
+    countdownStartsAt: Date.now() - COUNTDOWN_DURATION_MS - 1000,
   };
   io.to(me.socketId).emit("gameStart", payload);
 };
@@ -230,6 +232,7 @@ io.on("connection", (socket: TypedSocket) => {
 
       broadcastGameStart(room);
       // Se a sala era de bot, ele é P1 e começa (50% das vezes via random).
+      // Espera o countdown terminar antes de agendar a jogada do bot.
       maybeScheduleBotMove(room);
       return toRoomDetail(room, socket.id);
     })(payload, socket, ack),
@@ -263,6 +266,10 @@ io.on("connection", (socket: TypedSocket) => {
       if (room.status === "finished") throw new LobbyError("game-over");
       if (room.status !== "playing" || !room.gameState) {
         throw new LobbyError("internal-error", "sala não está em partida");
+      }
+      // Block moves during countdown
+      if (room.countdownEndsAt && Date.now() < room.countdownEndsAt) {
+        throw new LobbyError("not-your-turn", "countdown ativo");
       }
 
       const me = room.players.find((pl) => pl.socketId === socket.id);
@@ -310,10 +317,25 @@ io.on("connection", (socket: TypedSocket) => {
         // Notifica oponente do pedido.
         const opponent = result.room.players.find((p) => p.socketId !== socket.id);
         if (opponent && result.room.rematch) {
-          io.to(opponent.socketId).emit("rematchRequested", {
-            fromName: result.requester.name,
-            expiresAt: result.room.rematch.expiresAt,
-          });
+          if (opponent.isBot) {
+            // Bot auto-aceita rematch após 1-4s
+            const delay = 1000 + Math.random() * 3000;
+            setTimeout(() => {
+              try {
+                const room = respondRematch(opponent.socketId, true);
+                console.log(`[rematch] bot aceitou em ${room.code}`);
+                broadcastGameStart(room);
+                maybeScheduleBotMove(room);
+              } catch {
+                // Room may have been cleaned up
+              }
+            }, delay);
+          } else {
+            io.to(opponent.socketId).emit("rematchRequested", {
+              fromName: result.requester.name,
+              expiresAt: result.room.rematch.expiresAt,
+            });
+          }
         }
       }
       return null;
