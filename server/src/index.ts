@@ -104,6 +104,7 @@ const broadcastGameStart = (room: ServerRoom) => {
   if (!room.gameState) return;
   const wireState = serializeState(room.gameState);
   const countdownStartsAt = Date.now();
+  room.countdownEndsAt = countdownStartsAt + COUNTDOWN_DURATION_MS;
 
   for (const me of room.players) {
     const opponent = room.players.find((p) => p.socketId !== me.socketId);
@@ -132,7 +133,7 @@ const sendGameStartTo = (room: ServerRoom, me: ServerPlayer) => {
     yourColor: me.color,
     opponentName: opponent.name,
     opponentColor: opponent.color,
-    countdownStartsAt: Date.now(),
+    countdownStartsAt: Date.now() - COUNTDOWN_DURATION_MS - 1000,
   };
   io.to(me.socketId).emit("gameStart", payload);
 };
@@ -263,6 +264,9 @@ io.on("connection", (socket: TypedSocket) => {
       if (room.status === "finished") throw new LobbyError("game-over");
       if (room.status !== "playing" || !room.gameState) {
         throw new LobbyError("internal-error", "sala não está em partida");
+      }
+      if (room.countdownEndsAt && Date.now() < room.countdownEndsAt) {
+        throw new LobbyError("not-your-turn", "countdown ativo");
       }
 
       const me = room.players.find((pl) => pl.socketId === socket.id);
