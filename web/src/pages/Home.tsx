@@ -78,60 +78,32 @@ export default function HomeScreen() {
       <div className="flex-1 relative">
         <GridBackground />
 
-        {/* TODO: integrar SDK de anuncios — placeholder lateral esquerdo */}
-        <div
-          style={{
-            position: "absolute",
-            left: 0,
-            top: 0,
-            bottom: 0,
-            width: "8vw",
-            background: "#F5F5F5",
-            border: "1.5px dashed #BBBBBB",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            zIndex: 5,
-          }}
-        >
-          <span style={{ fontSize: 10, color: "#BBBBBB" }}>Anuncio</span>
+        {/* TODO: integrar SDK de anuncios — placeholder lateral esquerdo (300x250 / 300x600) */}
+        <div className="absolute left-0 top-0 bottom-0 hidden md:flex w-[320px] bg-[#F5F5F5] border-[1.5px] border-dashed border-[#BBBBBB] items-center justify-center z-[5]">
+          <span className="text-[10px] text-[#BBBBBB]">Anuncio</span>
         </div>
 
-        {/* TODO: integrar SDK de anuncios — placeholder lateral direito */}
-        <div
-          style={{
-            position: "absolute",
-            right: 0,
-            top: 0,
-            bottom: 0,
-            width: "8vw",
-            background: "#F5F5F5",
-            border: "1.5px dashed #BBBBBB",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            zIndex: 5,
-          }}
-        >
-          <span style={{ fontSize: 10, color: "#BBBBBB" }}>Anuncio</span>
+        {/* TODO: integrar SDK de anuncios — placeholder lateral direito (300x250 / 300x600) */}
+        <div className="absolute right-0 top-0 bottom-0 hidden md:flex w-[320px] bg-[#F5F5F5] border-[1.5px] border-dashed border-[#BBBBBB] items-center justify-center z-[5]">
+          <span className="text-[10px] text-[#BBBBBB]">Anuncio</span>
         </div>
 
         <div className="absolute inset-0 flex items-center justify-center px-5">
           <div className="flex flex-col items-center gap-0">
-            <img src="/photos/art.png" alt="Barreira" className="w-[min(600px,90vw)] object-contain -mb-10" />
+            <img src="/photos/art.png" alt="Barreira" className="w-[min(400px,65vw)] object-contain -mb-10" />
 
             {/* Two buttons */}
             <div className="flex flex-row gap-4 w-[min(320px,60vw)]">
               <button
                 onClick={() => { playButtonSound(); setOfflineModal(true); }}
-                className="flex-1 h-[clamp(44px,7vh,58px)] rounded-2xl bg-white border-2 border-brand flex items-center justify-center gap-2 cursor-pointer hover:opacity-90 active:scale-95 transition-transform"
+                className="flex-1 h-[clamp(44px,7vh,58px)] rounded-2xl bg-white border-2 border-brand flex items-center justify-center gap-2 cursor-pointer hover:-translate-y-1 hover:shadow-lg active:scale-95 transition-all"
               >
                 <IoGameController size={18} color="#3D6FFF" />
                 <span className="text-brand text-[15px] font-black tracking-[1px]">TREINO</span>
               </button>
               <button
                 onClick={onPlayCasual}
-                className="flex-1 h-[clamp(44px,7vh,58px)] rounded-2xl bg-gradient-to-r from-brand to-brand-light border-none flex items-center justify-center gap-2 cursor-pointer hover:opacity-90 active:scale-95 transition-transform"
+                className="flex-1 h-[clamp(44px,7vh,58px)] rounded-2xl bg-gradient-to-r from-brand to-brand-light border-none flex items-center justify-center gap-2 cursor-pointer hover:-translate-y-1 hover:shadow-lg active:scale-95 transition-all"
               >
                 <IoFlash size={18} color="#FFFFFF" />
                 <span className="text-white text-[15px] font-black tracking-[1px]">CASUAL</span>
@@ -148,20 +120,9 @@ export default function HomeScreen() {
         </div>
       </div>
 
-      {/* TODO: integrar SDK de anuncios — placeholder banner inferior */}
-      <div
-        style={{
-          width: "100%",
-          height: "10vh",
-          background: "#F5F5F5",
-          border: "1.5px dashed #BBBBBB",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          flexShrink: 0,
-        }}
-      >
-        <span style={{ fontSize: 10, color: "#BBBBBB" }}>Anuncio</span>
+      {/* TODO: integrar SDK de anuncios — banner inferior (mobile 320x50/320x100, desktop 728x90) */}
+      <div className="w-full flex-shrink-0 bg-[#F5F5F5] border-[1.5px] border-dashed border-[#BBBBBB] flex items-center justify-center h-[100px] md:h-[90px]">
+        <span className="text-[10px] text-[#BBBBBB]">Anuncio</span>
       </div>
 
       {/* Difficulty modal */}
