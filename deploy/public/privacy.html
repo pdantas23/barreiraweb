@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Política de Privacidade — Barreira</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      max-width: 720px;
+      margin: 0 auto;
+      padding: 32px 20px 80px;
+      color: #1A2A4A;
+      background: linear-gradient(180deg, #F0F4FF 0%, #E8EEF8 100%);
+      min-height: 100vh;
+      line-height: 1.6;
+    }
+    h1 {
+      font-size: 28px;
+      margin-bottom: 4px;
+      color: #1A2A4A;
+    }
+    h2 {
+      font-size: 18px;
+      margin-top: 32px;
+      margin-bottom: 8px;
+      color: #3D6FFF;
+    }
+    .updated {
+      color: #9AAACA;
+      font-size: 13px;
+      margin-bottom: 32px;
+    }
+    p, li {
+      font-size: 15px;
+      color: #1A2A4A;
+    }
+    ul {
+      padding-left: 22px;
+    }
+    li {
+      margin-bottom: 6px;
+    }
+    a {
+      color: #3D6FFF;
+      text-decoration: none;
+    }
+    a:hover {
+      text-decoration: underline;
+    }
+    .card {
+      background: white;
+      border-radius: 12px;
+      padding: 24px;
+      border: 1px solid #DDEAFF;
+      box-shadow: 0 2px 8px rgba(26,42,74,0.06);
+      margin-bottom: 16px;
+    }
+    code {
+      background: #EEF2FF;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-size: 13px;
+    }
+  </style>
+</head>
+<body>
+  <h1>Política de Privacidade</h1>
+  <p class="updated">Última atualização: 22 de maio de 2026</p>
+
+  <div class="card">
+    <p>
+      Esta política descreve quais dados o aplicativo <strong>Barreira</strong>
+      coleta, como são usados e quais são seus direitos. Foi escrita em linguagem
+      simples — sem juridiquês desnecessário.
+    </p>
+  </div>
+
+  <h2>1. Quem somos</h2>
+  <p>
+    O Barreira é um jogo de tabuleiro multiplayer desenvolvido por
+    <strong>Paulo Vitor</strong>. Não é uma empresa registrada — é um projeto
+    independente.
+  </p>
+  <p>
+    Contato: <a href="mailto:paulovitorengcomp@gmail.com">paulovitorengcomp@gmail.com</a>
+  </p>
+
+  <h2>2. Quais dados coletamos</h2>
+  <p>O Barreira coleta o mínimo necessário pra funcionar:</p>
+  <ul>
+    <li>
+      <strong>Identificador de sessão (client_id):</strong> um código aleatório
+      gerado no seu dispositivo (ex: <code>mpgk3r86-z04mmx0gqb</code>). Serve pra
+      permitir reconexão se sua internet cair no meio de uma partida.
+    </li>
+    <li>
+      <strong>Nome anônimo (display_name):</strong> um nome gerado automaticamente
+      pelo servidor no formato <code>anonimo1234</code>. Visível pros seus oponentes
+      durante partidas.
+    </li>
+    <li>
+      <strong>Timestamp da última atividade:</strong> momento da sua última conexão,
+      usado pra métricas internas.
+    </li>
+  </ul>
+
+  <h2>3. O que NÃO coletamos</h2>
+  <ul>
+    <li>Nome real, email, telefone, endereço</li>
+    <li>Localização (GPS)</li>
+    <li>Fotos, contatos, mensagens</li>
+    <li>Dados financeiros ou de saúde</li>
+    <li>Histórico de navegação ou pesquisa</li>
+    <li>Identificadores nativos do dispositivo (IDFA, etc)</li>
+  </ul>
+
+  <h2>4. Como usamos seus dados</h2>
+  <p>Os dados acima são usados exclusivamente pra:</p>
+  <ul>
+    <li>Identificar sua sessão entre conexões (reconexão automática)</li>
+    <li>Mostrar seu nome anônimo aos oponentes</li>
+    <li>Garantir que você não jogue contra si mesmo em duas salas simultâneas</li>
+  </ul>
+  <p>
+    <strong>Não usamos seus dados pra:</strong> publicidade, marketing,
+    rastreamento entre apps ou venda pra terceiros.
+  </p>
+
+  <h2>5. Onde os dados ficam armazenados</h2>
+  <p>
+    Os dados ficam armazenados no <strong>Supabase</strong>, uma plataforma de
+    banco de dados hospedada no Brasil (região São Paulo). O servidor do jogo
+    roda em um VPS próprio em São Paulo.
+  </p>
+  <p>
+    Mais detalhes sobre o Supabase:
+    <a href="https://supabase.com/privacy" target="_blank">supabase.com/privacy</a>
+  </p>
+
+  <h2>6. Por quanto tempo guardamos os dados</h2>
+  <p>
+    Os identificadores ficam armazenados enquanto você usar o app. Se você
+    desinstalar e não voltar mais, eventualmente removemos contas inativas há
+    mais de 6 meses pra manter o banco limpo.
+  </p>
+  <p>
+    Você pode pedir a remoção imediata a qualquer momento — veja a seção 7.
+  </p>
+
+  <h2>7. Seus direitos</h2>
+  <p>Pela LGPD (Brasil) e GDPR (Europa), você tem direito a:</p>
+  <ul>
+    <li>Saber quais dados temos sobre você</li>
+    <li>Solicitar a remoção completa dos seus dados</li>
+    <li>Exportar seus dados</li>
+    <li>Revogar consentimento (que aqui foi dado ao usar o app)</li>
+  </ul>
+  <p>
+    Pra exercer qualquer desses direitos, mande um email pra
+    <a href="mailto:paulovitorengcomp@gmail.com">paulovitorengcomp@gmail.com</a> com
+    o <code>client_id</code> que aparece no app (vamos adicionar essa
+    funcionalidade nas próximas versões — por enquanto, descreva quando começou
+    a usar o app).
+  </p>
+
+  <h2>8. Crianças</h2>
+  <p>
+    O Barreira é classificado como <strong>4+</strong> (livre pra todas as idades).
+    Não coleta dados pessoais identificáveis, então é seguro pra crianças. Não
+    pedimos consentimento parental porque não há nada a consentir além do uso
+    funcional do app.
+  </p>
+
+  <h2>9. Anúncios e rastreamento</h2>
+  <p>
+    O Barreira <strong>não exibe anúncios</strong> e <strong>não usa serviços
+    de rastreamento</strong> (Google Analytics, Facebook Pixel, etc).
+  </p>
+
+  <h2>10. Mudanças nesta política</h2>
+  <p>
+    Se mudarmos algo significativo, a data no topo desta página será atualizada
+    e o app pode pedir que você reaceite os termos. Mudanças menores (correções
+    de gramática, esclarecimentos) não geram notificação.
+  </p>
+
+  <h2>11. Contato</h2>
+  <p>
+    Qualquer dúvida sobre privacidade ou sobre o app em geral:<br>
+    <a href="mailto:paulovitorengcomp@gmail.com">paulovitorengcomp@gmail.com</a>
+  </p>
+
+  <div style="margin-top: 48px; text-align: center; color: #9AAACA; font-size: 13px;">
+    © 2026 Barreira — <a href="/suporte">Suporte</a>
+  </div>
+</body>
+</html>
