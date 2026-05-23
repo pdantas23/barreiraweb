@@ -314,10 +314,25 @@ io.on("connection", (socket: TypedSocket) => {
         // Notifica oponente do pedido.
         const opponent = result.room.players.find((p) => p.socketId !== socket.id);
         if (opponent && result.room.rematch) {
-          io.to(opponent.socketId).emit("rematchRequested", {
-            fromName: result.requester.name,
-            expiresAt: result.room.rematch.expiresAt,
-          });
+          if (opponent.isBot) {
+            // Bot auto-aceita rematch após 1-4s
+            const delay = 1000 + Math.random() * 3000;
+            setTimeout(() => {
+              try {
+                const room = respondRematch(opponent.socketId, true);
+                console.log(`[rematch] bot aceitou em ${room.code}`);
+                broadcastGameStart(room);
+                maybeScheduleBotMove(room);
+              } catch {
+                // Room may have been cleaned up
+              }
+            }, delay);
+          } else {
+            io.to(opponent.socketId).emit("rematchRequested", {
+              fromName: result.requester.name,
+              expiresAt: result.room.rematch.expiresAt,
+            });
+          }
         }
       }
       return null;
