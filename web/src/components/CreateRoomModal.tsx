@@ -1,6 +1,5 @@
 import { useEffect, useState } from "react";
-import { IoEllipse, IoShuffle, IoCheckmark, IoRefresh } from "react-icons/io5";
-import { theme } from "../theme";
+import { IoEllipse, IoShuffle, IoCheckmark } from "react-icons/io5";
 
 const L = {
   blue: "#3D6FFF",
@@ -41,35 +40,21 @@ const COLOR_OPTIONS: ColorOption[] = [
   { value: "red", label: "Vermelho", accent: L.red, Icon: IoEllipse },
 ];
 
-const generatePassword = (): string => {
-  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
-  let out = "";
-  for (let i = 0; i < 6; i++) out += chars[Math.floor(Math.random() * chars.length)];
-  return out;
-};
-
 export const CreateRoomModal = ({ visible, onClose, onConfirm }: Props) => {
   const [color, setColor] = useState<ColorChoice>("random");
   const [isPrivate, setIsPrivate] = useState(false);
-  const [password, setPassword] = useState("");
 
   useEffect(() => {
     if (visible) {
       setColor("random");
       setIsPrivate(false);
-      setPassword(generatePassword());
     }
   }, [visible]);
 
-  const onTogglePrivate = () => {
-    setIsPrivate((p) => {
-      if (!p) setPassword(generatePassword());
-      return !p;
-    });
-  };
+  const onTogglePrivate = () => setIsPrivate((p) => !p);
 
   const onSubmit = () => {
-    onConfirm({ color, isPrivate, password: isPrivate ? password : null });
+    onConfirm({ color, isPrivate, password: null });
   };
 
   if (!visible) return null;
@@ -185,44 +170,6 @@ export const CreateRoomModal = ({ visible, onClose, onConfirm }: Props) => {
             <div style={{ color: L.muted, fontSize: 11, marginTop: 2 }}>So quem tiver a senha consegue entrar</div>
           </div>
         </div>
-
-        {isPrivate && (
-          <div
-            style={{
-              display: "flex",
-              flexDirection: "row",
-              alignItems: "center",
-              backgroundColor: L.cellBg,
-              borderRadius: 12,
-              border: `1px solid ${L.border}`,
-              padding: 14,
-              marginTop: 10,
-            }}
-          >
-            <div style={{ flex: 1 }}>
-              <div style={{ color: L.muted, fontSize: 10, fontWeight: 800, letterSpacing: 1.5 }}>SENHA</div>
-              <div style={{ color: L.blue, fontSize: 22, fontWeight: 900, letterSpacing: 4, marginTop: 2, fontVariantNumeric: "tabular-nums" }}>
-                {password}
-              </div>
-            </div>
-            <button
-              onClick={() => setPassword(generatePassword())}
-              style={{
-                width: 40,
-                height: 40,
-                borderRadius: 20,
-                backgroundColor: L.white,
-                border: `1px solid ${L.border}`,
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                cursor: "pointer",
-              }}
-            >
-              <IoRefresh size={18} color={theme.textMuted} />
-            </button>
-          </div>
-        )}
 
         <div style={{ display: "flex", flexDirection: "row", gap: 10, marginTop: 22 }}>
           <button
