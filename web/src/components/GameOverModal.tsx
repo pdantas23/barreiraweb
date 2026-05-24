@@ -11,7 +11,7 @@ const ACCENT = {
 
 type RematchStatus = "idle" | "requesting" | "requested" | "declined" | "expired";
 
-export type GameOverReason = "goal" | "timeout";
+export type GameOverReason = "goal" | "timeout" | "abandon";
 
 type Props = {
   visible: boolean;
@@ -86,19 +86,26 @@ export const GameOverModal = ({
 }: Props) => {
   const isVictory = winner === 1;
   const isTimeout = reason === "timeout";
+  const isAbandon = reason === "abandon";
   const { sfxEnabled } = useAudioSettings();
   useGameResultSound(visible, isVictory, sfxEnabled);
 
-  const title = isVictory
-    ? isTimeout ? "Tempo esgotado!" : "Vitoria!"
-    : isTimeout ? "Tempo esgotado!" : "Derrota";
-  const subtitle = isVictory
-    ? isTimeout
-      ? "O adversario ficou sem tempo."
-      : "Voce chegou na linha de cima."
-    : isTimeout
-      ? "Seu tempo acabou."
-      : "O adversario cruzou a linha primeiro.";
+  const title = isAbandon
+    ? isVictory ? "Vitoria por W.O.!" : "Voce abandonou"
+    : isVictory
+      ? isTimeout ? "Tempo esgotado!" : "Vitoria!"
+      : isTimeout ? "Tempo esgotado!" : "Derrota";
+  const subtitle = isAbandon
+    ? isVictory
+      ? "O oponente abandonou a partida."
+      : "Voce abandonou e o oponente venceu."
+    : isVictory
+      ? isTimeout
+        ? "O adversario ficou sem tempo."
+        : "Voce chegou na linha de cima."
+      : isTimeout
+        ? "Seu tempo acabou."
+        : "O adversario cruzou a linha primeiro.";
   const accent = isVictory ? ACCENT.blue : ACCENT.red;
 
   const countdown = useCountdown(
@@ -106,9 +113,11 @@ export const GameOverModal = ({
     online && (rematchStatus === "requesting" || rematchStatus === "requested"),
   );
 
-  const IconComp = isVictory
-    ? isTimeout ? IoTimerOutline : IoTrophy
-    : isTimeout ? IoTimerOutline : IoCloseCircle;
+  const IconComp = isAbandon
+    ? isVictory ? IoTrophy : IoCloseCircle
+    : isVictory
+      ? isTimeout ? IoTimerOutline : IoTrophy
+      : isTimeout ? IoTimerOutline : IoCloseCircle;
 
   const renderActions = () => {
     if (!online) {

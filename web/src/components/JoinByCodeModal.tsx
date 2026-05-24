@@ -1,5 +1,4 @@
 import { useEffect, useState } from "react";
-import { theme } from "../theme";
 
 type Props = {
   visible: boolean;
@@ -11,8 +10,32 @@ type Props = {
 };
 
 const CODE_LENGTH = 6;
+const PASSWORD_LENGTH = 6;
 
-export const JoinByCodeModal = ({ visible, onClose, onConfirm, initialCode = "", requirePassword = false, codeLocked = false }: Props) => {
+const L = {
+  blue: "#3D6FFF",
+  blueLight: "#6B9FFF",
+  navy: "#1A2A4A",
+  muted: "#9AAACA",
+  textSecondary: "#5C6F8F",
+  white: "#FFFFFF",
+  cardBg: "#FFFFFF",
+  border: "#DDEAFF",
+  cellBg: "#EEF2FF",
+  red: "#FF3D6F",
+};
+
+const normalize = (raw: string, max: number) =>
+  raw.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, max);
+
+export const JoinByCodeModal = ({
+  visible,
+  onClose,
+  onConfirm,
+  initialCode = "",
+  requirePassword = false,
+  codeLocked = false,
+}: Props) => {
   const [code, setCode] = useState(initialCode);
   const [password, setPassword] = useState("");
 
@@ -23,22 +46,51 @@ export const JoinByCodeModal = ({ visible, onClose, onConfirm, initialCode = "",
     }
   }, [visible, initialCode]);
 
-  const onChange = (raw: string) => {
+  useEffect(() => {
+    if (!visible) return;
+    const previous = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = previous;
+    };
+  }, [visible]);
+
+  const onChangeCode = (raw: string) => {
     if (codeLocked) return;
-    const cleaned = raw.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, CODE_LENGTH);
-    setCode(cleaned);
+    setCode(normalize(raw, CODE_LENGTH));
+  };
+
+  const onChangePassword = (raw: string) => {
+    setPassword(normalize(raw, PASSWORD_LENGTH));
   };
 
   const canSubmit = code.length === CODE_LENGTH && (!requirePassword || password.length > 0);
 
   if (!visible) return null;
 
+  const inputBase: React.CSSProperties = {
+    width: "100%",
+    color: L.navy,
+    backgroundColor: L.cellBg,
+    border: `1px solid ${L.border}`,
+    borderRadius: 14,
+    padding: "16px 18px",
+    fontSize: 26,
+    fontWeight: 800,
+    letterSpacing: 8,
+    textAlign: "center",
+    textTransform: "uppercase",
+    fontVariantNumeric: "tabular-nums",
+    outline: "none",
+    boxSizing: "border-box",
+  };
+
   return (
     <div
       style={{
         position: "fixed",
         inset: 0,
-        backgroundColor: "rgba(0,0,0,0.65)",
+        backgroundColor: "rgba(26,42,74,0.4)",
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
@@ -52,19 +104,19 @@ export const JoinByCodeModal = ({ visible, onClose, onConfirm, initialCode = "",
         style={{
           width: "100%",
           maxWidth: 380,
-          backgroundColor: theme.boardBg,
+          backgroundColor: L.cardBg,
           borderRadius: 20,
           padding: 22,
-          border: "1px solid #2a2a35",
-          boxShadow: "0 12px 24px rgba(0,0,0,0.5)",
+          border: `1px solid ${L.border}`,
+          boxShadow: `0 12px 24px ${L.blue}26`,
           animation: "slideUp 340ms ease-out",
         }}
         onClick={(e) => e.stopPropagation()}
       >
-        <div style={{ color: theme.textPrimary, fontSize: 20, fontWeight: 800, marginBottom: 4 }}>
+        <div style={{ color: L.navy, fontSize: 20, fontWeight: 800, marginBottom: 4 }}>
           {requirePassword ? "Sala privada" : "Entrar com codigo"}
         </div>
-        <div style={{ color: theme.textMuted, fontSize: 13, marginBottom: 18 }}>
+        <div style={{ color: L.textSecondary, fontSize: 13, marginBottom: 18 }}>
           {requirePassword
             ? "Digite a senha para entrar nessa sala."
             : `Digite o codigo de ${CODE_LENGTH} caracteres da sala.`}
@@ -72,25 +124,18 @@ export const JoinByCodeModal = ({ visible, onClose, onConfirm, initialCode = "",
 
         <input
           value={code}
-          onChange={(e) => onChange(e.target.value)}
+          onChange={(e) => onChangeCode(e.target.value)}
           autoFocus={!codeLocked}
           maxLength={CODE_LENGTH}
           placeholder="ABCD12"
           readOnly={codeLocked}
+          autoCapitalize="characters"
+          autoComplete="off"
+          autoCorrect="off"
+          spellCheck={false}
+          inputMode="text"
           style={{
-            width: "100%",
-            color: theme.textPrimary,
-            backgroundColor: "#1f1f27",
-            border: "1px solid #2a2a35",
-            borderRadius: 14,
-            padding: "16px 18px",
-            fontSize: 26,
-            fontWeight: 800,
-            letterSpacing: 8,
-            textAlign: "center",
-            fontVariantNumeric: "tabular-nums",
-            outline: "none",
-            boxSizing: "border-box",
+            ...inputBase,
             opacity: codeLocked ? 0.85 : 1,
             cursor: codeLocked ? "default" : "text",
           }}
@@ -104,7 +149,7 @@ export const JoinByCodeModal = ({ visible, onClose, onConfirm, initialCode = "",
                 width: 8,
                 height: 8,
                 borderRadius: 4,
-                backgroundColor: i < code.length ? theme.player1 : "#2a2a35",
+                backgroundColor: i < code.length ? L.blue : L.border,
                 transition: "background-color 150ms",
               }}
             />
@@ -114,24 +159,16 @@ export const JoinByCodeModal = ({ visible, onClose, onConfirm, initialCode = "",
         {requirePassword && (
           <input
             value={password}
-            onChange={(e) => setPassword(e.target.value)}
+            onChange={(e) => onChangePassword(e.target.value)}
             autoFocus={codeLocked}
-            type="password"
-            placeholder="Senha"
-            style={{
-              width: "100%",
-              color: theme.textPrimary,
-              backgroundColor: "#1f1f27",
-              border: "1px solid #2a2a35",
-              borderRadius: 14,
-              padding: "14px 16px",
-              fontSize: 16,
-              fontWeight: 600,
-              letterSpacing: 1,
-              outline: "none",
-              boxSizing: "border-box",
-              marginTop: 16,
-            }}
+            maxLength={PASSWORD_LENGTH}
+            placeholder="SENHA"
+            autoCapitalize="characters"
+            autoComplete="off"
+            autoCorrect="off"
+            spellCheck={false}
+            inputMode="text"
+            style={{ ...inputBase, marginTop: 16 }}
           />
         )}
 
@@ -142,9 +179,9 @@ export const JoinByCodeModal = ({ visible, onClose, onConfirm, initialCode = "",
               flex: 1,
               padding: "13px 0",
               borderRadius: 12,
-              backgroundColor: "transparent",
-              border: "1px solid #3a3a48",
-              color: theme.textMuted,
+              backgroundColor: L.white,
+              border: `1px solid ${L.border}`,
+              color: L.navy,
               fontWeight: 700,
               fontSize: 14,
               cursor: "pointer",
@@ -159,9 +196,9 @@ export const JoinByCodeModal = ({ visible, onClose, onConfirm, initialCode = "",
               flex: 1.4,
               padding: "13px 0",
               borderRadius: 12,
-              backgroundColor: canSubmit ? theme.player1 : "#2a2a35",
+              background: canSubmit ? `linear-gradient(to right, ${L.blue}, ${L.blueLight})` : L.cellBg,
               border: "none",
-              color: "#0b1014",
+              color: canSubmit ? L.white : L.muted,
               fontWeight: 900,
               fontSize: 15,
               letterSpacing: 0.5,

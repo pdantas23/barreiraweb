@@ -160,6 +160,7 @@ export default function OnlineGameScreen() {
         <GameOverModal
           visible={true}
           winner={1}
+          reason="abandon"
           onRematch={game.onBackToLobby}
           onBackToMenu={game.onBackToMenu}
         />

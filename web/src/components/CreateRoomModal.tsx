@@ -51,6 +51,15 @@ export const CreateRoomModal = ({ visible, onClose, onConfirm }: Props) => {
     }
   }, [visible]);
 
+  useEffect(() => {
+    if (!visible) return;
+    const previous = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = previous;
+    };
+  }, [visible]);
+
   const onTogglePrivate = () => setIsPrivate((p) => !p);
 
   const onSubmit = () => {

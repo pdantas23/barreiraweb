@@ -28,6 +28,7 @@ export default function HomeScreen() {
   const [showPrivacy, setShowPrivacy] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [showRules, setShowRules] = useState(false);
+  const [logoLoaded, setLogoLoaded] = useState(false);
   const { musicEnabled, sfxEnabled, setMusicEnabled, setSfxEnabled } = useAudioSettings();
   useButtonSound();
   useMenuMusic(musicEnabled);
@@ -59,7 +60,7 @@ export default function HomeScreen() {
   };
 
   return (
-    <PageGate>
+    <PageGate ready={logoLoaded}>
     <div className="h-full flex flex-col relative bg-gradient-to-b from-bg-top to-bg-bottom overflow-hidden">
       {/* Top navbar */}
       <div className="w-full flex items-center px-4 py-3 z-10 border-b border-brand/8" style={{ backgroundColor: "#FFFFFF" }}>
@@ -90,7 +91,13 @@ export default function HomeScreen() {
 
         <div className="absolute inset-0 flex items-center justify-center px-5">
           <div className="flex flex-col items-center gap-0">
-            <img src="/photos/art.png" alt="Barreira" className="w-[min(400px,65vw)] object-contain -mb-10" />
+            <img
+              src="/photos/art.png"
+              alt="Barreira"
+              className="w-[min(400px,65vw)] object-contain rounded-3xl -mb-10"
+              onLoad={() => setLogoLoaded(true)}
+              onError={() => setLogoLoaded(true)}
+            />
 
             {/* Two buttons */}
             <div className="flex flex-row gap-4 w-[min(320px,60vw)]">
