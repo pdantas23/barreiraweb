@@ -1,5 +1,6 @@
 import { useNavigate } from "react-router-dom";
 import { IoChevronBack } from "react-icons/io5";
+import { PageGate } from "../components/PageGate";
 
 const C = {
   blue: "#3D6FFF",
@@ -17,6 +18,7 @@ export default function PrivacyScreen() {
   const navigate = useNavigate();
 
   return (
+    <PageGate>
     <div
       style={{
         height: "100%",
@@ -104,5 +106,6 @@ export default function PrivacyScreen() {
         </div>
       </div>
     </div>
+    </PageGate>
   );
 }

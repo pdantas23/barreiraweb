@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { CountdownOverlay } from "../components/CountdownOverlay";
 import { GameLayout } from "../components/GameLayout";
 import { GameOverModal } from "../components/GameOverModal";
+import { PageGate } from "../components/PageGate";
 import { gc } from "../gameColors";
 import { useOnlineGame } from "../hooks/useOnlineGame";
 import { theme } from "../theme";
@@ -23,6 +24,7 @@ export default function OnlineGameScreen() {
   // Waiting screen (before game starts)
   if (!game.ready) {
     return (
+      <PageGate>
       <div
         style={{
           height: "100%",
@@ -67,10 +69,12 @@ export default function OnlineGameScreen() {
           )}
         </div>
       </div>
+      </PageGate>
     );
   }
 
   return (
+    <PageGate>
     <GameLayout
       state={game.state}
       myPlayer={game.myPlayer}
@@ -265,5 +269,6 @@ export default function OnlineGameScreen() {
         </div>
       )}
     </GameLayout>
+    </PageGate>
   );
 }

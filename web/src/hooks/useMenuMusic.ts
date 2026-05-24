@@ -12,6 +12,41 @@ let crossfading = false;
 let crossfadeStep = 0;
 let pollTimer: ReturnType<typeof setInterval> | null = null;
 let playing = false;
+let unlockListenersAttached = false;
+
+const UNLOCK_EVENTS: (keyof WindowEventMap)[] = [
+  "pointerdown",
+  "click",
+  "keydown",
+  "touchstart",
+];
+
+const detachUnlockListeners = () => {
+  if (!unlockListenersAttached) return;
+  UNLOCK_EVENTS.forEach((ev) => window.removeEventListener(ev, onFirstInteraction));
+  unlockListenersAttached = false;
+};
+
+const onFirstInteraction = () => {
+  detachUnlockListeners();
+  if (playing) tryPlayActive();
+};
+
+const attachUnlockListeners = () => {
+  if (unlockListenersAttached) return;
+  unlockListenersAttached = true;
+  UNLOCK_EVENTS.forEach((ev) =>
+    window.addEventListener(ev, onFirstInteraction, { once: true, passive: true }),
+  );
+};
+
+const tryPlayActive = () => {
+  if (!playerA) return;
+  const promise = playerA.play();
+  if (promise && typeof promise.then === "function") {
+    promise.catch(() => attachUnlockListeners());
+  }
+};
 
 const getActive = () => (activePlayer === "A" ? playerA : playerB);
 const getInactive = () => (activePlayer === "A" ? playerB : playerA);
@@ -98,13 +133,13 @@ const play = () => {
   if (playerA) {
     playerA.currentTime = 0;
     playerA.volume = MASTER_VOLUME;
-    playerA.play().catch(() => {});
   }
   if (playerB) {
     playerB.pause();
     playerB.currentTime = 0;
     playerB.volume = 0;
   }
+  tryPlayActive();
   startPolling();
 };
 
@@ -112,6 +147,7 @@ const stop = () => {
   playing = false;
   crossfading = false;
   stopPolling();
+  detachUnlockListeners();
   if (playerA) { playerA.pause(); playerA.currentTime = 0; }
   if (playerB) { playerB.pause(); playerB.currentTime = 0; }
 };

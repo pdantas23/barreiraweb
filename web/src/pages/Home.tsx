@@ -6,6 +6,9 @@ import { playButtonSound, setSfxEnabledForSounds, useButtonSound } from "../hook
 import { useMenuMusic } from "../hooks/useMenuMusic";
 import { setSfxEnabledForPiece } from "../hooks/usePieceSound";
 import { setSfxEnabledForWall } from "../hooks/useWallSound";
+// import { AdBanner } from "../ads/AdBanner";
+// import { AD_SLOTS } from "../ads/adsConfig";
+import { PageGate } from "../components/PageGate";
 import { useAudioSettings } from "../state/audioSettings";
 
 const PRIVACY_ACCEPTED_KEY = "privacy_accepted";
@@ -56,6 +59,7 @@ export default function HomeScreen() {
   };
 
   return (
+    <PageGate>
     <div className="h-full flex flex-col relative bg-gradient-to-b from-bg-top to-bg-bottom overflow-hidden">
       {/* Top navbar */}
       <div className="w-full flex items-center px-4 py-3 z-10 border-b border-brand/8" style={{ backgroundColor: "#FFFFFF" }}>
@@ -78,15 +82,11 @@ export default function HomeScreen() {
       <div className="flex-1 relative">
         <GridBackground />
 
-        {/* TODO: integrar SDK de anuncios — placeholder lateral esquerdo (300x250 / 300x600) */}
-        <div className="absolute left-0 top-0 bottom-0 hidden md:flex w-[320px] bg-[#F5F5F5] border-[1.5px] border-dashed border-[#BBBBBB] items-center justify-center z-[5]">
-          <span className="text-[10px] text-[#BBBBBB]">Anuncio</span>
-        </div>
+        {/* Sidebar esquerda — desktop only (300x250 / 300x600) */}
+        {/* <AdBanner slot={AD_SLOTS.sidebar} format="vertical" className="absolute left-0 top-0 bottom-0 hidden md:block w-[320px] z-[5]" /> */}
 
-        {/* TODO: integrar SDK de anuncios — placeholder lateral direito (300x250 / 300x600) */}
-        <div className="absolute right-0 top-0 bottom-0 hidden md:flex w-[320px] bg-[#F5F5F5] border-[1.5px] border-dashed border-[#BBBBBB] items-center justify-center z-[5]">
-          <span className="text-[10px] text-[#BBBBBB]">Anuncio</span>
-        </div>
+        {/* Sidebar direita — desktop only (300x250 / 300x600) */}
+        {/* <AdBanner slot={AD_SLOTS.sidebar} format="vertical" className="absolute right-0 top-0 bottom-0 hidden md:block w-[320px] z-[5]" /> */}
 
         <div className="absolute inset-0 flex items-center justify-center px-5">
           <div className="flex flex-col items-center gap-0">
@@ -120,10 +120,8 @@ export default function HomeScreen() {
         </div>
       </div>
 
-      {/* TODO: integrar SDK de anuncios — banner inferior (mobile 320x50/320x100, desktop 728x90) */}
-      <div className="w-full flex-shrink-0 bg-[#F5F5F5] border-[1.5px] border-dashed border-[#BBBBBB] flex items-center justify-center h-[100px] md:h-[90px]">
-        <span className="text-[10px] text-[#BBBBBB]">Anuncio</span>
-      </div>
+      {/* Banner inferior (mobile 320x100, desktop 728x90) */}
+      {/* <AdBanner slot={AD_SLOTS.banner} format="horizontal" className="w-full flex-shrink-0 h-[100px] md:h-[90px]" /> */}
 
       {/* Difficulty modal */}
       {offlineModal && (
@@ -254,6 +252,7 @@ export default function HomeScreen() {
         </div>
       )}
     </div>
+    </PageGate>
   );
 }
 

@@ -6,6 +6,8 @@ import { Board } from "./Board";
 import { GameTimer } from "./GameTimer";
 import { PlayerCard, TurnArrow } from "./PlayerCard";
 import { WallBank } from "./WallBank";
+// import { AdBanner } from "../ads/AdBanner";
+// import { AD_SLOTS } from "../ads/adsConfig";
 import { gc } from "../gameColors";
 import type { BoardLayout } from "../hooks/useResponsiveBoard";
 
@@ -93,29 +95,25 @@ export function GameLayout({
         {topBarRight ?? <div style={{ width: 36 }} />}
       </div>
 
-      {/* TODO: integrar SDK de anúncios — banner superior (mobile 320x50/320x100, desktop 728x90) */}
-      <div className="w-full flex-shrink-0 flex bg-[#F5F5F5] border-[1.5px] border-dashed border-[#BBBBBB] items-center justify-center h-[100px] md:h-[90px]">
-        <span className="text-[10px] text-[#BBBBBB]">Anúncio</span>
-      </div>
+      {/* Banner superior (mobile 320x100, desktop 728x90) */}
+      {/* <AdBanner slot={AD_SLOTS.banner} format="horizontal" className="w-full flex-shrink-0 h-[100px] md:h-[90px]" /> */}
 
       {/* Main */}
       <section className="main w-full h-full flex flex-row items-stretch">
-        {/* Left ad placeholder - desktop only (300x250 / 300x600) */}
-        <div className="hidden md:flex w-[320px] flex-shrink-0 mr-3 items-center justify-center border-[1.5px] border-dashed border-[#BBBBBB] bg-[#F5F5F5]">
-          <span className="text-[10px] text-[#BBBBBB]">Anúncio</span>
-        </div>
+        {/* Sidebar esquerda — desktop only (300x250 / 300x600) */}
+        {/* <AdBanner slot={AD_SLOTS.sidebar} format="vertical" className="hidden md:block w-[320px] flex-shrink-0 mr-3" /> */}
 
         {/* Center content */}
         <div className="w-[90%] mx-auto md:flex-1 flex flex-col items-center mt-2">
           {/* Player cards */}
-          <div className="flex flex-row items-center w-full gap-1 mb-1.5">
+          <div className="flex flex-row items-center w-full md:w-[40%] gap-1 mb-1.5">
             <PlayerCard name={opponentName} wallsLeft={state.wallsLeft[opponentPlayer]} totalWalls={WALLS_PER_PLAYER} isActive={state.turn === opponentPlayer && state.winner === null} isPlayer={false} />
             <TurnArrow isPlayerTurn={state.turn === myPlayer} />
             <PlayerCard name={myName} wallsLeft={state.wallsLeft[myPlayer]} totalWalls={WALLS_PER_PLAYER} isActive={state.turn === myPlayer && state.winner === null} isPlayer={true} />
           </div>
 
           {/* Opponent timer */}
-          <div className="w-full m-[3px]">
+          <div className="w-full md:w-[40%] m-[3px]">
             <GameTimer timeRemainingMs={opTimeMs} isActive={state.turn === opponentPlayer && state.winner === null && !countdownActive} isPlayer={false} />
           </div>
 
@@ -127,7 +125,7 @@ export function GameLayout({
           </div>
 
           {/* Player timer */}
-          <div className="w-full m-[3px]">
+          <div className="w-full md:w-[40%] m-[3px]">
             <GameTimer timeRemainingMs={myTimeMs} isActive={state.turn === myPlayer && state.winner === null && !countdownActive} isPlayer={true} />
           </div>
 
@@ -152,10 +150,8 @@ export function GameLayout({
           </span>
         </div>
 
-        {/* Right ad placeholder - desktop only (300x250 / 300x600) */}
-        <div className="hidden md:flex w-[320px] flex-shrink-0 ml-3 items-center justify-center border-[1.5px] border-dashed border-[#BBBBBB] bg-[#F5F5F5]">
-          <span className="text-[10px] text-[#BBBBBB]">Anúncio</span>
-        </div>
+        {/* Sidebar direita — desktop only (300x250 / 300x600) */}
+        {/* <AdBanner slot={AD_SLOTS.sidebar} format="vertical" className="hidden md:block w-[320px] flex-shrink-0 ml-3" /> */}
       </section>
 
       {/* Overlays (modals, countdowns, banners) */}

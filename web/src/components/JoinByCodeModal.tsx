@@ -4,24 +4,32 @@ import { theme } from "../theme";
 type Props = {
   visible: boolean;
   onClose: () => void;
-  onConfirm: (code: string) => void;
+  onConfirm: (code: string, password: string) => void;
+  initialCode?: string;
+  requirePassword?: boolean;
+  codeLocked?: boolean;
 };
 
 const CODE_LENGTH = 6;
 
-export const JoinByCodeModal = ({ visible, onClose, onConfirm }: Props) => {
-  const [code, setCode] = useState("");
+export const JoinByCodeModal = ({ visible, onClose, onConfirm, initialCode = "", requirePassword = false, codeLocked = false }: Props) => {
+  const [code, setCode] = useState(initialCode);
+  const [password, setPassword] = useState("");
 
   useEffect(() => {
-    if (visible) setCode("");
-  }, [visible]);
+    if (visible) {
+      setCode(initialCode);
+      setPassword("");
+    }
+  }, [visible, initialCode]);
 
   const onChange = (raw: string) => {
+    if (codeLocked) return;
     const cleaned = raw.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, CODE_LENGTH);
     setCode(cleaned);
   };
 
-  const canSubmit = code.length === CODE_LENGTH;
+  const canSubmit = code.length === CODE_LENGTH && (!requirePassword || password.length > 0);
 
   if (!visible) return null;
 
@@ -54,18 +62,21 @@ export const JoinByCodeModal = ({ visible, onClose, onConfirm }: Props) => {
         onClick={(e) => e.stopPropagation()}
       >
         <div style={{ color: theme.textPrimary, fontSize: 20, fontWeight: 800, marginBottom: 4 }}>
-          Entrar com codigo
+          {requirePassword ? "Sala privada" : "Entrar com codigo"}
         </div>
         <div style={{ color: theme.textMuted, fontSize: 13, marginBottom: 18 }}>
-          Digite o codigo de {CODE_LENGTH} caracteres da sala.
+          {requirePassword
+            ? "Digite a senha para entrar nessa sala."
+            : `Digite o codigo de ${CODE_LENGTH} caracteres da sala.`}
         </div>
 
         <input
           value={code}
           onChange={(e) => onChange(e.target.value)}
-          autoFocus
+          autoFocus={!codeLocked}
           maxLength={CODE_LENGTH}
           placeholder="ABCD12"
+          readOnly={codeLocked}
           style={{
             width: "100%",
             color: theme.textPrimary,
@@ -80,6 +91,8 @@ export const JoinByCodeModal = ({ visible, onClose, onConfirm }: Props) => {
             fontVariantNumeric: "tabular-nums",
             outline: "none",
             boxSizing: "border-box",
+            opacity: codeLocked ? 0.85 : 1,
+            cursor: codeLocked ? "default" : "text",
           }}
         />
 
@@ -97,6 +110,30 @@ export const JoinByCodeModal = ({ visible, onClose, onConfirm }: Props) => {
             />
           ))}
         </div>
+
+        {requirePassword && (
+          <input
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            autoFocus={codeLocked}
+            type="password"
+            placeholder="Senha"
+            style={{
+              width: "100%",
+              color: theme.textPrimary,
+              backgroundColor: "#1f1f27",
+              border: "1px solid #2a2a35",
+              borderRadius: 14,
+              padding: "14px 16px",
+              fontSize: 16,
+              fontWeight: 600,
+              letterSpacing: 1,
+              outline: "none",
+              boxSizing: "border-box",
+              marginTop: 16,
+            }}
+          />
+        )}
 
         <div style={{ display: "flex", flexDirection: "row", gap: 10, marginTop: 20 }}>
           <button
@@ -116,7 +153,7 @@ export const JoinByCodeModal = ({ visible, onClose, onConfirm }: Props) => {
             Cancelar
           </button>
           <button
-            onClick={() => canSubmit && onConfirm(code)}
+            onClick={() => canSubmit && onConfirm(code, password)}
             disabled={!canSubmit}
             style={{
               flex: 1.4,

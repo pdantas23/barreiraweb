@@ -4,6 +4,8 @@ import { IoChevronBack, IoRefresh, IoLockClosed, IoArrowForward, IoPeopleOutline
 import type { ColorChoice, PublicRoom } from "@barreira/shared";
 import { CreateRoomModal, type CreateRoomConfig } from "../components/CreateRoomModal";
 import { JoinByCodeModal } from "../components/JoinByCodeModal";
+import { MessageModal } from "../components/MessageModal";
+import { PageGate } from "../components/PageGate";
 import { createRoom, joinRoom, listRooms } from "../net/api";
 import { clearLastGameStart, connectSocket } from "../net/socket";
 import { playButtonSound, useButtonSound } from "../hooks/useButtonSound";
@@ -35,14 +37,22 @@ const colorLabel = (c: ColorChoice): string => {
   return "Random";
 };
 
-const errorMessage = (err: string): string => {
+type FriendlyError = { title: string; message: string };
+
+const errorInfo = (err: string): FriendlyError => {
   switch (err) {
-    case "room-not-found": return "Sala nao encontrada. O codigo esta certo?";
-    case "room-full": return "Essa sala ja tem 2 jogadores.";
-    case "wrong-password": return "Senha incorreta.";
-    case "already-in-room": return "Voce ja esta numa sala.";
-    case "internal-error": return "Erro no servidor.";
-    default: return `Erro: ${err}`;
+    case "room-not-found":
+      return { title: "Sala nao encontrada", message: "Essa sala nao existe mais ou o codigo nao confere. Tente atualizar a lista ou conferir o codigo." };
+    case "room-full":
+      return { title: "Sala cheia", message: "Essa sala ja tem dois jogadores. Procure outra ou crie uma nova." };
+    case "wrong-password":
+      return { title: "Senha incorreta", message: "A senha digitada nao confere com a dessa sala. Confirme com quem criou a partida." };
+    case "already-in-room":
+      return { title: "Voce ja esta numa sala", message: "Saia da sala atual antes de entrar em outra." };
+    case "internal-error":
+      return { title: "Sem conexao", message: "Nao conseguimos falar com o servidor agora. Verifique sua internet e tente de novo." };
+    default:
+      return { title: "Algo deu errado", message: "Nao foi possivel concluir essa acao. Tente novamente em alguns segundos." };
   }
 };
 
@@ -52,16 +62,24 @@ export default function OnlineScreen() {
   const playerName = usePlayerName();
   const [createOpen, setCreateOpen] = useState(false);
   const [joinOpen, setJoinOpen] = useState(false);
+  const [joinTarget, setJoinTarget] = useState<PublicRoom | null>(null);
   const [rooms, setRooms] = useState<PublicRoom[]>([]);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
+  const [firstLoadDone, setFirstLoadDone] = useState(false);
+  const [errorPopup, setErrorPopup] = useState<FriendlyError | null>(null);
+
+  const showError = (res: { error: string; message?: string }) => {
+    setErrorPopup(errorInfo(res.error));
+  };
 
   const refresh = useCallback(async () => {
     setLoading(true);
     const res = await listRooms();
     setLoading(false);
+    setFirstLoadDone(true);
     if (!res.ok) {
-      alert(res.message ?? errorMessage(res.error));
+      showError(res);
       return;
     }
     setRooms(res.data.rooms);
@@ -82,6 +100,7 @@ export default function OnlineScreen() {
     playButtonSound();
     if (busy) return;
     if (room.isPrivate) {
+      setJoinTarget(room);
       setJoinOpen(true);
       return;
     }
@@ -89,7 +108,7 @@ export default function OnlineScreen() {
     const res = await joinRoom({ code: room.code, playerName });
     setBusy(false);
     if (!res.ok) {
-      alert(res.message ?? errorMessage(res.error));
+      showError(res);
       return;
     }
     goToOnlineGame({ role: "guest", code: room.code });
@@ -102,25 +121,29 @@ export default function OnlineScreen() {
     const res = await createRoom({ hostName: playerName, color: config.color, isPrivate: config.isPrivate });
     setBusy(false);
     if (!res.ok) {
-      alert(res.message ?? errorMessage(res.error));
+      showError(res);
       return;
     }
     goToOnlineGame({ role: "host", code: res.data.code, password: res.data.password ?? "" });
   };
 
-  const onConfirmJoin = async (code: string) => {
+  const onConfirmJoin = async (code: string, password: string) => {
     setJoinOpen(false);
+    setJoinTarget(null);
     setBusy(true);
-    const res = await joinRoom({ code, playerName });
+    const res = await joinRoom({ code, playerName, password: password || undefined });
     setBusy(false);
     if (!res.ok) {
-      alert(res.message ?? errorMessage(res.error));
+      showError(res);
       return;
     }
-    goToOnlineGame({ role: "guest", code });
+    const params: Record<string, string> = { role: "guest", code };
+    if (password) params.password = password;
+    goToOnlineGame(params);
   };
 
   return (
+    <PageGate ready={firstLoadDone}>
     <div
       style={{
         height: "100%",
@@ -133,7 +156,7 @@ export default function OnlineScreen() {
         <button onClick={() => navigate(-1)} style={{ width: 40, height: 40, display: "flex", alignItems: "center", background: "none", border: "none", cursor: "pointer" }}>
           <IoChevronBack size={28} color={C.navy} />
         </button>
-        <span style={{ flex: 1, color: C.navy, fontSize: 18, fontWeight: 800, letterSpacing: 0.5, textAlign: "center" }}>Lobby</span>
+        <span style={{ flex: 1, fontFamily: "'Bebas Neue', sans-serif", fontSize: "2.5rem", color: "#3D6FFF", letterSpacing: 4, textAlign: "center" }}>LOBBY</span>
         <div style={{ width: 40 }} />
       </div>
 
@@ -256,7 +279,22 @@ export default function OnlineScreen() {
       </div>
 
       <CreateRoomModal visible={createOpen} onClose={() => setCreateOpen(false)} onConfirm={onConfirmCreate} />
-      <JoinByCodeModal visible={joinOpen} onClose={() => setJoinOpen(false)} onConfirm={onConfirmJoin} />
+      <JoinByCodeModal
+        visible={joinOpen}
+        onClose={() => { setJoinOpen(false); setJoinTarget(null); }}
+        onConfirm={onConfirmJoin}
+        initialCode={joinTarget?.code ?? ""}
+        requirePassword={joinTarget?.isPrivate ?? false}
+        codeLocked={!!joinTarget}
+      />
+      <MessageModal
+        visible={errorPopup !== null}
+        variant="error"
+        title={errorPopup?.title}
+        message={errorPopup?.message ?? ""}
+        onClose={() => setErrorPopup(null)}
+      />
     </div>
+    </PageGate>
   );
 }

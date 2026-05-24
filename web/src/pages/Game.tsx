@@ -1,5 +1,6 @@
 import { GameLayout } from "../components/GameLayout";
 import { GameOverlays } from "../components/GameOverlays";
+import { PageGate } from "../components/PageGate";
 import { gc } from "../gameColors";
 import { difficultyLabel, useLocalGame } from "../hooks/useLocalGame";
 
@@ -7,6 +8,7 @@ export default function GameScreen() {
   const game = useLocalGame();
 
   return (
+    <PageGate>
     <GameLayout
       state={game.state}
       myPlayer={game.myPlayer}
@@ -53,5 +55,6 @@ export default function GameScreen() {
         onConfirmReloadDefeat={game.confirmReloadDefeat}
       />
     </GameLayout>
+    </PageGate>
   );
 }
