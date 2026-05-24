@@ -7,31 +7,71 @@ import {
   TextInput,
   View,
 } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
 import Animated, { FadeIn, FadeInDown } from "react-native-reanimated";
 import { theme } from "../theme";
 
 type Props = {
   visible: boolean;
   onClose: () => void;
-  onConfirm: (code: string) => void;
+  // password é opcional — undefined quando o usuário não preencheu (sala
+  // pública entrada via "Entrar com código"). String vazia também conta
+  // como "não preencheu" pra não trafegar lixo até o server.
+  onConfirm: (code: string, password?: string) => void;
+  // Quando o user clica numa sala privada da lista, abrimos o modal com
+  // o code já preenchido e bloqueado pra não confundir.
+  initialCode?: string;
+  lockCode?: boolean;
+  // Força o campo senha a aparecer e ser obrigatório. Usado pra salas
+  // privadas vindas da lista. Sem isso, senha não é exibida (sala pública).
+  requirePassword?: boolean;
 };
 
 const CODE_LENGTH = 6;
+const PASSWORD_LENGTH = 6;
 
-export const JoinByCodeModal = ({ visible, onClose, onConfirm }: Props) => {
+export const JoinByCodeModal = ({
+  visible,
+  onClose,
+  onConfirm,
+  initialCode,
+  lockCode = false,
+  requirePassword = false,
+}: Props) => {
   const [code, setCode] = useState("");
+  const [password, setPassword] = useState("");
 
   useEffect(() => {
-    if (visible) setCode("");
-  }, [visible]);
+    if (visible) {
+      setCode(initialCode ?? "");
+      setPassword("");
+    }
+  }, [visible, initialCode]);
 
-  const onChange = (raw: string) => {
+  const onChangeCode = (raw: string) => {
     // Normaliza: maiúsculas, sem espaços, alfanumérico, truncado em CODE_LENGTH.
     const cleaned = raw.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, CODE_LENGTH);
     setCode(cleaned);
   };
 
-  const canSubmit = code.length === CODE_LENGTH;
+  const onChangePassword = (raw: string) => {
+    const cleaned = raw.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, PASSWORD_LENGTH);
+    setPassword(cleaned);
+  };
+
+  const codeOk = code.length === CODE_LENGTH;
+  const passwordOk = !requirePassword || password.length === PASSWORD_LENGTH;
+  const canSubmit = codeOk && passwordOk;
+
+  const submit = () => {
+    if (!canSubmit) return;
+    onConfirm(code, password.length > 0 ? password : undefined);
+  };
+
+  const title = requirePassword ? "Entrar em sala privada" : "Entrar com código";
+  const subtitle = requirePassword
+    ? "Essa sala é privada. Peça a senha pra quem criou."
+    : `Digite o código de ${CODE_LENGTH} caracteres da sala.`;
 
   return (
     <Modal transparent visible={visible} animationType="fade" statusBarTranslucent onRequestClose={onClose}>
@@ -39,35 +79,71 @@ export const JoinByCodeModal = ({ visible, onClose, onConfirm }: Props) => {
         <Animated.View entering={FadeIn.duration(200)} style={StyleSheet.absoluteFill} pointerEvents="none" />
         <Animated.View entering={FadeInDown.duration(340).delay(40)} style={styles.cardWrap}>
           <Pressable style={styles.card} onPress={(e) => e.stopPropagation?.()}>
-            <Text style={styles.title}>Entrar com código</Text>
-            <Text style={styles.subtitle}>
-              Digite o código de {CODE_LENGTH} caracteres da sala.
-            </Text>
+            <Text style={styles.title}>{title}</Text>
+            <Text style={styles.subtitle}>{subtitle}</Text>
 
-            <TextInput
-              value={code}
-              onChangeText={onChange}
-              autoFocus
-              autoCapitalize="characters"
-              autoCorrect={false}
-              maxLength={CODE_LENGTH}
-              placeholder="ABCD12"
-              placeholderTextColor="#3a3a48"
-              style={styles.input}
-              selectionColor={theme.player1}
-            />
-
-            <View style={styles.dots}>
-              {Array.from({ length: CODE_LENGTH }).map((_, i) => (
-                <View
-                  key={i}
-                  style={[
-                    styles.dot,
-                    i < code.length && { backgroundColor: theme.player1 },
-                  ]}
+            {lockCode ? (
+              <View style={styles.lockedCode}>
+                <Ionicons name="lock-closed" size={16} color={theme.textMuted} />
+                <Text style={styles.lockedCodeText}>{code}</Text>
+              </View>
+            ) : (
+              <>
+                <TextInput
+                  value={code}
+                  onChangeText={onChangeCode}
+                  autoFocus
+                  autoCapitalize="characters"
+                  autoCorrect={false}
+                  maxLength={CODE_LENGTH}
+                  placeholder="ABCD12"
+                  placeholderTextColor="#3a3a48"
+                  style={styles.input}
+                  selectionColor={theme.player1}
                 />
-              ))}
-            </View>
+                <View style={styles.dots}>
+                  {Array.from({ length: CODE_LENGTH }).map((_, i) => (
+                    <View
+                      key={i}
+                      style={[
+                        styles.dot,
+                        i < code.length && { backgroundColor: theme.player1 },
+                      ]}
+                    />
+                  ))}
+                </View>
+              </>
+            )}
+
+            {requirePassword && (
+              <>
+                <Text style={styles.passwordLabel}>Senha</Text>
+                <TextInput
+                  value={password}
+                  onChangeText={onChangePassword}
+                  autoFocus={lockCode}
+                  autoCapitalize="characters"
+                  autoCorrect={false}
+                  maxLength={PASSWORD_LENGTH}
+                  placeholder="XXXXXX"
+                  placeholderTextColor="#3a3a48"
+                  style={styles.input}
+                  selectionColor={theme.player2}
+                  secureTextEntry={false}
+                />
+                <View style={styles.dots}>
+                  {Array.from({ length: PASSWORD_LENGTH }).map((_, i) => (
+                    <View
+                      key={i}
+                      style={[
+                        styles.dot,
+                        i < password.length && { backgroundColor: theme.player2 },
+                      ]}
+                    />
+                  ))}
+                </View>
+              </>
+            )}
 
             <View style={styles.actions}>
               <Pressable
@@ -77,7 +153,7 @@ export const JoinByCodeModal = ({ visible, onClose, onConfirm }: Props) => {
                 <Text style={styles.btnSecondaryText}>Cancelar</Text>
               </Pressable>
               <Pressable
-                onPress={() => canSubmit && onConfirm(code)}
+                onPress={submit}
                 disabled={!canSubmit}
                 style={({ pressed }) => [
                   styles.btnPrimary,
@@ -145,6 +221,25 @@ const styles = StyleSheet.create({
     textAlign: "center",
     fontVariant: ["tabular-nums"],
   },
+  lockedCode: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 10,
+    backgroundColor: "#1f1f27",
+    borderWidth: 1,
+    borderColor: "#2a2a35",
+    borderRadius: 14,
+    paddingVertical: 16,
+    paddingHorizontal: 18,
+  },
+  lockedCodeText: {
+    color: theme.textPrimary,
+    fontSize: 22,
+    fontWeight: "800",
+    letterSpacing: 6,
+    fontVariant: ["tabular-nums"],
+  },
   dots: {
     flexDirection: "row",
     justifyContent: "center",
@@ -156,6 +251,15 @@ const styles = StyleSheet.create({
     height: 8,
     borderRadius: 4,
     backgroundColor: "#2a2a35",
+  },
+  passwordLabel: {
+    color: theme.textMuted,
+    fontSize: 11,
+    fontWeight: "800",
+    letterSpacing: 1.2,
+    textTransform: "uppercase",
+    marginTop: 18,
+    marginBottom: 8,
   },
   actions: {
     flexDirection: "row",

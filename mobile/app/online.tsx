@@ -20,6 +20,7 @@ import {
 } from "../src/components/CreateRoomModal";
 import { JoinByCodeModal } from "../src/components/JoinByCodeModal";
 import { createRoom, joinRoom, listRooms } from "../src/net/api";
+import { errorInfo } from "../src/net/errors";
 import { clearLastGameStart, connectSocket } from "../src/net/socket";
 import { playButtonSound, useButtonSound } from "../src/hooks/useButtonSound";
 import { usePlayerName } from "../src/state/profile";
@@ -63,20 +64,29 @@ export default function OnlineScreen() {
   const playerName = usePlayerName();
   const [createOpen, setCreateOpen] = useState(false);
   const [joinOpen, setJoinOpen] = useState(false);
+  // Quando o user clica numa sala privada da lista, abrimos o JoinByCodeModal
+  // já com o code preenchido + travado + senha exigida. Null = modo padrão
+  // (user clicou em "Entrar com código" — só code, sem senha).
+  const [joinPrivate, setJoinPrivate] = useState<{ code: string } | null>(null);
   const [rooms, setRooms] = useState<PublicRoom[]>([]);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
+
+  const showError = useCallback((res: { error: string; message?: string }) => {
+    const info = errorInfo(res.error);
+    Alert.alert(info.title, res.message ?? info.message);
+  }, []);
 
   const refresh = useCallback(async () => {
     setLoading(true);
     const res = await listRooms();
     setLoading(false);
     if (!res.ok) {
-      Alert.alert("Erro", res.message ?? errorMessage(res.error));
+      showError(res);
       return;
     }
     setRooms(res.data.rooms);
-  }, []);
+  }, [showError]);
 
   useEffect(() => {
     clearLastGameStart();
@@ -97,24 +107,28 @@ export default function OnlineScreen() {
     });
   };
 
-  const onJoinRoom = async (room: PublicRoom) => {
+  const onJoinRoom = (room: PublicRoom) => {
     playButtonSound();
     if (busy) return;
     if (room.isPrivate) {
+      // Sala privada da lista: abrir modal com code pré-preenchido + travado,
+      // exigindo senha. O join real acontece em onConfirmJoin.
+      setJoinPrivate({ code: room.code });
       setJoinOpen(true);
       return;
     }
+    void doJoin(room.code);
+  };
+
+  const doJoin = async (code: string, password?: string) => {
     setBusy(true);
-    const res = await joinRoom({
-      code: room.code,
-      playerName,
-    });
+    const res = await joinRoom({ code, playerName, password });
     setBusy(false);
     if (!res.ok) {
-      Alert.alert("Não consegui entrar", res.message ?? errorMessage(res.error));
+      showError(res);
       return;
     }
-    goToOnlineGame({ role: "guest", code: room.code });
+    goToOnlineGame({ role: "guest", code });
   };
 
   const onConfirmCreate = async (config: CreateRoomConfig) => {
@@ -128,7 +142,7 @@ export default function OnlineScreen() {
     });
     setBusy(false);
     if (!res.ok) {
-      Alert.alert("Não consegui criar a sala", res.message ?? errorMessage(res.error));
+      showError(res);
       return;
     }
     goToOnlineGame({
@@ -138,19 +152,15 @@ export default function OnlineScreen() {
     });
   };
 
-  const onConfirmJoin = async (code: string) => {
+  const onConfirmJoin = (code: string, password?: string) => {
     setJoinOpen(false);
-    setBusy(true);
-    const res = await joinRoom({
-      code,
-      playerName,
-    });
-    setBusy(false);
-    if (!res.ok) {
-      Alert.alert("Não consegui entrar", res.message ?? errorMessage(res.error));
-      return;
-    }
-    goToOnlineGame({ role: "guest", code });
+    setJoinPrivate(null);
+    void doJoin(code, password);
+  };
+
+  const onCloseJoin = () => {
+    setJoinOpen(false);
+    setJoinPrivate(null);
   };
 
   const renderRoom = ({ item, index }: { item: PublicRoom; index: number }) => {
@@ -267,7 +277,11 @@ export default function OnlineScreen() {
           ]}
         >
           <Pressable
-            onPress={() => { playButtonSound(); setJoinOpen(true); }}
+            onPress={() => {
+              playButtonSound();
+              setJoinPrivate(null);
+              setJoinOpen(true);
+            }}
             disabled={busy}
             style={({ pressed }) => [
               styles.btnSecondary,
@@ -303,30 +317,16 @@ export default function OnlineScreen() {
         />
         <JoinByCodeModal
           visible={joinOpen}
-          onClose={() => setJoinOpen(false)}
+          onClose={onCloseJoin}
           onConfirm={onConfirmJoin}
+          initialCode={joinPrivate?.code}
+          lockCode={joinPrivate !== null}
+          requirePassword={joinPrivate !== null}
         />
       </View>
     </LinearGradient>
   );
 }
-
-const errorMessage = (err: string): string => {
-  switch (err) {
-    case "room-not-found":
-      return "Sala não encontrada. O código está certo?";
-    case "room-full":
-      return "Essa sala já tem 2 jogadores.";
-    case "wrong-password":
-      return "Senha incorreta.";
-    case "already-in-room":
-      return "Você já está numa sala.";
-    case "internal-error":
-      return "Erro no servidor. Verifica se o server está rodando.";
-    default:
-      return `Erro: ${err}`;
-  }
-};
 
 const styles = StyleSheet.create({
   root: {

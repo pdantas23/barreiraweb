@@ -3,7 +3,6 @@ import { Modal, Pressable, StyleSheet, Text, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import Animated, { FadeIn, FadeInDown } from "react-native-reanimated";
-import { theme } from "../theme";
 
 const L = {
   blue: "#3D6FFF",
@@ -22,7 +21,6 @@ export type ColorChoice = "cyan" | "random" | "red";
 export type CreateRoomConfig = {
   color: ColorChoice;
   isPrivate: boolean;
-  password: string | null;
 };
 
 type Props = {
@@ -61,45 +59,20 @@ const COLOR_OPTIONS: ColorOption[] = [
   },
 ];
 
-// Senha mockada: 6 caracteres alfanuméricos sem confundir (sem 0/O/1/I).
-const generatePassword = (): string => {
-  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
-  let out = "";
-  for (let i = 0; i < 6; i++) out += chars[Math.floor(Math.random() * chars.length)];
-  return out;
-};
-
 export const CreateRoomModal = ({ visible, onClose, onConfirm }: Props) => {
   const [color, setColor] = useState<ColorChoice>("random");
   const [isPrivate, setIsPrivate] = useState(false);
-  const [password, setPassword] = useState<string>("");
 
-  // Sempre que o modal abre OU o usuário ativa "privada", regenera a senha
-  // pra dar feedback visual claro. Estrutura — lógica real ainda não plugada.
   useEffect(() => {
     if (visible) {
       setColor("random");
       setIsPrivate(false);
-      setPassword(generatePassword());
     }
   }, [visible]);
 
-  const onTogglePrivate = () => {
-    setIsPrivate((p) => {
-      if (!p) setPassword(generatePassword());
-      return !p;
-    });
-  };
+  const onTogglePrivate = () => setIsPrivate((p) => !p);
 
-  const onRefreshPassword = () => setPassword(generatePassword());
-
-  const onSubmit = () => {
-    onConfirm({
-      color,
-      isPrivate,
-      password: isPrivate ? password : null,
-    });
-  };
+  const onSubmit = () => onConfirm({ color, isPrivate });
 
   return (
     <Modal transparent visible={visible} animationType="fade" statusBarTranslucent onRequestClose={onClose}>
@@ -145,7 +118,8 @@ export const CreateRoomModal = ({ visible, onClose, onConfirm }: Props) => {
               Você sempre joga saindo de baixo do tabuleiro.
             </Text>
 
-            {/* Checkbox privada */}
+            {/* Checkbox privada — a senha real é gerada pelo server e
+                aparece na tela de espera (game.password do RoomDetail). */}
             <Pressable style={styles.privateRow} onPress={onTogglePrivate}>
               <View
                 style={[
@@ -158,23 +132,10 @@ export const CreateRoomModal = ({ visible, onClose, onConfirm }: Props) => {
               <View style={{ flex: 1 }}>
                 <Text style={styles.privateLabel}>Sala privada</Text>
                 <Text style={styles.privateSub}>
-                  Só quem tiver a senha consegue entrar
+                  O servidor gera uma senha — você compartilha com seu convidado
                 </Text>
               </View>
             </Pressable>
-
-            {/* Senha gerada (estrutura) */}
-            {isPrivate && (
-              <View style={styles.passwordBox}>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.passwordTag}>SENHA</Text>
-                  <Text style={styles.passwordValue}>{password}</Text>
-                </View>
-                <Pressable onPress={onRefreshPassword} style={styles.passwordRefresh}>
-                  <Ionicons name="refresh" size={18} color={theme.textMuted} />
-                </Pressable>
-              </View>
-            )}
 
             {/* Ações */}
             <View style={styles.actions}>
@@ -313,40 +274,6 @@ const styles = StyleSheet.create({
     color: L.muted,
     fontSize: 11,
     marginTop: 2,
-  },
-  passwordBox: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: L.cellBg,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: L.border,
-    padding: 14,
-    marginTop: 10,
-  },
-  passwordTag: {
-    color: L.muted,
-    fontSize: 10,
-    fontWeight: "800",
-    letterSpacing: 1.5,
-  },
-  passwordValue: {
-    color: L.blue,
-    fontSize: 22,
-    fontWeight: "900",
-    letterSpacing: 4,
-    marginTop: 2,
-    fontVariant: ["tabular-nums"],
-  },
-  passwordRefresh: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: L.white,
-    alignItems: "center",
-    justifyContent: "center",
-    borderWidth: 1,
-    borderColor: L.border,
   },
   actions: {
     flexDirection: "row",
