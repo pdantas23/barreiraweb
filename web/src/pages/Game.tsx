@@ -1,3 +1,5 @@
+import { IoExitOutline } from "react-icons/io5";
+import { ConfirmModal } from "../components/ConfirmModal";
 import { GameLayout } from "../components/GameLayout";
 import { GameOverlays } from "../components/GameOverlays";
 import { PageGate } from "../components/PageGate";
@@ -53,6 +55,18 @@ export default function GameScreen() {
         showReloadWarning={game.showReloadWarning}
         onDismissReloadWarning={() => game.setShowReloadWarning(false)}
         onConfirmReloadDefeat={game.confirmReloadDefeat}
+      />
+
+      <ConfirmModal
+        visible={game.showQuitConfirm}
+        variant="danger"
+        title="Sair da partida?"
+        message="Tem certeza que deseja sair? O progresso da partida sera perdido."
+        cancelLabel="Continuar jogando"
+        confirmLabel="Sair"
+        icon={<IoExitOutline size={36} color="#FF3D6F" />}
+        onCancel={game.cancelQuit}
+        onConfirm={game.confirmQuit}
       />
     </GameLayout>
     </PageGate>

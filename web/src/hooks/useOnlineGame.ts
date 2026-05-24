@@ -266,6 +266,9 @@ export function useOnlineGame() {
     sendingWallRef.current = false;
   };
 
+  const [showQuitConfirm, setShowQuitConfirm] = useState(false);
+  const [showReportConfirm, setShowReportConfirm] = useState(false);
+
   const doLeave = async () => {
     await Promise.race([
       leaveRoom().catch(() => undefined),
@@ -277,18 +280,26 @@ export function useOnlineGame() {
   const onBack = () => {
     playButtonSound();
     if (state && state.winner === null && !opponentLeft) {
-      if (window.confirm("Sair da partida?\nTem certeza que deseja sair?")) doLeave();
+      setShowQuitConfirm(true);
     } else {
       doLeave();
     }
   };
 
+  const confirmQuit = () => {
+    setShowQuitConfirm(false);
+    doLeave();
+  };
+
   const onReportPlayer = () => {
-    if (window.confirm(`Denunciar "${meta?.opponentName ?? "jogador"}" por comportamento inadequado?`)) {
-      const subject = encodeURIComponent("Denuncia de jogador - Barreira");
-      const body = encodeURIComponent(`Jogador denunciado: ${meta?.opponentName ?? "?"}\nSala: ${code}\nMotivo: `);
-      window.open(`mailto:contato@barreira.app?subject=${subject}&body=${body}`, "_blank");
-    }
+    setShowReportConfirm(true);
+  };
+
+  const confirmReport = () => {
+    setShowReportConfirm(false);
+    const subject = encodeURIComponent("Denuncia de jogador - Barreira");
+    const body = encodeURIComponent(`Jogador denunciado: ${meta?.opponentName ?? "?"}\nSala: ${code}\nMotivo: `);
+    window.open(`mailto:contato@barreira.app?subject=${subject}&body=${body}`, "_blank");
   };
 
   const onBackToMenu = () => navigate("/");
@@ -377,5 +388,13 @@ export function useOnlineGame() {
     onRequestRematch,
     onAcceptRematch,
     onDeclineRematch,
+
+    // Quit / report confirmation modals
+    showQuitConfirm,
+    showReportConfirm,
+    cancelQuit: () => setShowQuitConfirm(false),
+    confirmQuit,
+    cancelReport: () => setShowReportConfirm(false),
+    confirmReport,
   };
 }

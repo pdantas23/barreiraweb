@@ -221,11 +221,20 @@ export function useLocalGame() {
     resetTimers();
   };
 
+  const [showQuitConfirm, setShowQuitConfirm] = useState(false);
+
   const onBack = () => {
     playButtonSound();
-    if (window.confirm("Sair da partida?\nTem certeza que deseja sair?")) {
+    if (state.winner !== null) {
       navigate(-1);
+      return;
     }
+    setShowQuitConfirm(true);
+  };
+
+  const confirmQuit = () => {
+    setShowQuitConfirm(false);
+    navigate(-1);
   };
 
   return {
@@ -264,5 +273,8 @@ export function useLocalGame() {
     setShowReloadWarning,
     setCountdownActive,
     confirmReloadDefeat,
+    showQuitConfirm,
+    cancelQuit: () => setShowQuitConfirm(false),
+    confirmQuit,
   };
 }

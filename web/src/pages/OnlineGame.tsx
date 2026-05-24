@@ -1,5 +1,6 @@
-import { IoAlertCircle, IoChevronBack, IoFlagOutline } from "react-icons/io5";
+import { IoAlertCircle, IoChevronBack, IoExitOutline, IoFlagOutline } from "react-icons/io5";
 import { useNavigate } from "react-router-dom";
+import { ConfirmModal } from "../components/ConfirmModal";
 import { CountdownOverlay } from "../components/CountdownOverlay";
 import { GameLayout } from "../components/GameLayout";
 import { GameOverModal } from "../components/GameOverModal";
@@ -154,15 +155,40 @@ export default function OnlineGameScreen() {
         onLeave={game.onBackToLobby}
       />
 
-      {/* Opponent left game over */}
+      {/* Opponent left game over (player who stayed wins) */}
       {game.opponentLeft && game.state.winner === null && !game.reloadDefeat && (
         <GameOverModal
           visible={true}
-          winner={2}
+          winner={1}
           onRematch={game.onBackToLobby}
           onBackToMenu={game.onBackToMenu}
         />
       )}
+
+      {/* Quit confirmation modal */}
+      <ConfirmModal
+        visible={game.showQuitConfirm}
+        variant="danger"
+        title="Sair da partida?"
+        message="Voce vai abandonar a partida e o oponente vencera automaticamente."
+        cancelLabel="Continuar jogando"
+        confirmLabel="Sair"
+        icon={<IoExitOutline size={36} color="#FF3D6F" />}
+        onCancel={game.cancelQuit}
+        onConfirm={game.confirmQuit}
+      />
+
+      {/* Report player confirmation modal */}
+      <ConfirmModal
+        visible={game.showReportConfirm}
+        variant="warning"
+        title="Denunciar jogador?"
+        message={`Denunciar "${game.opponentName || "jogador"}" por comportamento inadequado? Voce sera redirecionado para enviar a denuncia.`}
+        cancelLabel="Cancelar"
+        confirmLabel="Denunciar"
+        onCancel={game.cancelReport}
+        onConfirm={game.confirmReport}
+      />
 
       {/* Reload warning modal */}
       {game.showReloadWarning && !game.reloadDefeat && (
