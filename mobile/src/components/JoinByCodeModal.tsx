@@ -49,7 +49,6 @@ export const JoinByCodeModal = ({
   }, [visible, initialCode]);
 
   const onChangeCode = (raw: string) => {
-    // Normaliza: maiúsculas, sem espaços, alfanumérico, truncado em CODE_LENGTH.
     const cleaned = raw.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, CODE_LENGTH);
     setCode(cleaned);
   };

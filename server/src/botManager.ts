@@ -24,6 +24,8 @@ import {
   applyMove,
   serializeState,
   smartOpponentMove,
+  randomPersonality,
+  type BotPersonality,
   type ClientToServerEvents,
   type GameOverPayload,
   type ServerToClientEvents,
@@ -70,6 +72,11 @@ const generateBotName = (): string => `anonimo${randInt(1000, 9999)}`;
 
 const pickRandomColor = (): "cyan" | "random" | "red" =>
   BOT_COLORS[Math.floor(Math.random() * BOT_COLORS.length)];
+
+// Personalidade de cada bot: socketId → BotPersonality.
+// Atribuída no spawn/rescue e consultada a cada jogada.
+// Garantia de variedade: cada bot joga diferente, mesmo na mesma partida.
+const botPersonalities = new Map<string, BotPersonality>();
 
 // Pra evitar spawns concorrentes na mesma "janela" (race do setInterval +
 // múltiplos setTimeouts agendados). Conta spawns em voo.
@@ -124,6 +131,9 @@ export const scheduleBotRescue = (room: ServerRoom): void => {
       console.warn(`[botManager] rescue falhou pra sala ${code}`);
       return;
     }
+    // Atribui personalidade ao bot guest do rescue.
+    const botPlayer = updated.players.find((p) => p.isBot);
+    if (botPlayer) botPersonalities.set(botPlayer.socketId, randomPersonality());
     console.log(`[botManager] rescue: ${botName} entrou em ${code}`);
     if (onBotRescueStarted) onBotRescueStarted(updated);
   }, delay);
@@ -189,7 +199,13 @@ const spawnBotHostRoom = (): void => {
   const name = generateBotName();
   const color = pickRandomColor();
   const room = createBotHostRoom({ hostName: name, color });
-  console.log(`[botManager] sala bot ${room.code} criada por ${name} (cor ${color})`);
+  // Atribui personalidade ao bot host (socketId interno).
+  const botPlayer = room.players[0];
+  if (botPlayer) {
+    const personality = randomPersonality();
+    botPersonalities.set(botPlayer.socketId, personality);
+    console.log(`[botManager] sala bot ${room.code} criada por ${name} (cor ${color}, aggr ${personality.aggression.toFixed(1)})`);
+  }
 };
 
 const playBotMove = (room: ServerRoom, bot: ServerPlayer): void => {
@@ -202,7 +218,8 @@ const playBotMove = (room: ServerRoom, bot: ServerPlayer): void => {
   }
   if (room.gameState.turn !== bot.enginePlayer) return; // não é mais a vez
 
-  const move = smartOpponentMove(room.gameState, bot.enginePlayer);
+  const personality = botPersonalities.get(bot.socketId) ?? randomPersonality();
+  const move = smartOpponentMove(room.gameState, bot.enginePlayer, personality);
   if (!move) {
     console.warn(`[botManager] sala ${room.code}: bot não gerou move`);
     return;
@@ -243,6 +260,10 @@ const scheduleBotLeave = (room: ServerRoom): void => {
   const delay = randomBetween(LEAVE_DELAY_MIN_MS, LEAVE_DELAY_MAX_MS);
   setTimeout(() => {
     scheduledLeaves.delete(room.code);
+    // Limpa personalidades dos bots dessa sala pra não vazar memória.
+    for (const p of room.players.filter((pl) => pl.isBot)) {
+      botPersonalities.delete(p.socketId);
+    }
     removeBotFromRoom(room.code);
     console.log(`[botManager] bot saiu da sala ${room.code}`);
   }, delay);

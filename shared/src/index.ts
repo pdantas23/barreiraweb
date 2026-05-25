@@ -11,7 +11,8 @@ export * from "./engine";
 
 // --- Bots ---
 export { easyOpponentMove } from "./easyOpponent";
-export { smartOpponentMove } from "./smartOpponent";
+export { smartOpponentMove, randomPersonality, PERSONALITIES } from "./smartOpponent";
+export type { BotPersonality } from "./smartOpponent";
 export { minimaxOpponentMove } from "./minimaxOpponent";
 export { randomOpponentMove } from "./randomOpponent";
 

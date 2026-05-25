@@ -12,6 +12,7 @@ import {
   initialState,
   minimaxOpponentMove,
   randomFirstTurn,
+  randomPersonality,
   registerWall,
   smartOpponentMove,
   WALLS_PER_PLAYER,
@@ -47,14 +48,18 @@ type Difficulty = "easy" | "medium" | "hard";
 const pickBot = (
   difficulty: Difficulty,
 ): ((state: GameState, botId: PlayerId) => Move | null) => {
+  // Personalidade sorteada UMA vez por partida via closure.
+  // O bot mantém o mesmo estilo do início ao fim (corredor/bloqueador/etc.)
+  // mas varia entre partidas diferentes.
+  const personality = randomPersonality();
   switch (difficulty) {
     case "easy":
       return easyOpponentMove;
     case "hard":
-      return minimaxOpponentMove;
+      return (state, botId) => minimaxOpponentMove(state, botId, personality);
     case "medium":
     default:
-      return smartOpponentMove;
+      return (state, botId) => smartOpponentMove(state, botId, personality);
   }
 };
 

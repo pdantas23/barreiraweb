@@ -3,6 +3,9 @@ import { applyMove } from "./engine";
 import { getValidMoves } from "./moves";
 import type { GameState, Move, PlayerId } from "./types";
 import { allPossiblePlacements, canPlaceWall, neighbors, registerWall } from "./walls";
+import { type BotPersonality, PERSONALITIES, randomPersonality } from "./smartOpponent";
+export type { BotPersonality };
+export { randomPersonality };
 
 // Bot Difícil: minimax com alfa-beta, profundidade 2 (bot → humano).
 // - Função de avaliação considera distância via BFS + saldo de paredes.
@@ -41,7 +44,12 @@ const shortestPathDistance = (state: GameState, from: number, targetRow: number)
   return 999;
 };
 
-const evaluate = (state: GameState, botId: PlayerId, humanId: PlayerId): number => {
+const evaluate = (
+  state: GameState,
+  botId: PlayerId,
+  humanId: PlayerId,
+  p: BotPersonality,
+): number => {
   if (state.winner === botId) return WIN_SCORE;
   if (state.winner === humanId) return -WIN_SCORE;
   const botPos = botId === 1 ? state.p1 : state.p2;
@@ -50,8 +58,10 @@ const evaluate = (state: GameState, botId: PlayerId, humanId: PlayerId): number 
   const humanDist = shortestPathDistance(state, humanPos, goalRow(humanId));
   if (botDist === 999) return -WIN_SCORE;
   if (humanDist === 999) return WIN_SCORE;
-  const distScore = (humanDist - botDist) * 10;
-  const wallScore = (state.wallsLeft[botId] - state.wallsLeft[humanId]) * 0.5;
+  // Mesma fórmula do smart: aggression controla peso bloqueio vs avanço.
+  const distScore = (p.aggression * humanDist - (2 - p.aggression) * botDist) * 10;
+  // wallBias influencia o valor de manter paredes na mão.
+  const wallScore = (state.wallsLeft[botId] - state.wallsLeft[humanId]) * (0.3 + p.wallBias * 0.2);
   return distScore + wallScore;
 };
 
@@ -105,21 +115,22 @@ const minimax = (
   isMax: boolean,
   botId: PlayerId,
   humanId: PlayerId,
+  p: BotPersonality,
 ): number => {
   if (depth === 0 || state.winner !== null) {
-    return evaluate(state, botId, humanId);
+    return evaluate(state, botId, humanId, p);
   }
   const player: PlayerId = isMax ? botId : humanId;
   const turnedState: GameState = { ...state, turn: player };
   const moves = generateMoves(turnedState, player);
-  if (moves.length === 0) return evaluate(state, botId, humanId);
+  if (moves.length === 0) return evaluate(state, botId, humanId, p);
 
   if (isMax) {
     let best = -Infinity;
     for (const move of moves) {
       const res = applyMove(turnedState, player, move);
       if (!res.ok) continue;
-      const score = minimax(res.state, depth - 1, alpha, beta, false, botId, humanId);
+      const score = minimax(res.state, depth - 1, alpha, beta, false, botId, humanId, p);
       if (score > best) best = score;
       if (best > alpha) alpha = best;
       if (alpha >= beta) break;
@@ -130,7 +141,7 @@ const minimax = (
     for (const move of moves) {
       const res = applyMove(turnedState, player, move);
       if (!res.ok) continue;
-      const score = minimax(res.state, depth - 1, alpha, beta, true, botId, humanId);
+      const score = minimax(res.state, depth - 1, alpha, beta, true, botId, humanId, p);
       if (score < best) best = score;
       if (best < beta) beta = best;
       if (alpha >= beta) break;
@@ -144,34 +155,34 @@ const greedyPieceMove = (
   state: GameState,
   botId: PlayerId,
   humanId: PlayerId,
+  p: BotPersonality,
 ): Move | null => {
   const turnedState: GameState = { ...state, turn: botId };
   let bestScore = -Infinity;
-  let bestMoves: Move[] = [];
+  let bestMove: Move | null = null;
   for (const to of getValidMoves(turnedState, botId)) {
     const res = applyMove(turnedState, botId, { kind: "piece", to });
     if (!res.ok) continue;
-    const score = evaluate(res.state, botId, humanId);
-    if (score > bestScore) {
-      bestScore = score;
-      bestMoves = [{ kind: "piece", to }];
-    } else if (score === bestScore) {
-      bestMoves.push({ kind: "piece", to });
-    }
+    const score = evaluate(res.state, botId, humanId, p);
+    if (score > bestScore) { bestScore = score; bestMove = { kind: "piece", to }; }
   }
-  if (bestMoves.length === 0) return null;
-  return bestMoves[Math.floor(Math.random() * bestMoves.length)];
+  return bestMove;
 };
 
-export const minimaxOpponentMove = (state: GameState, botId: PlayerId): Move | null => {
+export const minimaxOpponentMove = (
+  state: GameState,
+  botId: PlayerId,
+  personality: BotPersonality = PERSONALITIES[1], // equilibrado por padrão
+): Move | null => {
   const humanId = opponentOf(botId);
+  const p = personality;
 
   // Atalho early-game: ninguém colocou parede E bot ainda longe do goal →
   // greedy de peça, sem rodar minimax. Mata a lentidão dos primeiros turnos.
   const botPos = botId === 1 ? state.p1 : state.p2;
   const botRowDist = Math.abs(rowOf(botPos) - goalRow(botId));
   if (state.walls.placements.length === 0 && botRowDist >= EARLY_GAME_ROW_DIST) {
-    return greedyPieceMove(state, botId, humanId);
+    return greedyPieceMove(state, botId, humanId, p);
   }
 
   const turnedState: GameState = { ...state, turn: botId };
@@ -179,20 +190,14 @@ export const minimaxOpponentMove = (state: GameState, botId: PlayerId): Move | n
   if (moves.length === 0) return null;
 
   let bestScore = -Infinity;
-  let bestMoves: Move[] = [];
+  let bestMove: Move | null = null;
 
   for (const move of moves) {
     const res = applyMove(turnedState, botId, move);
     if (!res.ok) continue;
-    const score = minimax(res.state, MAX_DEPTH - 1, -Infinity, Infinity, false, botId, humanId);
-    if (score > bestScore) {
-      bestScore = score;
-      bestMoves = [move];
-    } else if (score === bestScore) {
-      bestMoves.push(move);
-    }
+    const score = minimax(res.state, MAX_DEPTH - 1, -Infinity, Infinity, false, botId, humanId, p);
+    if (score > bestScore) { bestScore = score; bestMove = move; }
   }
 
-  if (bestMoves.length === 0) return null;
-  return bestMoves[Math.floor(Math.random() * bestMoves.length)];
+  return bestMove;
 };
