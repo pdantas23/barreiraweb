@@ -9,6 +9,9 @@ import Game from "./pages/Game";
 import Online from "./pages/Online";
 import OnlineGame from "./pages/OnlineGame";
 import Privacy from "./pages/Privacy";
+import Regras from "./pages/Regras";
+import Estrategias from "./pages/Estrategias";
+import Sobre from "./pages/Sobre";
 
 // Bootstrap clientId synchronously (localStorage is sync)
 initClientId();
@@ -40,6 +43,9 @@ export const App = () => {
               <Route path="/online" element={<Online />} />
               <Route path="/online-game" element={<OnlineGame />} />
               <Route path="/privacy" element={<Privacy />} />
+              <Route path="/regras" element={<Regras />} />
+              <Route path="/estrategias" element={<Estrategias />} />
+              <Route path="/sobre" element={<Sobre />} />
             </Routes>
             <DragOverlayRenderer />
           </ProfileProvider>

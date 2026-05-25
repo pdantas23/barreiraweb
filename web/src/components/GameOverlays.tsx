@@ -1,8 +1,5 @@
 import type { PlayerId } from "@barreira/shared";
-import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-// import { AdInterstitial } from "../ads/AdInterstitial";
-// import { AD_SLOTS } from "../ads/adsConfig";
 import { CountdownOverlay } from "./CountdownOverlay";
 import { GameOverModal, type GameOverReason } from "./GameOverModal";
 
@@ -33,20 +30,6 @@ export function GameOverlays({
 }: GameOverlaysProps) {
   const navigate = useNavigate();
 
-  // Interstitial: aparece ao fim de cada partida
-  const [interstitialVisible, setInterstitialVisible] = useState(false);
-  const [interstitialChecked, setInterstitialChecked] = useState(false);
-
-  if (winner !== null && !reloadDefeat && !interstitialChecked) {
-    setInterstitialChecked(true);
-    setInterstitialVisible(true);
-  }
-
-  if (winner === null && interstitialChecked) {
-    setInterstitialChecked(false);
-    setInterstitialVisible(false);
-  }
-
   return (
     <>
       {countdownActive && (
@@ -54,13 +37,6 @@ export function GameOverlays({
       )}
 
       <GameOverModal visible={winner !== null && !reloadDefeat} winner={winner} reason={gameOverReason} onRematch={onRematch} onBackToMenu={() => navigate("/")} />
-
-      {/* <AdInterstitial
-        visible={interstitialVisible}
-        slot={AD_SLOTS.interstitial}
-        closeDelay={5}
-        onClose={() => setInterstitialVisible(false)}
-      /> */}
 
       {/* Reload warning modal */}
       {showReloadWarning && !reloadDefeat && (

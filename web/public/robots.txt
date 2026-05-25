@@ -1,0 +1,7 @@
+User-agent: *
+Allow: /
+Disallow: /game
+Disallow: /online-game
+Disallow: /online
+
+Sitemap: https://barreirajogo.com/sitemap.xml

@@ -34,9 +34,12 @@ function ensureAdSenseScript() {
 /**
  * Componente reutilizável para exibir um ad unit do Google AdSense.
  *
+ * ATENÇÃO: usar SOMENTE em páginas com conteúdo editorial (/regras,
+ * /estrategias, /sobre, /privacy). Nunca em /, /online, /game ou
+ * /online-game — viola a política do AdSense.
+ *
  * Uso:
- *   <AdBanner slot={AD_SLOTS.banner} format="horizontal" className="w-full h-[90px]" />
- *   <AdBanner slot={AD_SLOTS.sidebar} format="rectangle" className="w-[300px] h-[250px]" />
+ *   <AdBanner slot={AD_SLOTS.contentBanner} format="horizontal" className="w-full my-6" />
  */
 export function AdBanner({
   slot,

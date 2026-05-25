@@ -6,8 +6,6 @@ import { playButtonSound, setSfxEnabledForSounds, useButtonSound } from "../hook
 import { useMenuMusic } from "../hooks/useMenuMusic";
 import { setSfxEnabledForPiece } from "../hooks/usePieceSound";
 import { setSfxEnabledForWall } from "../hooks/useWallSound";
-// import { AdBanner } from "../ads/AdBanner";
-// import { AD_SLOTS } from "../ads/adsConfig";
 import { PageGate } from "../components/PageGate";
 import { useAudioSettings } from "../state/audioSettings";
 
@@ -27,7 +25,6 @@ export default function HomeScreen() {
   const [offlineModal, setOfflineModal] = useState(false);
   const [showPrivacy, setShowPrivacy] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
-  const [showRules, setShowRules] = useState(false);
   const [logoLoaded, setLogoLoaded] = useState(false);
   const { musicEnabled, sfxEnabled, setMusicEnabled, setSfxEnabled } = useAudioSettings();
   useButtonSound();
@@ -83,12 +80,6 @@ export default function HomeScreen() {
       <div className="flex-1 relative">
         <GridBackground />
 
-        {/* Sidebar esquerda — desktop only (300x250 / 300x600) */}
-        {/* <AdBanner slot={AD_SLOTS.sidebar} format="vertical" className="absolute left-0 top-0 bottom-0 hidden md:block w-[320px] z-[5]" /> */}
-
-        {/* Sidebar direita — desktop only (300x250 / 300x600) */}
-        {/* <AdBanner slot={AD_SLOTS.sidebar} format="vertical" className="absolute right-0 top-0 bottom-0 hidden md:block w-[320px] z-[5]" /> */}
-
         <div className="absolute inset-0 flex items-center justify-center px-5">
           <div className="flex flex-col items-center gap-0">
             <img
@@ -118,7 +109,7 @@ export default function HomeScreen() {
             </div>
 
             <button
-              onClick={() => { playButtonSound(); setShowRules(true); }}
+              onClick={() => { playButtonSound(); navigate("/regras"); }}
               className="mt-2 text-muted text-[12px] font-semibold underline cursor-pointer bg-transparent border-none hover:text-brand"
             >
               Regras
@@ -127,8 +118,36 @@ export default function HomeScreen() {
         </div>
       </div>
 
-      {/* Banner inferior (mobile 320x100, desktop 728x90) */}
-      {/* <AdBanner slot={AD_SLOTS.banner} format="horizontal" className="w-full flex-shrink-0 h-[100px] md:h-[90px]" /> */}
+      {/* Footer com links de conteudo */}
+      <div className="flex-shrink-0 flex flex-row items-center justify-center gap-3 py-3 px-4 border-t border-cell-bg bg-white/60">
+        <button
+          onClick={() => { playButtonSound(); navigate("/regras"); }}
+          className="text-muted text-[11px] font-semibold hover:text-brand bg-transparent border-none cursor-pointer"
+        >
+          Regras
+        </button>
+        <span className="text-muted text-[11px]">·</span>
+        <button
+          onClick={() => { playButtonSound(); navigate("/estrategias"); }}
+          className="text-muted text-[11px] font-semibold hover:text-brand bg-transparent border-none cursor-pointer"
+        >
+          Estratégias
+        </button>
+        <span className="text-muted text-[11px]">·</span>
+        <button
+          onClick={() => { playButtonSound(); navigate("/sobre"); }}
+          className="text-muted text-[11px] font-semibold hover:text-brand bg-transparent border-none cursor-pointer"
+        >
+          Sobre
+        </button>
+        <span className="text-muted text-[11px]">·</span>
+        <button
+          onClick={() => { playButtonSound(); navigate("/privacy"); }}
+          className="text-muted text-[11px] font-semibold hover:text-brand bg-transparent border-none cursor-pointer"
+        >
+          Privacidade
+        </button>
+      </div>
 
       {/* Difficulty modal */}
       {offlineModal && (
@@ -193,33 +212,6 @@ export default function HomeScreen() {
               className="w-full mt-4 py-3 rounded-xl bg-gradient-to-r from-brand to-brand-light border-none text-white font-black text-[15px] tracking-wide cursor-pointer hover:opacity-90 active:scale-95 transition-transform"
             >
               Aceitar e Continuar
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* Rules modal */}
-      {showRules && (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center p-6 z-[300]" onClick={() => setShowRules(false)}>
-          <div className="w-full max-w-[600px] max-h-[80vh] bg-white rounded-2xl p-6 flex flex-col shadow-[0_8px_20px_rgba(61,111,255,0.15)]" onClick={(e) => e.stopPropagation()}>
-            <span className="text-lg font-extrabold text-navy mb-4 text-center">Regras do Barreira</span>
-            <div className="flex-1 overflow-auto">
-              <div className="text-[13px] text-[#4A5C7A] leading-relaxed space-y-3">
-                <p><strong className="text-navy">Objetivo:</strong> Ser o primeiro a mover seu peão até a linha oposta do tabuleiro (a linha onde o adversário começou).</p>
-                <p><strong className="text-navy">Tabuleiro:</strong> Grade 9x9. Cada jogador começa com seu peão no centro da sua linha inicial.</p>
-                <p><strong className="text-navy">Turnos:</strong> Os jogadores se alternam. Em cada turno você pode fazer UMA ação: mover o peão ou colocar uma parede.</p>
-                <p><strong className="text-navy">Movimento do peão:</strong> O peão se move uma casa na horizontal ou vertical (não na diagonal). Se o oponente estiver na casa adjacente, você pode pular por cima dele.</p>
-                <p><strong className="text-navy">Paredes:</strong> Cada jogador tem 10 paredes. Uma parede ocupa o espaço entre 2 casas e bloqueia a passagem. As paredes são permanentes — uma vez colocadas, não podem ser movidas.</p>
-                <p><strong className="text-navy">Restrição de paredes:</strong> Você NÃO pode colocar uma parede que bloqueie completamente o caminho de qualquer jogador até seu objetivo. Sempre deve existir pelo menos um caminho possível.</p>
-                <p><strong className="text-navy">Tempo:</strong> Cada jogador tem 3 minutos no total (relógio Fischer). Se seu tempo acabar, você perde.</p>
-                <p><strong className="text-navy">Vitória:</strong> Vence quem chegar primeiro na linha oposta, ou cujo oponente ficar sem tempo.</p>
-              </div>
-            </div>
-            <button
-              onClick={() => setShowRules(false)}
-              className="mt-4 py-3 rounded-xl bg-gradient-to-r from-brand to-brand-light border-none text-white font-black text-[15px] tracking-wide cursor-pointer hover:opacity-90 active:scale-95 transition-transform"
-            >
-              Entendi
             </button>
           </div>
         </div>

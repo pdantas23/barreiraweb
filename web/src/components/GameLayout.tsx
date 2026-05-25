@@ -6,8 +6,6 @@ import { Board } from "./Board";
 import { GameTimer } from "./GameTimer";
 import { PlayerCard, TurnArrow } from "./PlayerCard";
 import { WallBank } from "./WallBank";
-// import { AdBanner } from "../ads/AdBanner";
-// import { AD_SLOTS } from "../ads/adsConfig";
 import { gc } from "../gameColors";
 import type { BoardLayout } from "../hooks/useResponsiveBoard";
 
@@ -95,14 +93,8 @@ export function GameLayout({
         {topBarRight ?? <div style={{ width: 36 }} />}
       </div>
 
-      {/* Banner superior (mobile 320x100, desktop 728x90) */}
-      {/* <AdBanner slot={AD_SLOTS.banner} format="horizontal" className="w-full flex-shrink-0 h-[100px] md:h-[90px]" /> */}
-
       {/* Main */}
       <section className="main w-full h-full flex flex-row items-stretch">
-        {/* Sidebar esquerda — desktop only (300x250 / 300x600) */}
-        {/* <AdBanner slot={AD_SLOTS.sidebar} format="vertical" className="hidden md:block w-[320px] flex-shrink-0 mr-3" /> */}
-
         {/* Center content */}
         <div className="w-[90%] mx-auto md:flex-1 flex flex-col items-center mt-2">
           {/* Player cards */}
@@ -150,8 +142,6 @@ export function GameLayout({
           </span>
         </div>
 
-        {/* Sidebar direita — desktop only (300x250 / 300x600) */}
-        {/* <AdBanner slot={AD_SLOTS.sidebar} format="vertical" className="hidden md:block w-[320px] flex-shrink-0 ml-3" /> */}
       </section>
 
       {/* Overlays (modals, countdowns, banners) */}

@@ -1,0 +1,195 @@
+import { useNavigate } from "react-router-dom";
+import { IoChevronBack } from "react-icons/io5";
+import { PageGate } from "../components/PageGate";
+import { AdBanner } from "../ads/AdBanner";
+import { AD_SLOTS } from "../ads/adsConfig";
+
+const C = {
+  blue: "#3D6FFF",
+  navy: "#1A2A4A",
+  muted: "#9AAACA",
+  bgTop: "#F0F4FF",
+  bgBottom: "#E8EEF8",
+  cardBg: "#FFFFFF",
+  border: "#DDEAFF",
+} as const;
+
+export default function EstrategiasScreen() {
+  const navigate = useNavigate();
+
+  return (
+    <PageGate>
+      <div
+        style={{
+          height: "100%",
+          background: `linear-gradient(to bottom, ${C.bgTop}, ${C.bgBottom})`,
+          display: "flex",
+          flexDirection: "column",
+        }}
+      >
+        <div style={{ display: "flex", flexDirection: "row", alignItems: "center", padding: "10px 16px" }}>
+          <button
+            onClick={() => navigate(-1)}
+            style={{ width: 40, height: 40, display: "flex", alignItems: "center", background: "none", border: "none", cursor: "pointer" }}
+          >
+            <IoChevronBack size={28} color={C.navy} />
+          </button>
+          <span style={{ flex: 1, fontFamily: "'Bebas Neue', sans-serif", fontSize: "2rem", color: C.blue, letterSpacing: 3, textAlign: "center" }}>
+            ESTRATÉGIAS
+          </span>
+          <div style={{ width: 40 }} />
+        </div>
+
+        <div style={{ flex: 1, overflow: "auto", padding: "0 20px 32px" }}>
+          <div
+            style={{
+              backgroundColor: C.cardBg,
+              borderRadius: 16,
+              padding: 24,
+              border: `1px solid ${C.border}`,
+              maxWidth: 760,
+              margin: "0 auto",
+            }}
+          >
+            <h1 style={{ fontSize: 22, fontWeight: 900, color: C.navy, marginTop: 0, marginBottom: 6 }}>
+              Guia de Estratégias do Barreira
+            </h1>
+            <p style={{ fontSize: 13, color: C.muted, marginTop: 0, marginBottom: 20 }}>
+              Princípios táticos, padrões de abertura e ideias avançadas para você subir de nível no Barreira.
+            </p>
+
+            <Section title="O Princípio da Economia de Paredes">
+              <p>
+                A primeira lição prática do Barreira é: <strong>cada parede colocada é um movimento perdido</strong>.
+                Enquanto você gasta sua vez encaixando uma parede, o adversário avança uma casa em direção ao
+                objetivo. Por isso, paredes só compensam quando o atraso que elas impõem ao oponente é maior
+                do que a casa que você deixou de andar. Em termos práticos, uma parede só vale a pena se ela
+                aumenta a distância mínima do adversário até o objetivo em pelo menos 2 casas — caso contrário,
+                você está gastando recurso por nada.
+              </p>
+              <p>
+                Jogadores iniciantes costumam errar para o lado de colocar paredes demais. Jogadores intermediários
+                costumam errar para o lado oposto: economizar paredes em excesso e perder oportunidades de
+                travar o adversário em momentos críticos. A calibragem certa vem com prática e contagem mental
+                constante das distâncias.
+              </p>
+            </Section>
+
+            <Section title="Aberturas Comuns">
+              <p>
+                A abertura mais sólida e usada por iniciantes e profissionais é o <strong>avanço central</strong>:
+                mova seu peão em linha reta pela coluna central nos primeiros turnos, sem gastar paredes.
+                Essa abertura mantém todas as opções abertas, força o adversário a se comprometer primeiro,
+                e poupa paredes para o meio-jogo, quando elas valem mais.
+              </p>
+              <p>
+                Outra abertura popular é a <strong>diagonal de Sidewinder</strong>: alternar movimentos
+                verticais com pequenos desvios laterais para forçar o adversário a posicionar paredes
+                antecipadamente, gastando recursos sem efeito proporcional. Essa estratégia funciona melhor
+                contra oponentes agressivos que tendem a reagir antes de planejar.
+              </p>
+              <p>
+                Já a abertura <strong>defensiva com parede precoce</strong> é considerada uma armadilha:
+                colocar uma parede no primeiro ou segundo turno raramente compensa, pois o adversário ainda
+                não se comprometeu com nenhuma rota e a parede acaba sendo facilmente contornada. Evite.
+              </p>
+            </Section>
+
+            <Section title="Uso Eficiente de Paredes">
+              <p>
+                A regra de ouro é: <strong>paredes valem mais quanto mais perto do objetivo do adversário</strong> elas
+                forem colocadas. Uma parede no início do percurso adversário pode ser contornada com 1 ou 2
+                casas extras; a mesma parede colocada nas duas últimas fileiras antes do objetivo pode
+                forçar um desvio de 4, 6 ou até 8 casas. Por isso, jogadores experientes guardam paredes
+                para o terço final da corrida e as usam em pares ou trios coordenados.
+              </p>
+              <p>
+                Outro padrão poderoso é a <strong>parede em L</strong>: duas paredes posicionadas
+                perpendicularmente formando um canto que força o adversário a um desvio longo. Esse padrão
+                custa caro (duas paredes), mas pode definir partidas se aplicado no momento certo.
+              </p>
+            </Section>
+
+            <Section title="Defesa vs Ataque">
+              <p>
+                Pense no Barreira como uma negociação entre duas pulsões: avançar (atacar) e atrapalhar
+                (defender, no sentido de impor paredes). O equilíbrio depende da posição. Quando você está
+                à frente do adversário em número de casas até o objetivo, foque em <strong>avançar</strong> e
+                use paredes apenas para responder a tentativas de bloqueio. Quando você está atrás, é hora
+                de <strong>atacar com paredes</strong> para reverter o equilíbrio.
+              </p>
+              <p>
+                Um erro comum é misturar essas posturas: colocar uma parede defensiva enquanto você está
+                ganhando a corrida. Isso reduz seu avanço efetivo e ainda gasta recurso. Se você está na
+                frente, ande.
+              </p>
+            </Section>
+
+            <AdBanner
+              slot={AD_SLOTS.contentBanner}
+              format="horizontal"
+              className="w-full my-6"
+              style={{ minHeight: 90 }}
+            />
+
+            <Section title="Controle de Tempo">
+              <p>
+                Com 3 minutos por jogador no relógio Fischer, o tempo é um recurso tão estratégico quanto as
+                paredes. Iniciantes consomem tempo demais nas primeiras jogadas tentando otimizar uma
+                abertura — geralmente, as 5-6 primeiras jogadas podem ser feitas em segundos, pois há poucas
+                opções razoáveis. Reserve seu tempo para o meio-jogo, quando o cálculo de paredes começa a
+                exigir avaliação de várias linhas de jogo.
+              </p>
+              <p>
+                Se o adversário está em apuros de tempo, a estratégia inverte: jogue rapidamente para forçá-lo
+                a errar sob pressão. Posições simples ficam complicadas quando o relógio está pingando.
+              </p>
+            </Section>
+
+            <Section title="O Salto Diagonal como Recurso Tático">
+              <p>
+                Muitos jogadores subestimam o <strong>salto diagonal</strong>, mas ele é uma das ferramentas
+                táticas mais versáteis do Barreira. Quando você consegue posicionar seu peão adjacente ao
+                adversário e a casa atrás dele está bloqueada por parede ou borda, você ganha duas casas de
+                deslocamento em um único movimento — efetivamente, um salto em diagonal. Isso pode anular um
+                turno inteiro de avanço do adversário e mudar a contagem de distância de forma decisiva.
+              </p>
+              <p>
+                Bons jogadores não evitam o contato com o peão adversário; ao contrário, eles procuram
+                posições onde o contato cria uma ameaça de salto diagonal, forçando o adversário a desviar
+                para evitar perder o tempo.
+              </p>
+            </Section>
+
+            <Section title="Erros Comuns para Evitar">
+              <p>
+                <strong>1) Esbanjar paredes no início.</strong> Coloque paredes só quando elas adicionam pelo
+                menos 2 casas ao caminho do oponente.
+              </p>
+              <p>
+                <strong>2) Subestimar a regra do caminho.</strong> Antes de colocar uma parede, visualize o
+                novo caminho mais curto do adversário — se ele só andou 1 casa a mais, foi parede desperdiçada.
+              </p>
+              <p>
+                <strong>3) Ignorar o próprio caminho.</strong> Cada parede que você coloca também afeta o seu
+                trajeto. Algumas posições aparentemente bloqueiam só o oponente, mas atrapalham seu próprio
+                avanço futuro.
+              </p>
+              <p>
+                <strong>4) Avançar em linha reta sempre.</strong> Variar a coluna em que você sobe dificulta o
+                planejamento do adversário e abre opções de salto diagonal.
+              </p>
+            </Section>
+          </div>
+        </div>
+      </div>
+    </PageGate>
+  );
+}
+
+const Section = ({ title, children }: { title: string; children: React.ReactNode }) => (
+  <div style={{ marginBottom: 22 }}>
+    <h2 style={{ fontSize: 15, fontWeight: 800, color: C.navy, marginTop: 18, marginBottom: 8 }}>{title}</h2>
+    <div style={{ fontSize: 13.5, color: "#4A5C7A", lineHeight: 1.7 }}>{children}</div>
+  </div>
+);
