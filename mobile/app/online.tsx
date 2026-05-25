@@ -25,7 +25,7 @@ import { clearLastGameStart, connectSocket } from "../src/net/socket";
 import { playButtonSound, useButtonSound } from "../src/hooks/useButtonSound";
 import { usePlayerName } from "../src/state/profile";
 
-// Palette â€” matches Home & Game screens
+// Palette — matches Home & Game screens
 const C = {
   blue: "#3D6FFF",
   blueLight: "#6B9FFF",
@@ -40,7 +40,7 @@ const C = {
   red: "#FF3D6F",
 } as const;
 
-// Fallback caso o profile ainda nÃ£o tenha chegado do server. Em produÃ§Ã£o
+// Fallback caso o profile ainda não tenha chegado do server. Em produção
 // (server online), o `usePlayerName` retorna o anonimoXXXX persistente.
 const DEFAULT_PLAYER_NAME = "Jogador";
 
@@ -60,13 +60,13 @@ export default function OnlineScreen() {
   useButtonSound(); // preload
   const insets = useSafeAreaInsets();
   // Nome persistente do jogador (vem do server via evento `profile`).
-  // Fallback "Jogador" sÃ³ na primeira conexÃ£o antes do ack â€” ~200ms.
+  // Fallback "Jogador" só na primeira conexão antes do ack — ~200ms.
   const playerName = usePlayerName();
   const [createOpen, setCreateOpen] = useState(false);
   const [joinOpen, setJoinOpen] = useState(false);
   // Quando o user clica numa sala privada da lista, abrimos o JoinByCodeModal
-  // jÃ¡ com o code preenchido + travado + senha exigida. Null = modo padrÃ£o
-  // (user clicou em "Entrar com cÃ³digo" â€” sÃ³ code, sem senha).
+  // já com o code preenchido + travado + senha exigida. Null = modo padrão
+  // (user clicou em "Entrar com código" — só code, sem senha).
   const [joinPrivate, setJoinPrivate] = useState<{ code: string } | null>(null);
   const [rooms, setRooms] = useState<PublicRoom[]>([]);
   const [loading, setLoading] = useState(true);
@@ -111,7 +111,7 @@ export default function OnlineScreen() {
     playButtonSound();
     if (busy) return;
     if (room.isPrivate) {
-      // Sala privada da lista: abrir modal com code prÃ©-preenchido + travado,
+      // Sala privada da lista: abrir modal com code pré-preenchido + travado,
       // exigindo senha. O join real acontece em onConfirmJoin.
       setJoinPrivate({ code: room.code });
       setJoinOpen(true);
@@ -186,11 +186,11 @@ export default function OnlineScreen() {
                   {colorLabel(item.hostColor)}
                 </Text>
               </View>
-              <Text style={styles.metaDot}>Â·</Text>
+              <Text style={styles.metaDot}>·</Text>
               <Text style={styles.metaText}>
-                {item.isPrivate ? "Privada" : "PÃºblica"}
+                {item.isPrivate ? "Privada" : "Pública"}
               </Text>
-              <Text style={styles.metaDot}>Â·</Text>
+              <Text style={styles.metaDot}>·</Text>
               <Text style={styles.codeText}>{item.code}</Text>
             </View>
           </View>
@@ -217,7 +217,7 @@ export default function OnlineScreen() {
       <Ionicons name="people-outline" size={48} color={C.border} />
       <Text style={styles.emptyText}>Nenhuma sala aberta agora</Text>
       <Text style={styles.emptySub}>
-        Crie uma nova sala ou entre com um cÃ³digo.
+        Crie uma nova sala ou entre com um código.
       </Text>
     </View>
   );
@@ -237,7 +237,7 @@ export default function OnlineScreen() {
           <Text style={styles.subText}>
             {loading
               ? "Carregando..."
-              : `${rooms.length} sala${rooms.length === 1 ? "" : "s"} disponÃ­ve${rooms.length === 1 ? "l" : "is"}`}
+              : `${rooms.length} sala${rooms.length === 1 ? "" : "s"} disponíve${rooms.length === 1 ? "l" : "is"}`}
           </Text>
           <Pressable
             onPress={refresh}
@@ -290,7 +290,7 @@ export default function OnlineScreen() {
             ]}
           >
             <Ionicons name="key-outline" size={18} color={C.navy} />
-            <Text style={styles.btnSecondaryText}>Entrar com cÃ³digo</Text>
+            <Text style={styles.btnSecondaryText}>Entrar com código</Text>
           </Pressable>
 
           <Pressable
@@ -536,4 +536,3 @@ const styles = StyleSheet.create({
     opacity: 0.5,
   },
 });
-
