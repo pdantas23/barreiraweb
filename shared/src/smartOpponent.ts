@@ -19,11 +19,14 @@ export type BotPersonality = {
   noise: number;
 };
 
+// Todas as personalidades usam paredes — a variação é no ESTILO, não na frequência.
+// wallBias >= 0.3 garante que paredes sejam sempre consideradas competitivamente.
+// aggression varia o foco (avançar vs bloquear). noise controla a previsibilidade.
 export const PERSONALITIES: ReadonlyArray<BotPersonality> = [
-  { aggression: 0.4, wallBias: -0.5, noise: 0.3 }, // corredor
-  { aggression: 1.0, wallBias:  0.3, noise: 0.2 }, // equilibrado (era o padrão anterior)
-  { aggression: 1.6, wallBias:  1.0, noise: 0.2 }, // bloqueador
-  { aggression: 0.9, wallBias:  0.4, noise: 0.9 }, // imprevisível
+  { aggression: 0.7, wallBias: 0.4, noise: 0.7 }, // corredor defensivo: avança mas usa paredes pra proteger caminho
+  { aggression: 1.0, wallBias: 0.5, noise: 0.5 }, // equilibrado: balanço clássico
+  { aggression: 1.5, wallBias: 0.9, noise: 0.5 }, // bloqueador: agressivo com paredes
+  { aggression: 1.1, wallBias: 0.6, noise: 1.8 }, // imprevisível: alto ruído, difícil de antecipar
 ];
 
 export const randomPersonality = (): BotPersonality =>
