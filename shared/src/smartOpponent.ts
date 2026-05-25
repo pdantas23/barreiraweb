@@ -5,34 +5,33 @@ import { allPossiblePlacements, neighbors, canPlaceWall, registerWall } from "./
 
 // === Personalidade do bot ===
 //
-// Cada partida o bot recebe uma personalidade aleatória que altera os pesos
-// da função de avaliação, tornando o comportamento variado entre partidas.
+// aggression  — 0 = só avança, 1 = equilibrado, 2 = só bloqueia
 //
-//  aggression: 0 = só avança, 1 = equilibrado, 2 = só bloqueia
-//  wallBias:   bônus de score pra jogadas de parede (+ = ama paredes)
-//  noise:      amplitude do ruído aleatório adicionado a cada score
-//              (evita sempre escolher exatamente a mesma jogada em empate)
+// wallMinGain — parede só entra no pool se aumentar a distância do oponente
+//               em pelo menos este valor. Evita gastar paredes sem critério.
+//               Alto  = paredes raras e muito eficientes
+//               Baixo = paredes usadas com frequência moderada
+//
+// topK        — sorteia aleatoriamente entre as top-K melhores jogadas.
+//               1 = sempre a melhor (robótico), 5+ = muita variedade dentro da partida.
 
 export type BotPersonality = {
   aggression: number;
-  wallBias: number;
-  noise: number;
+  wallMinGain: number;
+  topK: number;
 };
 
-// Todas as personalidades usam paredes — a variação é no ESTILO, não na frequência.
-// wallBias >= 0.3 garante que paredes sejam sempre consideradas competitivamente.
-// aggression varia o foco (avançar vs bloquear). noise controla a previsibilidade.
 export const PERSONALITIES: ReadonlyArray<BotPersonality> = [
-  { aggression: 0.7, wallBias: 0.4, noise: 0.7 }, // corredor defensivo: avança mas usa paredes pra proteger caminho
-  { aggression: 1.0, wallBias: 0.5, noise: 0.5 }, // equilibrado: balanço clássico
-  { aggression: 1.5, wallBias: 0.9, noise: 0.5 }, // bloqueador: agressivo com paredes
-  { aggression: 1.1, wallBias: 0.6, noise: 1.8 }, // imprevisível: alto ruído, difícil de antecipar
+  { aggression: 0.7, wallMinGain: 1.5, topK: 5 }, // corredor: avança, paredes só quando bloqueiam muito
+  { aggression: 1.0, wallMinGain: 1.0, topK: 3 }, // equilibrado: usa paredes quando valem a pena
+  { aggression: 1.5, wallMinGain: 0.5, topK: 2 }, // bloqueador: usa paredes com frequência, mas não spam
+  { aggression: 1.0, wallMinGain: 1.2, topK: 7 }, // imprevisível: critério razoável, mas escolha muito variada
 ];
 
 export const randomPersonality = (): BotPersonality =>
   PERSONALITIES[Math.floor(Math.random() * PERSONALITIES.length)];
 
-// === Distância BFS até a linha de chegada ===
+// === BFS distância até a linha de chegada ===
 
 const shortestPathDistance = (state: GameState, from: number, targetRow: number): number => {
   if (Math.floor(from / BOARD_SIZE) === targetRow) return 0;
@@ -51,70 +50,64 @@ const shortestPathDistance = (state: GameState, from: number, targetRow: number)
   return 999;
 };
 
-// === Função de score com personalidade ===
+// === Bot Médio: top-K com avaliação personalizada ===
 //
-// Formula: aggression × humanDist − (2 − aggression) × botDist
-//   aggression = 0 → −2 × botDist   (puro corredor, ignora oponente)
-//   aggression = 1 → humanDist − botDist  (equilibrado, antigo padrão)
-//   aggression = 2 → 2 × humanDist  (puro bloqueador, ignora própria distância)
-//
-// wallBias é somado apenas em jogadas de parede.
-// noise é ruído uniforme em [−noise/2, +noise/2] pra evitar empates determinísticos.
-
-const scoreMove = (
-  botDist: number,
-  humanDist: number,
-  isWall: boolean,
-  p: BotPersonality,
-): number => {
-  const base = p.aggression * humanDist - (2 - p.aggression) * botDist;
-  const wallAdj = isWall ? p.wallBias : 0;
-  const noise = (Math.random() - 0.5) * p.noise;
-  return base + wallAdj + noise;
-};
-
-// === Bot Médio: avaliação 1-nível com personalidade ===
-//
-// Avalia todas as jogadas legais (peças + paredes) e escolhe a com maior score.
-// O ruído garante que empates sejam quebrados de forma variada, e a personalidade
-// muda o estilo de jogo a cada partida.
+// 1. Avalia todos os movimentos de peça.
+// 2. Avalia paredes, mas só inclui no pool as que melhoram humanDist
+//    em ≥ wallMinGain — evita spam de parede no início da partida.
+// 3. Ordena tudo por score e sorteia entre os top-K.
+//    Com K=3 o bot tem boa variação dentro da partida sem parecer aleatório.
 
 export const smartOpponentMove = (
   state: GameState,
   botId: PlayerId,
-  personality: BotPersonality = PERSONALITIES[1], // equilibrado por padrão
+  personality: BotPersonality = PERSONALITIES[1],
 ): Move | null => {
   const humanId: PlayerId = botId === 1 ? 2 : 1;
-
-  // Posições calculadas uma vez pra não repetir em cada iteração.
   const botPos   = botId   === 1 ? state.p1 : state.p2;
   const humanPos = humanId === 1 ? state.p1 : state.p2;
 
-  let bestScore = -Infinity;
-  let bestMove: Move | null = null;
+  const scored: Array<{ move: Move; score: number }> = [];
 
   // --- Movimentos de peça ---
   for (const to of getValidMoves(state, botId)) {
-    const simPos = to;
-    const botDist   = shortestPathDistance({ ...state, [botId === 1 ? "p1" : "p2"]: to }, simPos, goalRow(botId));
+    const newBotState = { ...state, [botId === 1 ? "p1" : "p2"]: to };
+    const botDist   = shortestPathDistance(newBotState, to, goalRow(botId));
     const humanDist = shortestPathDistance(state, humanPos, goalRow(humanId));
-    const score = scoreMove(botDist, humanDist, false, personality);
-    if (score > bestScore) { bestScore = score; bestMove = { kind: "piece", to }; }
+    const score = personality.aggression * humanDist - (2 - personality.aggression) * botDist;
+    scored.push({ move: { kind: "piece", to }, score });
   }
 
   // --- Movimentos de parede ---
+  // Só entra no pool se:
+  //  a) não tranca nenhum jogador (botDist e humanDist ≠ 999)
+  //  b) humanDist aumenta pelo menos wallMinGain em relação à distância atual
+  //     (garante que a parede realmente atrapalha o oponente)
   if (state.wallsLeft[botId] > 0) {
+    const humanDistBase = shortestPathDistance(state, humanPos, goalRow(humanId));
+
     for (const placement of allPossiblePlacements()) {
       if (!canPlaceWall(state.walls, placement)) continue;
-      const nextWalls = registerWall(state.walls, placement);
-      const newState  = { ...state, walls: nextWalls };
-      const botDist   = shortestPathDistance(newState, botPos,   goalRow(botId));
-      const humanDist = shortestPathDistance(newState, humanPos, goalRow(humanId));
-      if (botDist === 999 || humanDist === 999) continue; // nunca bloquear caminho
-      const score = scoreMove(botDist, humanDist, true, personality);
-      if (score > bestScore) { bestScore = score; bestMove = { kind: "wall", placement }; }
+      const nextWalls  = registerWall(state.walls, placement);
+      const newState   = { ...state, walls: nextWalls };
+      const botDist    = shortestPathDistance(newState, botPos,   goalRow(botId));
+      const humanDist  = shortestPathDistance(newState, humanPos, goalRow(humanId));
+      if (botDist === 999 || humanDist === 999) continue;
+
+      // Verifica se a parede realmente bloqueia o suficiente
+      const humanGain = humanDist - humanDistBase;
+      if (humanGain < personality.wallMinGain) continue;
+
+      const score = personality.aggression * humanDist - (2 - personality.aggression) * botDist;
+      scored.push({ move: { kind: "wall", placement }, score });
     }
   }
 
-  return bestMove;
+  if (scored.length === 0) return null;
+
+  // Ordena do melhor pro pior e sorteia entre os top-K
+  scored.sort((a, b) => b.score - a.score);
+  const k    = Math.min(personality.topK, scored.length);
+  const pick = scored[Math.floor(Math.random() * k)];
+  return pick.move;
 };

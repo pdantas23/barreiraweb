@@ -58,10 +58,10 @@ const evaluate = (
   const humanDist = shortestPathDistance(state, humanPos, goalRow(humanId));
   if (botDist === 999) return -WIN_SCORE;
   if (humanDist === 999) return WIN_SCORE;
-  // Mesma fórmula do smart: aggression controla peso bloqueio vs avanço.
+  // aggression controla peso bloqueio vs avanço.
   const distScore = (p.aggression * humanDist - (2 - p.aggression) * botDist) * 10;
-  // wallBias influencia o valor de manter paredes na mão.
-  const wallScore = (state.wallsLeft[botId] - state.wallsLeft[humanId]) * (0.3 + p.wallBias * 0.2);
+  // Pequeno bônus por ter mais paredes na mão (reserva pra moments críticos).
+  const wallScore = (state.wallsLeft[botId] - state.wallsLeft[humanId]) * 0.5;
   return distScore + wallScore;
 };
 
