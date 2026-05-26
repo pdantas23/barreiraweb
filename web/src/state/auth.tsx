@@ -12,6 +12,7 @@
 
 import {
   createContext,
+  useCallback,
   useContext,
   useEffect,
   useState,
@@ -19,6 +20,7 @@ import {
 } from "react";
 import type { Session, User } from "@supabase/supabase-js";
 import { supabase } from "../net/supabase";
+import { reconnectSocket } from "../net/socket";
 
 type AuthState = {
   /** Sessao ativa do Supabase (com access_token JWT) ou null se anonimo */
@@ -29,10 +31,14 @@ type AuthState = {
   loading: boolean;
   /** Username escolhido no cadastro (vem do user_metadata) */
   username: string | null;
+  /** Trofeus_casual do user logado. null = anonimo ou ainda carregando. */
+  trofeusCasual: number | null;
 
   signUp: (params: SignUpParams) => Promise<SignUpResult>;
   signIn: (params: SignInParams) => Promise<SignInResult>;
   signOut: () => Promise<void>;
+  /** Re-busca trofeus_casual do banco. Chamar apos cada vitoria casual. */
+  refreshTrofeus: () => Promise<void>;
 };
 
 type SignUpParams = {
@@ -51,6 +57,7 @@ const AuthContext = createContext<AuthState | null>(null);
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
+  const [trofeusCasual, setTrofeusCasual] = useState<number | null>(null);
 
   // Bootstrap inicial: le sessao persistida (sync no localStorage)
   useEffect(() => {
@@ -59,14 +66,43 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       setLoading(false);
     });
 
-    const { data: sub } = supabase.auth.onAuthStateChange((_event, sess) => {
+    const { data: sub } = supabase.auth.onAuthStateChange((event, sess) => {
       setSession(sess);
+      // Login/logout/refresh muda o JWT que o socket usa pra premiar
+      // trofeus. Re-conecta pra o server receber o token atualizado.
+      if (event === "SIGNED_IN" || event === "SIGNED_OUT" || event === "TOKEN_REFRESHED") {
+        reconnectSocket();
+      }
     });
 
     return () => {
       sub.subscription.unsubscribe();
     };
   }, []);
+
+  const userId = session?.user?.id ?? null;
+
+  const refreshTrofeus = useCallback(async (): Promise<void> => {
+    if (!userId) {
+      setTrofeusCasual(null);
+      return;
+    }
+    const { data, error } = await supabase
+      .from("profiles")
+      .select("trofeus_casual")
+      .eq("user_id", userId)
+      .maybeSingle();
+    if (error) {
+      console.warn("[auth] refreshTrofeus falhou:", error.message);
+      return;
+    }
+    setTrofeusCasual((data?.trofeus_casual as number | undefined) ?? 0);
+  }, [userId]);
+
+  // Carrega trofeus sempre que o user muda (login, logout, refresh)
+  useEffect(() => {
+    void refreshTrofeus();
+  }, [refreshTrofeus]);
 
   const signUp = async ({
     username,
@@ -132,7 +168,17 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   return (
     <AuthContext.Provider
-      value={{ session, user, loading, username, signUp, signIn, signOut }}
+      value={{
+        session,
+        user,
+        loading,
+        username,
+        trofeusCasual,
+        signUp,
+        signIn,
+        signOut,
+        refreshTrofeus,
+      }}
     >
       {children}
     </AuthContext.Provider>

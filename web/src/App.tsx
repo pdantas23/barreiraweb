@@ -16,6 +16,7 @@ import Sobre from "./pages/Sobre";
 import Login from "./pages/Login";
 import Cadastro from "./pages/Cadastro";
 import Termos from "./pages/Termos";
+import Profile from "./pages/Profile";
 
 // Bootstrap clientId synchronously (localStorage is sync)
 initClientId();
@@ -54,6 +55,7 @@ export const App = () => {
                 <Route path="/login" element={<Login />} />
                 <Route path="/cadastro" element={<Cadastro />} />
                 <Route path="/termos" element={<Termos />} />
+                <Route path="/perfil" element={<Profile />} />
               </Routes>
               <DragOverlayRenderer />
             </ProfileProvider>

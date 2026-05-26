@@ -5,6 +5,7 @@ import type {
   ServerToClientEvents,
 } from "@barreira/shared";
 import { getClientId } from "./clientId";
+import { supabase } from "./supabase";
 
 const SERVER_URL = import.meta.env.VITE_SERVER_URL ?? "http://localhost:3001";
 console.log("[socket] SERVER_URL:", SERVER_URL);
@@ -37,7 +38,16 @@ export const getSocket = (): AppSocket => {
       reconnection: true,
       reconnectionAttempts: 5,
       reconnectionDelay: 800,
-      auth: { clientId: getClientId() },
+      // Funcao = avaliada a cada tentativa de conexao, entao login/logout
+      // ou refresh do JWT sao refletidos sem recriar o socket.
+      auth: (cb) => {
+        void supabase.auth.getSession().then(({ data }) => {
+          cb({
+            clientId: getClientId(),
+            accessToken: data.session?.access_token ?? null,
+          });
+        });
+      },
     });
     wireGlobalListeners(socket);
   }
@@ -52,6 +62,14 @@ export const connectSocket = (): AppSocket => {
 
 export const disconnectSocket = () => {
   if (socket?.connected) socket.disconnect();
+};
+
+// Forca o socket a desconectar+reconectar pra refletir mudanca de auth state.
+// Chamado pelo AuthProvider quando o usuario loga/desloga.
+export const reconnectSocket = () => {
+  if (!socket) return;
+  if (socket.connected) socket.disconnect();
+  socket.connect();
 };
 
 export const getServerUrl = () => SERVER_URL;

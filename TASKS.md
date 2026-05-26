@@ -6,13 +6,12 @@ Backlog vivo do Barreira. A ordem reflete prioridade — o que está no topo é 
 
 ## Próximas
 
-1. **Funcionalidade real do ícone de perfil** — tela de configurações / avatar / estatísticas
-2. **[AdSense] Configurar SPA fallback no nginx do VPS** — sem isso, acessar `barreirajogo.com/regras`, `/estrategias` ou `/sobre` direto pela URL retorna 404, e o crawler do AdSense rejeita de novo. Adicionar `try_files $uri $uri/ /index.html;` no bloco `location /` da config nginx do VPS (não está no repo). Rotas atuais: `/`, `/game`, `/online`, `/online-game`, `/privacy`, `/regras`, `/estrategias`, `/sobre`.
-3. **[AdSense] Deploy da versão saneada + pedir revisão** — `git push` + no VPS `git pull && cd web && npm install && npm run build`, depois marcar "Confirmo que corrigi os problemas" no painel de reprovação e clicar "Pedir revisão". Slot real `9953596385` já está no código (`web/src/ads/adsConfig.ts:24`).
-4. **[AdSense] Prerender estático das páginas de conteúdo** — Google crawler executa JS, mas o ideal é servir HTML pronto. Avaliar `@prerenderer/rollup-plugin` (requer puppeteer ~170MB) ou solução leve via build-time script para `/regras`, `/estrategias`, `/sobre`, `/privacy`. Sem prerender, hoje só o `index.html` raiz tem meta tags.
-5. **Animação de queda da parede** — drop-in ao soltar
-6. **Persistência local** — placar e histórico de partidas (AsyncStorage / SQLite)
-7. **Modo Rankeada** — ELO, contas, backend dedicado
+1. **[AdSense] Configurar SPA fallback no nginx do VPS** — sem isso, acessar `barreirajogo.com/regras`, `/estrategias` ou `/sobre` direto pela URL retorna 404, e o crawler do AdSense rejeita de novo. Adicionar `try_files $uri $uri/ /index.html;` no bloco `location /` da config nginx do VPS (não está no repo). Rotas atuais: `/`, `/game`, `/online`, `/online-game`, `/privacy`, `/regras`, `/estrategias`, `/sobre`, `/login`, `/cadastro`, `/termos`, `/perfil`.
+2. **[AdSense] Deploy da versão saneada + pedir revisão** — `git push` + no VPS `git pull && cd web && npm install && npm run build`, depois marcar "Confirmo que corrigi os problemas" no painel de reprovação e clicar "Pedir revisão". Slot real `9953596385` já está no código (`web/src/ads/adsConfig.ts:24`).
+3. **[AdSense] Prerender estático das páginas de conteúdo** — Google crawler executa JS, mas o ideal é servir HTML pronto. Avaliar `@prerenderer/rollup-plugin` (requer puppeteer ~170MB) ou solução leve via build-time script para `/regras`, `/estrategias`, `/sobre`, `/privacy`. Sem prerender, hoje só o `index.html` raiz tem meta tags.
+4. **Animação de queda da parede** — drop-in ao soltar
+5. **Persistência local** — placar e histórico de partidas (AsyncStorage / SQLite)
+6. **Modo Rankeada** — coluna `elo_ranqueada` separada (não reaproveitar `trofeus_casual`); pareamento por faixa; reset sazonal opcional
 
 ---
 
@@ -29,6 +28,14 @@ Backlog vivo do Barreira. A ordem reflete prioridade — o que está no topo é 
 ---
 
 ## Histórico
+
+### 2026-05-25 — Troféus Casual + tela de Perfil
+
+- Migration Supabase: dropada coluna `elo` de `public.profiles`, adicionada `trofeus_casual int not null default 0` + índice composto `(trofeus_casual desc, username asc)`. RPC `increment_trofeus_casual(p_user_id uuid, p_delta int)` SECURITY DEFINER (service_role-only) faz UPDATE atômico com guarda `GREATEST(0, …)`. SQL inteiro em `trofeus_casual.sql` na raiz.
+- Server (`server/src/trophies.ts`, `auth.ts`): premiação fail-safe via RPC e validação de JWT por `supabase.auth.getUser` com cache TTL 5min. `ServerPlayer.authUserId` propaga no `createRoom`/`joinRoom`. Premiação +1 em vitória normal (`index.ts:298`) e W.O./timeout (`index.ts:152`). Bots ficam `authUserId=null`, casual-vs-bot conta pra quem está logado.
+- Front (`web/src/net/socket.ts`): handshake passa a enviar `accessToken` da sessão Supabase via `auth` callback (re-avaliado a cada conexão). `AuthProvider` (`web/src/state/auth.tsx`) chama `reconnectSocket()` em `SIGNED_IN/OUT/TOKEN_REFRESHED` e expõe `trofeusCasual` + `refreshTrofeus()`. `useOnlineGame` chama `refreshTrofeus` quando recebe `gameOver` com `winner === myPlayer`.
+- UI: `Leaderboard.tsx` lê e ordena por `trofeus_casual`. Nova rota `/perfil` (`Profile.tsx`) com avatar inicial, username, email, card de troféus e botão sair — resolve a antiga TASK #1 ("Funcionalidade real do ícone de perfil"). `HeaderAuthButtons.tsx` simplificado: clique no botão do usuário navega pra `/perfil` em vez de abrir modal.
+- Test-game (`server/scripts/test-game.ts`): adicionado `setTimeout(3500)` após `gameStart` pra a primeira jogada não bater no bloqueio do countdown de 3s (regressão pré-existente desde `cfba39f`).
 
 ### 2026-05-25 — Saneamento AdSense (resposta à reprovação)
 

@@ -3,7 +3,10 @@
     "allow": [
       "Bash(ls \"C:\\\\Users\\\\paulo\\\\Desktop\\\\novo-validador\")",
       "Bash(npm -v)",
-      "Bash(npm run *)"
+      "Bash(npm run *)",
+      "Bash(git add *)",
+      "Bash(git commit *)",
+      "Bash(git push *)"
     ]
   }
 }

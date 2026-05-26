@@ -6,9 +6,11 @@
 import dotenv from "dotenv";
 import { resolve } from "node:path";
 
-// Tenta .env no cwd (raiz) e depois um nível acima (caso cwd seja server/)
-dotenv.config({ path: resolve(process.cwd(), ".env") }) ||
-  dotenv.config({ path: resolve(process.cwd(), "..", ".env") });
+// Carrega .env do cwd (caso o server seja iniciado da raiz) e tambem da
+// raiz do monorepo (caso o cwd seja server/). dotenv nao sobrescreve vars
+// ja setadas, entao chamar os dois eh seguro e idempotente.
+dotenv.config({ path: resolve(process.cwd(), ".env") });
+dotenv.config({ path: resolve(process.cwd(), "..", ".env") });
 import express from "express";
 import { createServer } from "node:http";
 import { Server, type Socket } from "socket.io";

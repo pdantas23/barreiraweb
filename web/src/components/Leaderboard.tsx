@@ -1,7 +1,8 @@
 // === Leaderboard ===
 //
-// Mostra top 10 jogadores ordenados por elo desc, username asc (tiebreak).
-// Le da tabela public.profiles via Supabase (RLS permite leitura anonima).
+// Mostra top 10 jogadores ordenados por trofeus_casual desc, username asc
+// (tiebreak). Le da tabela public.profiles via Supabase (RLS permite leitura
+// anonima). Indice composto profiles_trofeus_casual_idx cobre o ORDER BY.
 //
 // Auto-refresh: so no mount. Se precisar de live update depois, da pra
 // inscrever em supabase.channel() observando UPDATEs em profiles.
@@ -11,7 +12,7 @@ import { IoTrophy } from "react-icons/io5";
 import { supabase } from "../net/supabase";
 import { useAuth } from "../state/auth";
 
-type Entry = { username: string; elo: number };
+type Entry = { username: string; trofeus_casual: number };
 
 const TOP_LIMIT = 10;
 
@@ -26,8 +27,8 @@ export const Leaderboard = ({ className = "" }: { className?: string }) => {
     (async () => {
       const { data, error } = await supabase
         .from("profiles")
-        .select("username, elo")
-        .order("elo", { ascending: false })
+        .select("username, trofeus_casual")
+        .order("trofeus_casual", { ascending: false })
         .order("username", { ascending: true })
         .limit(TOP_LIMIT);
 
@@ -102,8 +103,9 @@ export const Leaderboard = ({ className = "" }: { className?: string }) => {
                   {e.username}
                   {isMe && <span className="text-muted font-normal text-[10px] ml-1">(voce)</span>}
                 </span>
-                <span className="text-brand text-[13px] font-extrabold font-mono tabular-nums">
-                  {e.elo}
+                <span className="flex items-center gap-1 text-brand text-[13px] font-extrabold font-mono tabular-nums">
+                  <IoTrophy size={11} color="#F4B619" />
+                  {e.trofeus_casual}
                 </span>
               </div>
             );

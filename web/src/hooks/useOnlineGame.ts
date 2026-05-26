@@ -34,6 +34,7 @@ import {
 import { getLastGameStart, getSocket } from "../net/socket";
 import { useDragOverlay } from "../state/dragOverlay";
 import { usePlayerName } from "../state/profile";
+import { useAuth } from "../state/auth";
 
 const EMPTY_SET: Set<number> = new Set();
 
@@ -48,6 +49,7 @@ export function useOnlineGame() {
   const navigate = useNavigate();
   useButtonSound();
   const myName = usePlayerName();
+  const { refreshTrofeus } = useAuth();
 
   // Reload protection
   const [showReloadWarning, setShowReloadWarning] = useState(false);
@@ -138,6 +140,12 @@ export function useOnlineGame() {
   ghostRef.current = ghost;
   const dragTypeRef = useRef<WallType | null>(null);
   dragTypeRef.current = dragType;
+  // Refs pra acessar valores atualizados dentro do handler de gameOver
+  // (registrado uma vez em useEffect com deps [] e captura closures stale).
+  const myPlayerRef = useRef<PlayerId>(myPlayer);
+  myPlayerRef.current = myPlayer;
+  const refreshTrofeusRef = useRef(refreshTrofeus);
+  refreshTrofeusRef.current = refreshTrofeus;
 
   // Socket events
   useEffect(() => {
@@ -165,7 +173,13 @@ export function useOnlineGame() {
     const onStateUpdate = (payload: StateUpdatePayload) => {
       setState(deserializeState(payload.state));
     };
-    const onGameOver = (_payload: GameOverPayload) => {};
+    const onGameOver = (payload: GameOverPayload) => {
+      // Eu venci? Re-busca trofeus_casual pra UI refletir o +1.
+      // Se eu nao estou logado, refreshTrofeus eh no-op.
+      if (payload.winner === myPlayerRef.current) {
+        void refreshTrofeusRef.current();
+      }
+    };
     const onOpponentLeft = () => setOpponentLeft(true);
 
     const onRematchRequested = (payload: RematchRequestedPayload) => {

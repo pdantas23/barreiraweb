@@ -36,7 +36,7 @@ export default function PrivacyScreen() {
           <IoChevronBack size={28} color={C.navy} />
         </button>
         <span style={{ flex: 1, color: C.navy, fontSize: 16, fontWeight: 800, letterSpacing: 0.5, textAlign: "center" }}>
-          Politica de Privacidade
+          Política de Privacidade
         </span>
         <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", minWidth: 40 }}>
           <HeaderAuthButtons />
@@ -52,59 +52,59 @@ export default function PrivacyScreen() {
             border: `1px solid ${C.border}`,
           }}
         >
-          <div style={{ fontSize: 11, color: C.muted, marginBottom: 16 }}>Ultima atualizacao: 22 de maio de 2025</div>
+          <div style={{ fontSize: 11, color: C.muted, marginBottom: 16 }}>Última atualização: 22 de maio de 2025</div>
 
-          <h3 style={{ fontSize: 14, fontWeight: 800, color: C.navy, marginTop: 18, marginBottom: 8 }}>1. Introducao</h3>
+          <h3 style={{ fontSize: 14, fontWeight: 800, color: C.navy, marginTop: 18, marginBottom: 8 }}>1. Introdução</h3>
           <p style={{ fontSize: 13, color: "#4A5C7A", lineHeight: 1.6 }}>
-            O Barreira ("nos", "nosso") e um jogo de tabuleiro multiplayer. Esta politica descreve como tratamos informacoes quando voce usa nosso aplicativo.
+            O Barreira ("nós", "nosso") é um jogo de tabuleiro multiplayer. Esta política descreve como tratamos informações quando você usa nosso aplicativo.
           </p>
 
           <h3 style={{ fontSize: 14, fontWeight: 800, color: C.navy, marginTop: 18, marginBottom: 8 }}>2. Dados que coletamos</h3>
           <p style={{ fontSize: 13, color: "#4A5C7A", lineHeight: 1.6 }}>
-            • Identificador de sessao: geramos um ID aleatorio por instalacao para permitir reconexao durante partidas online. Este ID nao esta vinculado a sua identidade real.
+            • Identificador de sessão: geramos um ID aleatório por instalação para permitir reconexão durante partidas online. Este ID não está vinculado à sua identidade real.
             <br /><br />
-            • Nome de exibicao: o nome mostrado aos oponentes durante partidas online (padrao: "Jogador"). Nao e persistido em nossos servidores apos o fim da partida.
+            • Nome de exibição: o nome mostrado aos oponentes durante partidas online (padrão: "Jogador"). Não é persistido em nossos servidores após o fim da partida.
             <br /><br />
-            • Dados de conexao: endereco IP e metadados tecnicos do WebSocket sao processados em tempo real para manter a partida, mas nao sao armazenados permanentemente.
+            • Dados de conexão: endereço IP e metadados técnicos do WebSocket são processados em tempo real para manter a partida, mas não são armazenados permanentemente.
           </p>
 
           <h3 style={{ fontSize: 14, fontWeight: 800, color: C.navy, marginTop: 18, marginBottom: 8 }}>3. Como usamos os dados</h3>
           <p style={{ fontSize: 13, color: "#4A5C7A", lineHeight: 1.6 }}>
-            Os dados sao usados exclusivamente para:
+            Os dados são usados exclusivamente para:
             <br /><br />
-            • Estabelecer e manter conexoes de partida em tempo real<br />
-            • Permitir reconexao em caso de perda temporaria de rede<br />
+            • Estabelecer e manter conexões de partida em tempo real<br />
+            • Permitir reconexão em caso de perda temporária de rede<br />
             • Exibir nomes dos jogadores durante a partida
           </p>
 
           <h3 style={{ fontSize: 14, fontWeight: 800, color: C.navy, marginTop: 18, marginBottom: 8 }}>4. Compartilhamento de dados</h3>
           <p style={{ fontSize: 13, color: "#4A5C7A", lineHeight: 1.6 }}>
-            Nao vendemos, compartilhamos ou transferimos seus dados para terceiros. Nao utilizamos servicos de analytics ou publicidade.
+            Não vendemos, compartilhamos ou transferimos seus dados para terceiros. Não utilizamos serviços de analytics ou publicidade.
           </p>
 
           <h3 style={{ fontSize: 14, fontWeight: 800, color: C.navy, marginTop: 18, marginBottom: 8 }}>5. Armazenamento</h3>
           <p style={{ fontSize: 13, color: "#4A5C7A", lineHeight: 1.6 }}>
-            Nao mantemos banco de dados de usuarios. Os dados de sessao existem apenas na memoria do servidor durante partidas ativas e sao descartados quando a partida termina ou o servidor reinicia.
+            Não mantemos banco de dados de usuários. Os dados de sessão existem apenas na memória do servidor durante partidas ativas e são descartados quando a partida termina ou o servidor reinicia.
           </p>
 
           <h3 style={{ fontSize: 14, fontWeight: 800, color: C.navy, marginTop: 18, marginBottom: 8 }}>6. Seus direitos</h3>
           <p style={{ fontSize: 13, color: "#4A5C7A", lineHeight: 1.6 }}>
-            Como nao armazenamos dados pessoais permanentes, nao ha dados para solicitar exclusao. O identificador de sessao e regenerado ao reinstalar o aplicativo.
+            Como não armazenamos dados pessoais permanentes, não há dados para solicitar exclusão. O identificador de sessão é regenerado ao reinstalar o aplicativo.
           </p>
 
-          <h3 style={{ fontSize: 14, fontWeight: 800, color: C.navy, marginTop: 18, marginBottom: 8 }}>7. Criancas</h3>
+          <h3 style={{ fontSize: 14, fontWeight: 800, color: C.navy, marginTop: 18, marginBottom: 8 }}>7. Crianças</h3>
           <p style={{ fontSize: 13, color: "#4A5C7A", lineHeight: 1.6 }}>
-            O Barreira nao coleta intencionalmente dados de criancas menores de 13 anos. O app nao requer cadastro nem dados pessoais.
+            O Barreira não coleta intencionalmente dados de crianças menores de 13 anos. O app não requer cadastro nem dados pessoais.
           </p>
 
-          <h3 style={{ fontSize: 14, fontWeight: 800, color: C.navy, marginTop: 18, marginBottom: 8 }}>8. Alteracoes</h3>
+          <h3 style={{ fontSize: 14, fontWeight: 800, color: C.navy, marginTop: 18, marginBottom: 8 }}>8. Alterações</h3>
           <p style={{ fontSize: 13, color: "#4A5C7A", lineHeight: 1.6 }}>
-            Podemos atualizar esta politica. Alteracoes significativas serao comunicadas atraves de atualizacao do app.
+            Podemos atualizar esta política. Alterações significativas serão comunicadas através de atualização do app.
           </p>
 
           <h3 style={{ fontSize: 14, fontWeight: 800, color: C.navy, marginTop: 18, marginBottom: 8 }}>9. Contato</h3>
           <p style={{ fontSize: 13, color: "#4A5C7A", lineHeight: 1.6 }}>
-            Em caso de duvidas sobre privacidade, entre em contato pelo email: contato@barreira.app
+            Em caso de dúvidas sobre privacidade, entre em contato pelo email: contato@barreira.app
           </p>
         </div>
       </div>
