@@ -10,8 +10,7 @@ Backlog vivo do Barreira. A ordem reflete prioridade — o que está no topo é 
 2. **[AdSense] Deploy da versão saneada + pedir revisão** — `git push` + no VPS `git pull && cd web && npm install && npm run build`, depois marcar "Confirmo que corrigi os problemas" no painel de reprovação e clicar "Pedir revisão". Slot real `9953596385` já está no código (`web/src/ads/adsConfig.ts:24`).
 3. **[AdSense] Prerender estático das páginas de conteúdo** — Google crawler executa JS, mas o ideal é servir HTML pronto. Avaliar `@prerenderer/rollup-plugin` (requer puppeteer ~170MB) ou solução leve via build-time script para `/regras`, `/estrategias`, `/sobre`, `/privacy`. Sem prerender, hoje só o `index.html` raiz tem meta tags.
 4. **Animação de queda da parede** — drop-in ao soltar
-5. **Persistência local** — placar e histórico de partidas (AsyncStorage / SQLite)
-6. **Modo Rankeada** — coluna `elo_ranqueada` separada (não reaproveitar `trofeus_casual`); pareamento por faixa; reset sazonal opcional
+5. **Modo Rankeada** — coluna `elo_ranqueada` separada (não reaproveitar `trofeus_casual`); pareamento por faixa; reset sazonal opcional
 
 ---
 

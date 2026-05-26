@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Sobre o Barreira — Jogo de Tabuleiro Online Inspirado no Quoridor</title>
+  <meta name="description" content="A história do Barreira: jogo de tabuleiro digital para dois jogadores em grade 9x9, inspirado no clássico Quoridor de Mirko Marchesi. Sem cadastro, sem anúncios em partida, multiplayer em tempo real.">
+  <meta name="keywords" content="barreira, quoridor, jogo tabuleiro, multiplayer, mirko marchesi, gigamic, sobre">
+  <link rel="canonical" href="https://barreirajogo.com/sobre">
+
+  <meta property="og:type" content="article">
+  <meta property="og:title" content="Sobre o Barreira">
+  <meta property="og:description" content="A história do jogo, do projeto e das pessoas por trás dele.">
+  <meta property="og:url" content="https://barreirajogo.com/sobre">
+  <meta property="og:site_name" content="Barreira">
+
+  <meta name="twitter:card" content="summary">
+  <meta name="twitter:title" content="Sobre o Barreira">
+  <meta name="twitter:description" content="A história do jogo, do projeto e das pessoas por trás dele.">
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      max-width: 760px;
+      margin: 0 auto;
+      padding: 32px 20px 80px;
+      color: #1A2A4A;
+      background: linear-gradient(180deg, #F0F4FF 0%, #E8EEF8 100%);
+      min-height: 100vh;
+      line-height: 1.7;
+    }
+    h1 {
+      font-size: 28px;
+      margin-bottom: 4px;
+      color: #1A2A4A;
+    }
+    h2 {
+      font-size: 18px;
+      margin-top: 28px;
+      margin-bottom: 8px;
+      color: #3D6FFF;
+    }
+    .lead {
+      color: #9AAACA;
+      font-size: 14px;
+      margin-bottom: 28px;
+    }
+    p { font-size: 15px; color: #1A2A4A; }
+    .card {
+      background: white;
+      border-radius: 12px;
+      padding: 24px 28px;
+      border: 1px solid #DDEAFF;
+      box-shadow: 0 2px 8px rgba(26,42,74,0.06);
+    }
+    .play-cta {
+      display: inline-block;
+      margin-top: 24px;
+      padding: 12px 24px;
+      background: linear-gradient(to right, #3D6FFF, #6B9FFF);
+      color: white;
+      text-decoration: none;
+      font-weight: 800;
+      border-radius: 10px;
+      font-size: 14px;
+      letter-spacing: 0.5px;
+    }
+    .nav {
+      margin-bottom: 16px;
+      font-size: 13px;
+    }
+    .nav a { color: #3D6FFF; text-decoration: none; }
+    .nav a:hover { text-decoration: underline; }
+    a { color: #3D6FFF; }
+  </style>
+</head>
+<body>
+  <nav class="nav">
+    <a href="/">← Início</a> · <a href="/regras">Regras</a> · <a href="/estrategias">Estratégias</a> · <a href="/privacy">Privacidade</a>
+  </nav>
+
+  <h1>Sobre o Barreira</h1>
+  <p class="lead">A história do jogo, do projeto e das pessoas por trás dele.</p>
+
+  <div class="card">
+    <h2>O que é o Barreira</h2>
+    <p>
+      O <strong>Barreira</strong> é um jogo de tabuleiro digital para dois jogadores, disputado em
+      uma grade 9x9, inspirado no clássico <em>Quoridor</em>. A proposta é simples: em vez de
+      derrotar o adversário capturando peças, você precisa atravessar o tabuleiro antes dele,
+      enquanto coloca paredes para atrasar o caminho do oponente. O resultado é um jogo de
+      planejamento espacial puro, sem dados, sem cartas e sem fator sorte — só você, o adversário
+      e o tabuleiro.
+    </p>
+    <p>
+      A versão web do Barreira nasceu como porta de entrada do projeto: leve, sem instalação, com
+      multiplayer em tempo real e bots oferecendo três níveis de desafio. Em paralelo, mantemos
+      versões para iOS e Android construídas com a mesma engine.
+    </p>
+
+    <h2>A História do Quoridor</h2>
+    <p>
+      O Quoridor foi criado pelo designer francês Mirko Marchesi e publicado pela Gigamic em 1997,
+      a partir de um jogo anterior chamado <em>Blockade</em> dos anos 1970. Desde o lançamento,
+      acumulou prêmios importantes da indústria, incluindo o <em>Mensa Mind Game</em> nos Estados
+      Unidos (1997), o <em>Game of the Year</em> na França e diversos selos de qualidade na Europa.
+      Hoje é considerado um clássico moderno de jogos abstratos — comparado a xadrez e dama em
+      pureza estratégica, mas com regras dramaticamente mais simples de aprender.
+    </p>
+    <p>
+      A genialidade do design está na economia: apenas dois tipos de ação (mover peão ou colocar
+      parede), uma única restrição (não bloquear totalmente o caminho do oponente) e ainda assim
+      uma profundidade tática quase ilimitada. Estudos computacionais já mostraram que, em
+      tabuleiros pequenos (5x5 ou 7x7), o jogo pode ser resolvido por força bruta — mas no
+      tabuleiro padrão 9x9, o espaço de estados é gigantesco e nenhum motor conseguiu "resolver"
+      o jogo até hoje.
+    </p>
+
+    <h2>Por que fizemos o Barreira</h2>
+    <p>
+      Apesar da fama do Quoridor entre entusiastas, encontrar uma versão digital de qualidade,
+      gratuita, sem anúncios invasivos e com multiplayer online estável sempre foi difícil. A
+      maioria das implementações disponíveis ou abandona o lado online, ou oferece bots fracos, ou
+      cobra por funcionalidades básicas. Decidimos construir uma alternativa pensada para o
+      jogador casual que quer uma partida rápida no metrô e também para quem busca um adversário
+      de bot competente para treinar.
+    </p>
+    <p>
+      Por isso, o Barreira é gratuito, não exige cadastro, não coleta dados pessoais e usa apenas
+      um identificador anônimo de sessão para reconectar você à partida em caso de queda de
+      internet. As partidas online rolam em servidor próprio, com pareamento direto entre jogadores
+      ou via salas privadas com senha.
+    </p>
+
+    <h2>Tecnologia</h2>
+    <p>
+      O Barreira é desenvolvido em TypeScript de ponta a ponta. A engine de regras (movimentos,
+      validação de paredes, busca de caminhos via BFS) é compartilhada entre web e mobile, o que
+      garante comportamento idêntico em todas as plataformas. O frontend web usa React + Vite, o
+      mobile usa React Native via Expo, e o backend roda Node.js com Socket.io para a comunicação
+      em tempo real. Toda a stack é open-source ou padrão de mercado.
+    </p>
+    <p>
+      Os três bots — fácil, médio e difícil — são implementações distintas: o fácil usa heurística
+      gulosa com aleatorização entre as top-K jogadas, o médio aplica busca de 1 nível com BFS para
+      distância mais curta, e o difícil roda um minimax com poda alfa-beta de profundidade 2.
+      Não usamos redes neurais nem treinamento prévio — a "inteligência" vem inteiramente da
+      avaliação heurística manual.
+    </p>
+
+    <h2>Privacidade e Anúncios</h2>
+    <p>
+      Levamos privacidade a sério. O Barreira <strong>não exige cadastro</strong>, não coleta nome
+      real, e-mail, telefone ou qualquer dado pessoal. O único identificador armazenado é uma
+      string aleatória gerada no seu navegador para permitir reconexão a partidas em andamento;
+      ela é descartável e não está vinculada a você de nenhuma forma. Veja nossa
+      <a href="/privacy">Política de Privacidade</a> para detalhes completos.
+    </p>
+    <p>
+      Para manter o jogo gratuito, exibimos anúncios <strong>apenas em páginas de conteúdo</strong> (esta,
+      a de Regras e a de Estratégias). Durante partidas, o jogo é livre de anúncios — entendemos
+      que interromper uma partida com publicidade arruinaria a experiência.
+    </p>
+
+    <h2>Créditos</h2>
+    <p>
+      Design original do Quoridor: <strong>Mirko Marchesi</strong> (1997), publicado pela Gigamic.
+      Implementação web do Barreira: equipe independente sem afiliação com a Gigamic. O nome
+      "Barreira" e a identidade visual são originais e foram criados para diferenciar este projeto
+      do produto oficial Quoridor.
+    </p>
+    <p>
+      Trilha sonora e efeitos sonoros foram compostos especialmente para o projeto. Os ícones
+      vêm da biblioteca Ionicons (licença MIT). A fonte do logotipo é Bebas Neue (SIL Open Font
+      License).
+    </p>
+
+    <h2>Contato</h2>
+    <p>
+      Sugestões, reportes de bug, propostas de parceria ou simplesmente um "oi": escreva para
+      <strong>contato@barreira.app</strong>. Lemos todas as mensagens.
+    </p>
+
+    <a href="/" class="play-cta">JOGAR AGORA</a>
+  </div>
+</body>
+</html>

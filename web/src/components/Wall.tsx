@@ -30,6 +30,9 @@ export const Wall = ({ placement, layout, ghost = false, ghostInvalid = false }:
     zIndex: 10,
     boxShadow: `0 1px 3px ${gc.boardShadow}40`,
     pointerEvents: "none",
+    // Drop-in: pareces "caem" um pouco e dao um pequeno overshoot.
+    // So pra paredes reais — ghost preview nao anima.
+    animation: ghost ? undefined : "wallDropIn 260ms cubic-bezier(0.34, 1.56, 0.64, 1) both",
   };
 
   if (type === "h") {
