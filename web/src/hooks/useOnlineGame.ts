@@ -322,7 +322,7 @@ export function useOnlineGame() {
       leaveRoom().catch(() => undefined),
       new Promise<void>((resolve) => setTimeout(resolve, 1500)),
     ]);
-    navigate("/online", { replace: true });
+    navigate("/", { replace: true });
   };
 
   const onRequestRematch = async () => {
