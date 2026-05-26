@@ -7,6 +7,7 @@ Backlog vivo do Barreira. A ordem reflete prioridade — o que está no topo é 
 ## Próximas
 
 1. **Modo Rankeada** — coluna `elo_ranqueada` separada (não reaproveitar `trofeus_casual`); pareamento por faixa; reset sazonal opcional.
+2. **Recuperação de senha via email (Supabase)** — botão "Esqueci minha senha" em `Login.tsx` que chama `supabase.auth.resetPasswordForEmail(email, { redirectTo: "<dominio>/reset-password" })`; nova rota/página `web/src/pages/ResetPassword.tsx` que lê o `access_token` do hash da URL e chama `supabase.auth.updateUser({ password })` pra finalizar a troca. No Supabase Dashboard: confirmar template de email em Authentication → Email Templates → "Reset Password" e a Site URL/Redirect URLs em Authentication → URL Configuration.
 
 > [AdSense] revisão já solicitada no painel em 2026-05-26 — aguardando resposta do Google (2–7 dias). Se aprovado, slot `9953596385` já está ativo em `web/src/ads/adsConfig.ts:24`. Se rejeitado de novo, anotar o motivo aqui e abrir nova task.
 
