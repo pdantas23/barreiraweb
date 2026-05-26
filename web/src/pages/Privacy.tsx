@@ -1,6 +1,7 @@
 import { useNavigate } from "react-router-dom";
 import { IoChevronBack } from "react-icons/io5";
 import { PageGate } from "../components/PageGate";
+import { HeaderAuthButtons } from "../components/HeaderAuthButtons";
 
 const C = {
   blue: "#3D6FFF",
@@ -37,7 +38,9 @@ export default function PrivacyScreen() {
         <span style={{ flex: 1, color: C.navy, fontSize: 16, fontWeight: 800, letterSpacing: 0.5, textAlign: "center" }}>
           Politica de Privacidade
         </span>
-        <div style={{ width: 40 }} />
+        <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", minWidth: 40 }}>
+          <HeaderAuthButtons />
+        </div>
       </div>
 
       <div style={{ flex: 1, overflow: "auto", padding: "0 20px 32px" }}>

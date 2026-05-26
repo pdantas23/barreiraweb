@@ -6,6 +6,8 @@ import { CreateRoomModal, type CreateRoomConfig } from "../components/CreateRoom
 import { JoinByCodeModal } from "../components/JoinByCodeModal";
 import { MessageModal } from "../components/MessageModal";
 import { PageGate } from "../components/PageGate";
+import { HeaderAuthButtons } from "../components/HeaderAuthButtons";
+import { Leaderboard } from "../components/Leaderboard";
 import { createRoom, joinRoom, listRooms } from "../net/api";
 import { clearLastGameStart, connectSocket } from "../net/socket";
 import { playButtonSound, useButtonSound } from "../hooks/useButtonSound";
@@ -157,9 +159,15 @@ export default function OnlineScreen() {
           <IoChevronBack size={28} color={C.navy} />
         </button>
         <span style={{ flex: 1, fontFamily: "'Bebas Neue', sans-serif", fontSize: "2.5rem", color: "#3D6FFF", letterSpacing: 4, textAlign: "center" }}>LOBBY</span>
-        <div style={{ width: 40 }} />
+        <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", minWidth: 40 }}>
+          <HeaderAuthButtons />
+        </div>
       </div>
 
+      {/* Body: em telas >= lg vira 2 colunas (lobby + sidebar leaderboard).
+          No mobile e coluna unica e o leaderboard aparece dentro do scroll. */}
+      <div className="flex-1 flex flex-col lg:flex-row lg:overflow-hidden min-h-0">
+       <div className="flex-1 flex flex-col min-h-0">
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "6px 20px 12px" }}>
         <span style={{ color: C.muted, fontSize: 12, fontWeight: 700, letterSpacing: 0.5, textTransform: "uppercase" }}>
           {loading ? "Carregando..." : `${rooms.length} sala${rooms.length === 1 ? "" : "s"} disponive${rooms.length === 1 ? "l" : "is"}`}
@@ -238,6 +246,10 @@ export default function OnlineScreen() {
             })}
           </div>
         )}
+
+        {/* Leaderboard mobile: dentro do scroll, abaixo das salas.
+            Em desktop fica oculto; a sidebar a direita mostra o mesmo. */}
+        <Leaderboard className="lg:hidden mt-4 mb-2" />
       </div>
 
       <div
@@ -277,6 +289,13 @@ export default function OnlineScreen() {
           <span style={{ color: C.white, fontWeight: 900, fontSize: 14, letterSpacing: 0.5 }}>Criar sala</span>
         </button>
       </div>
+       </div>{/* fim da coluna principal */}
+
+        {/* Sidebar leaderboard: so aparece em telas >= lg (~1024px). */}
+        <aside className="hidden lg:flex lg:flex-col lg:w-80 lg:flex-shrink-0 lg:border-l lg:border-[#DDEAFF] lg:overflow-auto lg:p-4 lg:bg-white/40">
+          <Leaderboard />
+        </aside>
+      </div>{/* fim do body wrapper responsivo */}
 
       <CreateRoomModal visible={createOpen} onClose={() => setCreateOpen(false)} onConfirm={onConfirmCreate} />
       <JoinByCodeModal

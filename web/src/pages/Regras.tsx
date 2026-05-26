@@ -1,6 +1,7 @@
 import { useNavigate } from "react-router-dom";
 import { IoChevronBack } from "react-icons/io5";
 import { PageGate } from "../components/PageGate";
+import { HeaderAuthButtons } from "../components/HeaderAuthButtons";
 import { AdBanner } from "../ads/AdBanner";
 import { AD_SLOTS } from "../ads/adsConfig";
 
@@ -39,7 +40,9 @@ export default function RegrasScreen() {
           <span style={{ flex: 1, fontFamily: "'Bebas Neue', sans-serif", fontSize: "2rem", color: C.blue, letterSpacing: 3, textAlign: "center" }}>
             REGRAS
           </span>
-          <div style={{ width: 40 }} />
+          <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", minWidth: 40 }}>
+            <HeaderAuthButtons />
+          </div>
         </div>
 
         <div style={{ flex: 1, overflow: "auto", padding: "0 20px 32px" }}>

@@ -2,6 +2,7 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { DragOverlayProvider, useDragOverlay } from "./state/dragOverlay";
 import { AudioSettingsProvider } from "./state/audioSettings";
 import { ProfileProvider } from "./state/profile";
+import { AuthProvider } from "./state/auth";
 import { DragLayer } from "./components/DragLayer";
 import { initClientId } from "./net/clientId";
 import Home from "./pages/Home";
@@ -12,6 +13,9 @@ import Privacy from "./pages/Privacy";
 import Regras from "./pages/Regras";
 import Estrategias from "./pages/Estrategias";
 import Sobre from "./pages/Sobre";
+import Login from "./pages/Login";
+import Cadastro from "./pages/Cadastro";
+import Termos from "./pages/Termos";
 
 // Bootstrap clientId synchronously (localStorage is sync)
 initClientId();
@@ -36,19 +40,24 @@ export const App = () => {
     <BrowserRouter>
       <DragOverlayProvider>
         <AudioSettingsProvider>
-          <ProfileProvider>
-            <Routes>
-              <Route path="/" element={<Home />} />
-              <Route path="/game" element={<Game />} />
-              <Route path="/online" element={<Online />} />
-              <Route path="/online-game" element={<OnlineGame />} />
-              <Route path="/privacy" element={<Privacy />} />
-              <Route path="/regras" element={<Regras />} />
-              <Route path="/estrategias" element={<Estrategias />} />
-              <Route path="/sobre" element={<Sobre />} />
-            </Routes>
-            <DragOverlayRenderer />
-          </ProfileProvider>
+          <AuthProvider>
+            <ProfileProvider>
+              <Routes>
+                <Route path="/" element={<Home />} />
+                <Route path="/game" element={<Game />} />
+                <Route path="/online" element={<Online />} />
+                <Route path="/online-game" element={<OnlineGame />} />
+                <Route path="/privacy" element={<Privacy />} />
+                <Route path="/regras" element={<Regras />} />
+                <Route path="/estrategias" element={<Estrategias />} />
+                <Route path="/sobre" element={<Sobre />} />
+                <Route path="/login" element={<Login />} />
+                <Route path="/cadastro" element={<Cadastro />} />
+                <Route path="/termos" element={<Termos />} />
+              </Routes>
+              <DragOverlayRenderer />
+            </ProfileProvider>
+          </AuthProvider>
         </AudioSettingsProvider>
       </DragOverlayProvider>
     </BrowserRouter>

@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from "react";
-import { IoChevronForward, IoFlash, IoGameController, IoMusicalNotes, IoPerson, IoSettingsOutline, IoShieldCheckmark, IoVolumeHigh } from "react-icons/io5";
+import { IoChevronForward, IoFlash, IoGameController, IoMusicalNotes, IoSettingsOutline, IoShieldCheckmark, IoVolumeHigh } from "react-icons/io5";
 import { useNavigate } from "react-router-dom";
 import { GridBackground } from "../components/GridBackground";
+import { HeaderAuthButtons } from "../components/HeaderAuthButtons";
 import { playButtonSound, setSfxEnabledForSounds, useButtonSound } from "../hooks/useButtonSound";
 import { useMenuMusic } from "../hooks/useMenuMusic";
 import { setSfxEnabledForPiece } from "../hooks/usePieceSound";
@@ -63,10 +64,8 @@ export default function HomeScreen() {
       <div className="w-full flex items-center px-4 py-3 z-10 border-b border-brand/8" style={{ backgroundColor: "#FFFFFF" }}>
         <div className="flex-1" />
         <span style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: "2.5rem", color: "#3D6FFF", letterSpacing: 4 }}>BARREIRA</span>
-        <div className="flex-1 flex justify-end gap-2">
-          <button className="w-9 h-9 rounded-full bg-brand border-none flex items-center justify-center cursor-pointer shadow-[0_2px_8px_rgba(61,111,255,0.3)] hover:opacity-80">
-            <IoPerson size={16} color="#FFFFFF" />
-          </button>
+        <div className="flex-1 flex justify-end gap-1.5 items-center">
+          <HeaderAuthButtons />
           <button
             onClick={() => { playButtonSound(); setShowSettings(true); }}
             className="w-9 h-9 rounded-full bg-white border border-cell-bg flex items-center justify-center cursor-pointer hover:opacity-80"
