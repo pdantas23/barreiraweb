@@ -116,10 +116,12 @@ export const Leaderboard = ({ className = "" }: { className?: string }) => {
   );
 };
 
-const MEDAL_STYLE: Record<number, { bg: string; color: string }> = {
-  1: { bg: "bg-[#FFF6D6]", color: "text-[#C49000]" },
-  2: { bg: "bg-[#EEF2F6]", color: "text-[#7B8794]" },
-  3: { bg: "bg-[#FBE7D8]", color: "text-[#A65A2C]" },
+// react-icons nao tipa `className` na prop do IoTrophy — passamos a cor
+// como hex via `color` (tipada), e a Tailwind class so vai no container.
+const MEDAL_STYLE: Record<number, { bg: string; iconColor: string }> = {
+  1: { bg: "bg-[#FFF6D6]", iconColor: "#C49000" },
+  2: { bg: "bg-[#EEF2F6]", iconColor: "#7B8794" },
+  3: { bg: "bg-[#FBE7D8]", iconColor: "#A65A2C" },
 };
 
 const RankBadge = ({ rank }: { rank: number }) => {
@@ -129,7 +131,7 @@ const RankBadge = ({ rank }: { rank: number }) => {
       <div
         className={`w-6 h-6 rounded-full ${medal.bg} flex items-center justify-center flex-shrink-0`}
       >
-        <IoTrophy size={11} className={medal.color} />
+        <IoTrophy size={11} color={medal.iconColor} />
       </div>
     );
   }

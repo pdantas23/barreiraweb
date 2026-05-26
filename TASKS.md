@@ -6,9 +6,9 @@ Backlog vivo do Barreira. A ordem reflete prioridade — o que está no topo é 
 
 ## Próximas
 
-1. **[AdSense] Pedir revisão no painel** — VPS já deployado com SPA fallback + prerender estático em `/regras`, `/estrategias`, `/sobre`, `/privacy`, `/suporte`. Acessar painel do AdSense → site `barreirajogo.com` → marcar "Confirmo que corrigi os problemas" → "Pedir revisão". Aguardar 2–7 dias. Slot real `9953596385` ativo em `web/src/ads/adsConfig.ts:24`.
-2. **Modo Rankeada** — coluna `elo_ranqueada` separada (não reaproveitar `trofeus_casual`); pareamento por faixa; reset sazonal opcional.
-3. **Limpar erros pré-existentes do `tsc --noEmit`** — 5 errors em `AdBanner.tsx`, `Leaderboard.tsx` (IoTrophy `className`), `net/socket.ts`, `net/supabase.ts`: faltam `vite-env.d.ts` referenciando `import.meta.env` e ajustar prop do `IoTrophy`. Não afeta Vite/runtime, mas bloqueia `tsc --noEmit` ficar verde.
+1. **Modo Rankeada** — coluna `elo_ranqueada` separada (não reaproveitar `trofeus_casual`); pareamento por faixa; reset sazonal opcional.
+
+> [AdSense] revisão já solicitada no painel em 2026-05-26 — aguardando resposta do Google (2–7 dias). Se aprovado, slot `9953596385` já está ativo em `web/src/ads/adsConfig.ts:24`. Se rejeitado de novo, anotar o motivo aqui e abrir nova task.
 
 ---
 
@@ -34,6 +34,8 @@ Backlog vivo do Barreira. A ordem reflete prioridade — o que está no topo é 
 - **Animação drop-in da parede** (`web/src/components/Wall.tsx` + `web/src/index.css`): novo keyframe `wallDropIn` (translateY −14px → 0 com overshoot em 70%) com `cubic-bezier(0.34, 1.56, 0.64, 1)` e `fill-mode both`. Só pra paredes reais — ghost preview continua estático.
 - **dotenv loader corrigido** (`server/src/index.ts`): o `||` entre `dotenv.config()` nunca disparava o fallback (dotenv retorna objeto truthy mesmo em erro). Agora chama ambas as paths incondicionalmente — dotenv não sobrescreve env já setada, então é seguro. Antes o server rodava com `injected env (0)` e `PORT` default; agora `injected env (8)` corretamente.
 - **VPS setup**: chave SSH no Mac sem passphrase (`ssh-keygen -t ed25519` + add ao keychain); `.env` da raiz `/var/www/barreira/` criado com `SUPABASE_URL` + `SUPABASE_SERVICE_KEY` (não vai pro git); `pm2 restart barreira-server` pra carregar o novo `.env` e a feature de troféus.
+- **AdSense — revisão solicitada**: painel marcado com "Confirmo que corrigi os problemas" e "Pedir revisão" enviado. Aguardando retorno do Google.
+- **`tsc --noEmit` zerado nos 3 workspaces** (`web/src/vite-env.d.ts` + ajuste no `Leaderboard.tsx`): adicionado o triple-slash `/// <reference types="vite/client" />` pra tipar `import.meta.env` (resolve 4 errors em `AdBanner.tsx`, `net/socket.ts`, `net/supabase.ts`); `IoTrophy` no `RankBadge` passou a usar `color={medal.iconColor}` em vez de `className={medal.color}` (`react-icons` não tipa `className`), com o `MEDAL_STYLE` ajustado pra guardar hex em vez de Tailwind class. `tsc --noEmit` no `web/`, `shared/` e `server/` agora compila limpo.
 
 ### 2026-05-25 — Troféus Casual + tela de Perfil
 
