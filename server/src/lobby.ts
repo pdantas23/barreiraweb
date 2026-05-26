@@ -43,6 +43,9 @@ export type ServerPlayer = {
   // true = ator interno do server fingindo ser jogador. Não tem socket real,
   // não recebe emits, é "jogado" pelo botManager via callbacks.
   isBot: boolean;
+  // ID do user no Supabase Auth (auth.users.id), null se anonimo.
+  // Usado pra premiar trofeus_casual no fim da partida.
+  authUserId: string | null;
 };
 
 export type RematchState = {
@@ -188,6 +191,7 @@ const ensureClientFree = (clientId: string | null, socketId: string): void => {
 export type CreateInput = {
   hostSocketId: string;
   hostClientId: string | null;
+  hostAuthUserId: string | null;
   hostName: string;
   color: ColorChoice;
   isPrivate: boolean;
@@ -217,6 +221,7 @@ export const createRoom = (input: CreateInput): ServerRoom => {
         enginePlayer: 1,
         disconnectedAt: null,
         isBot: false,
+        authUserId: input.hostAuthUserId,
       },
     ],
     gameState: null,
@@ -233,6 +238,7 @@ export const createRoom = (input: CreateInput): ServerRoom => {
 export type JoinInput = {
   socketId: string;
   clientId: string | null;
+  authUserId: string | null;
   playerName: string;
   code: string;
   password?: string;
@@ -262,6 +268,7 @@ export const joinRoom = (input: JoinInput): ServerRoom => {
     enginePlayer: 2,
     disconnectedAt: null,
     isBot: false,
+    authUserId: input.authUserId,
   });
   room.status = "playing";
   room.gameState = initialState(randomFirstTurn());
@@ -540,6 +547,7 @@ export const createBotHostRoom = (input: BotHostInput): ServerRoom => {
         enginePlayer: 1,
         disconnectedAt: null,
         isBot: true,
+        authUserId: null,
       },
     ],
     gameState: null,
@@ -610,6 +618,7 @@ export const addBotGuest = (input: AddBotGuestInput): ServerRoom | null => {
     enginePlayer: 2,
     disconnectedAt: null,
     isBot: true,
+    authUserId: null,
   });
   room.status = "playing";
   room.gameState = initialState(randomFirstTurn());

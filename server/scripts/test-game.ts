@@ -108,6 +108,9 @@ const main = async () => {
   assert(joinRes.ok, "guest entrou");
   await Promise.all([hostStart, guestStart]);
 
+  // Countdown de 3s antes do primeiro move (cfba39f). Espera passar.
+  await new Promise((r) => setTimeout(r, 3_500));
+
   // === 1) Jogada legal de P1 ===
   let state = await playLegal(host, guest, { kind: "piece", to: 67 }, "T1 P1 76→67");
   assert(state.p1 === 67, "P1 está em 67");

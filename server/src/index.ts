@@ -41,6 +41,8 @@ import {
   type ServerRoom,
 } from "./lobby.js";
 import { getOrCreateProfile } from "./profiles.js";
+import { resolveAuthUser } from "./auth.js";
+import { awardCasualTrophy } from "./trophies.js";
 import {
   maybeScheduleBotMove,
   scheduleBotRescue,
@@ -127,7 +129,6 @@ const sendGameStartTo = (room: ServerRoom, me: ServerPlayer) => {
   if (!room.gameState) return;
   const opponent = room.players.find((p) => p.socketId !== me.socketId);
   if (!opponent) return;
-  // Reanchor: countdown already passed, set startsAt in the past so client skips it
   const payload: GameStartPayload = {
     state: serializeState(room.gameState),
     yourEnginePlayer: me.enginePlayer,
@@ -151,6 +152,10 @@ setOnPlayerTimeout((_clientId, room, remaining) => {
     io.to(room.code).emit("stateUpdate", { state: serializeState(room.gameState) });
     io.to(room.code).emit("gameOver", { winner });
     io.to(room.code).emit("opponentLeft");
+    // Premia o vencedor logado (W.O. conta como vitoria casual).
+    if (remaining[0].authUserId) {
+      void awardCasualTrophy(remaining[0].authUserId, 1);
+    }
   }
 });
 
@@ -170,7 +175,11 @@ io.on("connection", (socket: TypedSocket) => {
   // Cliente pode passar `auth.clientId` no handshake pra entrar em modo
   // "reconectável". Sem clientId é modo legado (volátil).
   const clientId = (socket.handshake.auth?.clientId as string | undefined) ?? null;
+  // accessToken: JWT do Supabase Auth (so existe se o user esta logado).
+  // Usado pra premiar trofeus_casual no fim da partida.
+  const accessToken = (socket.handshake.auth?.accessToken as string | undefined) ?? null;
   socket.data.clientId = clientId;
+  socket.data.authUserId = null;
   console.log(`[+] conectou: ${socket.id}${clientId ? ` (clientId ${clientId.slice(0, 8)}…)` : ""}`);
 
   // Resolve identidade persistente via Supabase (fire-and-forget — não
@@ -185,6 +194,18 @@ io.on("connection", (socket: TypedSocket) => {
       .catch((err) => {
         console.error(`[profile] falhou pra ${clientId.slice(0, 8)}…:`, err);
       });
+  }
+
+  // Resolve authUserId (JWT) em paralelo. Vai estar disponivel antes do
+  // createRoom/joinRoom em casos normais (latencia Supabase << UX humana).
+  // Se chegar tarde, o socket cria sala como anonimo — aceitavel.
+  if (accessToken) {
+    void resolveAuthUser(accessToken).then((uid) => {
+      socket.data.authUserId = uid;
+      if (uid) {
+        console.log(`[auth] socket ${socket.id} = user ${uid.slice(0, 8)}…`);
+      }
+    });
   }
 
   // Reanchor: cliente conhecido voltou a uma sala em andamento.
@@ -205,6 +226,7 @@ io.on("connection", (socket: TypedSocket) => {
       const room = createRoom({
         hostSocketId: socket.id,
         hostClientId: clientId,
+        hostAuthUserId: socket.data.authUserId,
         hostName: p.hostName,
         color: p.color,
         isPrivate: p.isPrivate,
@@ -223,6 +245,7 @@ io.on("connection", (socket: TypedSocket) => {
       const room = joinRoom({
         socketId: socket.id,
         clientId,
+        authUserId: socket.data.authUserId,
         playerName: p.playerName,
         code: p.code,
         password: p.password,
@@ -232,7 +255,6 @@ io.on("connection", (socket: TypedSocket) => {
 
       broadcastGameStart(room);
       // Se a sala era de bot, ele é P1 e começa (50% das vezes via random).
-      // Espera o countdown terminar antes de agendar a jogada do bot.
       maybeScheduleBotMove(room);
       return toRoomDetail(room, socket.id);
     })(payload, socket, ack),
@@ -267,7 +289,6 @@ io.on("connection", (socket: TypedSocket) => {
       if (room.status !== "playing" || !room.gameState) {
         throw new LobbyError("internal-error", "sala não está em partida");
       }
-      // Block moves during countdown
       if (room.countdownEndsAt && Date.now() < room.countdownEndsAt) {
         throw new LobbyError("not-your-turn", "countdown ativo");
       }
@@ -296,6 +317,13 @@ io.on("connection", (socket: TypedSocket) => {
       if (result.state.winner !== null) {
         room.status = "finished";
         io.to(room.code).emit("gameOver", { winner: result.state.winner });
+        // Premia o vencedor se for um user logado (vale contra bot tambem).
+        const winnerPlayer = room.players.find(
+          (pl) => pl.enginePlayer === result.state.winner,
+        );
+        if (winnerPlayer?.authUserId) {
+          void awardCasualTrophy(winnerPlayer.authUserId, 1);
+        }
       }
 
       // Se o oponente é um bot e agora é a vez dele, agenda jogada.
