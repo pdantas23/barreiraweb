@@ -242,6 +242,9 @@ io.on("connection", (socket: TypedSocket) => {
   socket.on("createRoom", (payload, ack) =>
     rpc(async (p: typeof payload) => {
       const hostAuthUserId = await ensureAuthUserId(socket);
+      console.log(
+        `[createRoom] socket=${socket.id} clientId=${clientId ?? "null"} authUserId=${hostAuthUserId ?? "null"}`,
+      );
       const room = createRoom({
         hostSocketId: socket.id,
         hostClientId: clientId,
@@ -262,6 +265,9 @@ io.on("connection", (socket: TypedSocket) => {
   socket.on("joinRoom", (payload, ack) =>
     rpc(async (p: typeof payload) => {
       const authUserId = await ensureAuthUserId(socket);
+      console.log(
+        `[joinRoom] socket=${socket.id} clientId=${clientId ?? "null"} authUserId=${authUserId ?? "null"} sala=${p.code}`,
+      );
       const room = joinRoom({
         socketId: socket.id,
         clientId,
@@ -281,7 +287,14 @@ io.on("connection", (socket: TypedSocket) => {
   );
 
   socket.on("listRooms", (payload, ack) =>
-    rpc(async () => ({ rooms: listPublicRooms(await ensureAuthUserId(socket)) }))(payload, socket, ack),
+    rpc(async () => {
+      const uid = await ensureAuthUserId(socket);
+      const rooms = listPublicRooms(uid);
+      console.log(
+        `[listRooms] socket=${socket.id} clientId=${clientId ?? "null"} authUserId=${uid ?? "null"} returned=${rooms.length}`,
+      );
+      return { rooms };
+    })(payload, socket, ack),
   );
 
   socket.on("leaveRoom", (payload, ack) =>

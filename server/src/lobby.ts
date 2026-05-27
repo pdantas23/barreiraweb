@@ -258,11 +258,14 @@ export const joinRoom = (input: JoinInput): ServerRoom => {
   // Bloqueia mesma conta enfrentando a si própria — mesmo authUserId logado
   // em duas sessões/abas/dispositivos não pode pegar ambos os lados da sala.
   // Anônimos (authUserId=null) ficam liberados; bots têm authUserId=null por design.
-  if (
-    input.authUserId &&
-    room.players[0].authUserId &&
-    room.players[0].authUserId === input.authUserId
-  ) {
+  const hostAuth = room.players[0].authUserId;
+  const guestAuth = input.authUserId;
+  console.log(
+    `[self-match-check] sala=${code} host=${hostAuth ?? "null"} guest=${guestAuth ?? "null"} match=${
+      hostAuth && guestAuth && hostAuth === guestAuth ? "BLOCK" : "allow"
+    }`,
+  );
+  if (hostAuth && guestAuth && hostAuth === guestAuth) {
     throw new LobbyError("self-match");
   }
 
