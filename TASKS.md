@@ -6,6 +6,49 @@ Backlog vivo do Barreira. A ordem reflete prioridade — o que está no topo é 
 
 ## Próximas
 
+### 🚨 [Mobile] BLOQUEIO App Store — Rejeição 5.1.2(i) (26/05/2026)
+
+Submission `9fea6ee4-b6b7-4120-b25e-551967dc0628`, v1.0 (2), revisado em iPad Air 11" (M3).
+Apple alegou cookies + falta de ATT. Diagnóstico: o app não tem WebView/cookies/tracking/IDFA — o modal de "Política de Privacidade" do primeiro launch foi interpretado como cookie consent banner.
+
+**Já feito no código** (commit pendente):
+- Modal do primeiro launch removido em `mobile/app/index.tsx` (junto com `AsyncStorage`, `ScrollView`, estado `showPrivacy`, função `onAcceptPrivacy`, constante `PRIVACY_ACCEPTED_KEY` e estilo `privacyText`). Política continua acessível em Configurações → Política de Privacidade.
+- Verificado: `privacy.tsx` (nativa), `privacy.html` (web standalone) e `Privacy.tsx` (SPA) não mencionam cookies.
+
+**Próximos passos (manuais)**:
+
+1. **Auditar App Privacy em App Store Connect** — em "App Privacy", garantir que nada esteja marcado como "Cookies" ou "Identifiers for tracking". O único dado é `client_id` aleatório → marcar como "Data Not Linked to You" / "Not Used to Track You".
+2. **Bump de build no Expo** — incrementar `ios.buildNumber` (ou deixar o EAS auto-incrementar) e rodar `eas build --platform ios --profile production` no `mobile/`.
+3. **Submit** — `eas submit --platform ios --latest` (ou via App Store Connect).
+4. **Responder no Resolution Center** com o texto abaixo (em inglês, Apple reviewers respondem em inglês):
+
+```
+Hi App Review Team,
+
+Thank you for the detailed feedback. We want to clarify that Barreira does NOT track users and does NOT collect cookies. We believe the rejection was triggered by a misinterpretation of a privacy disclosure modal as a cookie consent prompt. We have removed it entirely in the new build (1.0, build 3) to eliminate any ambiguity.
+
+Specifically:
+
+1. NO WebView. The app contains no WebView component and does not load any external web content. The "Privacy Policy" screen is a fully native React Native screen (see app/privacy.tsx).
+
+2. NO cookies. The app does not set, read, or transmit cookies of any kind.
+
+3. NO tracking, NO analytics, NO advertising SDKs. The app does not use Google Analytics, Facebook SDK, AdMob, or any third-party tracking framework. We do not collect IDFA. We do not link any data to a user's identity, and we do not share data with third parties.
+
+4. Only data collected: a random session identifier (client_id) generated locally on the device to allow reconnection during online matches. It is not linked to user identity and is never used for tracking or advertising purposes. This is also reflected accurately in our App Privacy disclosure ("Data Not Used to Track You").
+
+5. What changed in build 3: the first-launch privacy disclosure modal — which we believe was misread as a cookie consent banner — has been removed. The Privacy Policy is still accessible at any time via Settings > Privacy Policy inside the app.
+
+Because we do not perform any user tracking as defined by Apple's policy, App Tracking Transparency is not applicable to this app.
+
+Please let us know if you need any additional clarification.
+
+Best regards,
+Barreira team
+```
+
+---
+
 1. **Modo Rankeada** — coluna `elo_ranqueada` separada (não reaproveitar `trofeus_casual`); pareamento por faixa; reset sazonal opcional.
 2. **Recuperação de senha via email (Supabase)** — botão "Esqueci minha senha" em `Login.tsx` que chama `supabase.auth.resetPasswordForEmail(email, { redirectTo: "<dominio>/reset-password" })`; nova rota/página `web/src/pages/ResetPassword.tsx` que lê o `access_token` do hash da URL e chama `supabase.auth.updateUser({ password })` pra finalizar a troca. No Supabase Dashboard: confirmar template de email em Authentication → Email Templates → "Reset Password" e a Site URL/Redirect URLs em Authentication → URL Configuration.
 3. **[Web] Não autoplay da música no menu** — abrir o site e ouvir música sem ter pedido é desconfortável e foge da convenção web (browsers inclusive bloqueiam autoplay com som). Mobile/app pode manter o comportamento atual (autoplay é convenção em jogo nativo). Opções de fix no web: (a) default `musicEnabled = false` em `web/src/state/audioSettings.tsx` (mais simples — usuário liga no modal de Configurações se quiser), OU (b) só iniciar a música após primeira interação do usuário (mais elaborado — guardar `hasUserInteracted` no `AudioSettingsProvider` e gatear o `useMenuMusic`), OU (c) remover `useMenuMusic` do `Home.tsx` web inteiramente. Recomendado: (a) — preserva o toggle existente em Configurações sem mudar arquitetura.
