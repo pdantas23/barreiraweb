@@ -174,6 +174,20 @@ setOnRematchAccepted((_room) => {
 
 // === Conexões ===
 
+// Devolve o authUserId do socket. Se a resolução em background ainda não
+// completou, dá await no resolveAuthUser (cache-hit é instantâneo). Isso
+// fecha a race em que createRoom/joinRoom rodam antes da resolução
+// async terminar — sem isso, o socket aparece como anônimo e o guard
+// de self-match não dispara.
+const ensureAuthUserId = async (socket: TypedSocket): Promise<string | null> => {
+  if (socket.data.authUserId) return socket.data.authUserId;
+  const token = socket.data.accessToken as string | null | undefined;
+  if (!token) return null;
+  const uid = await resolveAuthUser(token);
+  socket.data.authUserId = uid;
+  return uid;
+};
+
 io.on("connection", (socket: TypedSocket) => {
   // Cliente pode passar `auth.clientId` no handshake pra entrar em modo
   // "reconectável". Sem clientId é modo legado (volátil).
@@ -182,6 +196,7 @@ io.on("connection", (socket: TypedSocket) => {
   // Usado pra premiar trofeus_casual no fim da partida.
   const accessToken = (socket.handshake.auth?.accessToken as string | undefined) ?? null;
   socket.data.clientId = clientId;
+  socket.data.accessToken = accessToken;
   socket.data.authUserId = null;
   console.log(`[+] conectou: ${socket.id}${clientId ? ` (clientId ${clientId.slice(0, 8)}…)` : ""}`);
 
@@ -225,11 +240,12 @@ io.on("connection", (socket: TypedSocket) => {
   }
 
   socket.on("createRoom", (payload, ack) =>
-    rpc((p: typeof payload) => {
+    rpc(async (p: typeof payload) => {
+      const hostAuthUserId = await ensureAuthUserId(socket);
       const room = createRoom({
         hostSocketId: socket.id,
         hostClientId: clientId,
-        hostAuthUserId: socket.data.authUserId,
+        hostAuthUserId,
         hostName: p.hostName,
         color: p.color,
         isPrivate: p.isPrivate,
@@ -244,11 +260,12 @@ io.on("connection", (socket: TypedSocket) => {
   );
 
   socket.on("joinRoom", (payload, ack) =>
-    rpc((p: typeof payload) => {
+    rpc(async (p: typeof payload) => {
+      const authUserId = await ensureAuthUserId(socket);
       const room = joinRoom({
         socketId: socket.id,
         clientId,
-        authUserId: socket.data.authUserId,
+        authUserId,
         playerName: p.playerName,
         code: p.code,
         password: p.password,
@@ -264,7 +281,7 @@ io.on("connection", (socket: TypedSocket) => {
   );
 
   socket.on("listRooms", (payload, ack) =>
-    rpc(() => ({ rooms: listPublicRooms(socket.data.authUserId) }))(payload, socket, ack),
+    rpc(async () => ({ rooms: listPublicRooms(await ensureAuthUserId(socket)) }))(payload, socket, ack),
   );
 
   socket.on("leaveRoom", (payload, ack) =>

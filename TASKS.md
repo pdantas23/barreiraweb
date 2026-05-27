@@ -69,6 +69,11 @@ Barreira team
 
 ## Histórico
 
+### 2026-05-26 — Fix race do authUserId no handshake (self-match continuava furando)
+
+- Bug: `socket.data.authUserId` é setado via fire-and-forget após `resolveAuthUser` (HTTP pra Supabase). Se `createRoom`/`joinRoom` rodassem antes da resolução completar (refresh rápido, segundo socket logo após login), o handler via `null` e o guard de self-match não disparava — dois sockets do mesmo user passavam direto.
+- Fix (`server/src/index.ts`): novo helper `ensureAuthUserId(socket)` que devolve o `authUserId` em cache OU aguarda o `resolveAuthUser` inline (cache-hit é instantâneo, miss adiciona ~1 round-trip). `accessToken` agora é guardado em `socket.data.accessToken` pra resolver depois. Handlers `createRoom`, `joinRoom` e `listRooms` viraram async e chamam `await ensureAuthUserId(socket)` antes de criar/buscar sala.
+
 ### 2026-05-26 — Compartilhar sala via WhatsApp + auto-join por link
 
 - **Botão "Compartilhar no WhatsApp"** na tela de aguardando oponente (`web/src/pages/OnlineGame.tsx`): abre `wa.me/?text=...` com mensagem pré-preenchida ("Bora jogar Barreira? Sala: XYZ Senha: ABC Entre direto: https://barreirajogo.com/?join=XYZ&pw=ABC"). Botão secundário "Copiar link" usa `navigator.clipboard.writeText` com feedback "Copiado!" por 1.8s.
