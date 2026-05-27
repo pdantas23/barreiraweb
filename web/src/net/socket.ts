@@ -50,22 +50,45 @@ export const getSocket = (): AppSocket => {
       auth: (cb) => {
         void (async () => {
           const clientId = getClientId();
-          let { data } = await supabase.auth.getSession();
-          if (!data.session) {
+          const t0 = Date.now();
+          const first = await supabase.auth.getSession();
+          let session = first.data.session;
+          let refreshed = false;
+          let refreshError: string | null = null;
+          if (!session) {
             // Tenta forçar o SDK a carregar a sessão do storage / dar
             // refresh. Ignora erro silenciosamente — se não tem sessão
             // mesmo, segue como anônimo.
             try {
-              const refreshed = await supabase.auth.refreshSession();
-              if (refreshed.data.session) data = { session: refreshed.data.session };
-            } catch {
-              // sem sessão: usuário não logado, cb com accessToken=null
+              const r = await supabase.auth.refreshSession();
+              refreshed = true;
+              if (r.error) refreshError = r.error.message;
+              if (r.data.session) session = r.data.session;
+            } catch (err) {
+              refreshError = err instanceof Error ? err.message : String(err);
             }
           }
-          const accessToken = data.session?.access_token ?? null;
-          console.log(
-            `[socket-auth] clientId=${clientId} accessToken=${accessToken ? "present" : "null"}`,
-          );
+          // Snapshot do que existe no localStorage — pra distinguir "sem
+          // sessão" de "sessão lá mas SDK não conseguiu ler".
+          let lsKeys: string[] = [];
+          try {
+            lsKeys = Object.keys(localStorage).filter((k) => k.startsWith("sb-"));
+          } catch {
+            /* localStorage bloqueado (incognito etc) — segue */
+          }
+          const accessToken = session?.access_token ?? null;
+          console.log("[socket-auth]", {
+            clientId,
+            hasToken: !!accessToken,
+            tokenSnippet: accessToken ? `${accessToken.slice(0, 20)}…` : null,
+            sessionUserId: session?.user?.id ?? null,
+            sessionExpiresAt: session?.expires_at ?? null,
+            firstSessionFound: !!first.data.session,
+            refreshed,
+            refreshError,
+            sbStorageKeys: lsKeys,
+            ms: Date.now() - t0,
+          });
           cb({ clientId, accessToken });
         })();
       },
@@ -92,7 +115,14 @@ export const disconnectSocket = () => {
 // (mid-handshake) com auth stale, só chamar connect() é no-op e o
 // handshake antigo termina com auth desatualizado.
 export const reconnectSocket = () => {
-  if (!socket) return;
+  if (!socket) {
+    console.log("[reconnectSocket] socket ainda não criado — no-op");
+    return;
+  }
+  console.log("[reconnectSocket] forçando disconnect+connect, estado atual:", {
+    connected: socket.connected,
+    id: socket.id,
+  });
   socket.disconnect();
   socket.connect();
 };

@@ -71,6 +71,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     });
 
     const { data: sub } = supabase.auth.onAuthStateChange((event, sess) => {
+      console.log("[auth-state-change]", {
+        event,
+        hasSession: !!sess,
+        userId: sess?.user?.id ?? null,
+      });
       setSession(sess);
       // Login/logout/refresh muda o JWT que o socket usa pra premiar
       // trofeus. Re-conecta pra o server receber o token atualizado.
