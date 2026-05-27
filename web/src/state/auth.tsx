@@ -74,7 +74,18 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       setSession(sess);
       // Login/logout/refresh muda o JWT que o socket usa pra premiar
       // trofeus. Re-conecta pra o server receber o token atualizado.
-      if (event === "SIGNED_IN" || event === "SIGNED_OUT" || event === "TOKEN_REFRESHED") {
+      //
+      // INITIAL_SESSION é crítico: dispara quando o SDK termina de carregar
+      // a sessão persistida no localStorage. Se o socket já tinha conectado
+      // antes disso (race comum em cold start), o handshake foi feito como
+      // anônimo — sem reconnect aqui, o user fica "anônimo" pro server até
+      // o próximo SIGNED_IN/TOKEN_REFRESHED, e a guarda de self-match falha.
+      if (
+        event === "SIGNED_IN" ||
+        event === "SIGNED_OUT" ||
+        event === "TOKEN_REFRESHED" ||
+        event === "INITIAL_SESSION"
+      ) {
         reconnectSocket();
       }
     });
