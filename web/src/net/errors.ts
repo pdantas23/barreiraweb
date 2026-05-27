@@ -32,6 +32,11 @@ export const errorInfo = (err: string): ErrorInfo => {
         title: "Você já está numa sala",
         message: "Saia da partida atual antes de entrar em outra.",
       };
+    case "self-match":
+      return {
+        title: "Você não pode jogar contra si mesmo",
+        message: "Essa sala foi criada pela sua própria conta em outra sessão.",
+      };
     case "not-in-room":
       return {
         title: "Sala não encontrada",

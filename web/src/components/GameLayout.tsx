@@ -136,7 +136,7 @@ export function GameLayout({
           {/* Board */}
           <div className="flex-1 flex justify-center items-center">
             <div style={flipped ? { transform: "rotate(180deg)" } : undefined}>
-              <Board state={state} validMoves={validMoves} ghost={ghost} ghostInvalid={ghostInvalid} showBlockedToast={showBlockedToast} onSquareTap={onSquareTap} boardRef={boardRef} layout={layout} />
+              <Board state={state} validMoves={validMoves} ghost={ghost} ghostInvalid={ghostInvalid} showBlockedToast={showBlockedToast} onSquareTap={onSquareTap} boardRef={boardRef} layout={layout} flipped={flipped} />
             </div>
           </div>
 

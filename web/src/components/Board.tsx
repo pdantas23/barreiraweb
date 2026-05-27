@@ -23,6 +23,7 @@ type Props = {
   onSquareTap: (index: number) => void;
   boardRef: React.RefObject<HTMLDivElement | null>;
   layout: BoardLayout;
+  flipped?: boolean;
 };
 
 const piecePos = (index: number, layout: BoardLayout) => {
@@ -44,6 +45,7 @@ export const Board = ({
   onSquareTap,
   boardRef,
   layout,
+  flipped = false,
 }: Props) => {
 
   const squares: ReactElement[] = [];
@@ -172,6 +174,7 @@ export const Board = ({
           <BlockedPathToast
             visible={showBlockedToast}
             position={ghost && ghost.interRow < 4 ? "bottom" : "top"}
+            flipped={flipped}
           />
         </div>
       </div>

@@ -25,7 +25,7 @@ import {
   IoShieldCheckmark,
   IoVolumeHigh,
 } from "react-icons/io5";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import type { ColorChoice, PublicRoom } from "@barreira/shared";
 import { CreateRoomModal, type CreateRoomConfig } from "../components/CreateRoomModal";
 import { JoinByCodeModal } from "../components/JoinByCodeModal";
@@ -94,6 +94,8 @@ const errorInfo = (err: string): FriendlyError => {
       return { title: "Senha incorreta", message: "A senha digitada nao confere com a dessa sala. Confirme com quem criou a partida." };
     case "already-in-room":
       return { title: "Voce ja esta numa sala", message: "Saia da sala atual antes de entrar em outra." };
+    case "self-match":
+      return { title: "Voce nao pode jogar contra si mesmo", message: "Essa sala foi criada pela sua propria conta em outra sessao. Procure outra sala ou crie uma nova." };
     case "internal-error":
       return { title: "Sem conexao", message: "Nao conseguimos falar com o servidor agora. Verifique sua internet e tente de novo." };
     default:
@@ -169,6 +171,33 @@ export default function HomeScreen() {
     const sp = new URLSearchParams(params);
     navigate(`/online-game?${sp.toString()}`);
   };
+
+  // === Deep-link: alguém abriu /?join=CODE[&pw=PWD] (ex: link compartilhado
+  // por WhatsApp). Auto-entra na sala — se for self-match, o popup de erro
+  // padrão cuida da mensagem. Limpa os params da URL pra um refresh não
+  // re-disparar o join.
+  const [searchParams, setSearchParams] = useSearchParams();
+  const autoJoinCode = searchParams.get("join");
+  const autoJoinPw = searchParams.get("pw");
+  useEffect(() => {
+    if (!autoJoinCode) return;
+    const code = autoJoinCode.toUpperCase().trim();
+    const pw = autoJoinPw ?? undefined;
+    setSearchParams({}, { replace: true });
+    (async () => {
+      setBusy(true);
+      const res = await joinRoom({ code, playerName, password: pw });
+      setBusy(false);
+      if (!res.ok) {
+        showError(res);
+        return;
+      }
+      const params: Record<string, string> = { role: "guest", code };
+      if (pw) params.password = pw;
+      goToOnlineGame(params);
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoJoinCode, autoJoinPw]);
 
   const onJoinRoom = async (room: PublicRoom) => {
     playButtonSound();

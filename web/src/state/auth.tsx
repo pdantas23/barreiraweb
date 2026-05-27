@@ -39,6 +39,10 @@ type AuthState = {
   signOut: () => Promise<void>;
   /** Re-busca trofeus_casual do banco. Chamar apos cada vitoria casual. */
   refreshTrofeus: () => Promise<void>;
+  /** Envia email com link para resetar senha (redireciona pra /reset-password). */
+  sendPasswordReset: (email: string) => Promise<{ ok: true } | { ok: false; error: string }>;
+  /** Troca a senha do user logado. Chamado pela tela /reset-password depois do link. */
+  updatePassword: (newPassword: string) => Promise<{ ok: true } | { ok: false; error: string }>;
 };
 
 type SignUpParams = {
@@ -163,6 +167,33 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     await supabase.auth.signOut();
   };
 
+  const sendPasswordReset = async (
+    email: string,
+  ): Promise<{ ok: true } | { ok: false; error: string }> => {
+    const input = email.trim();
+    if (!input) return { ok: false, error: "Informe seu email." };
+    const { error } = await supabase.auth.resetPasswordForEmail(input, {
+      redirectTo: `${window.location.origin}/reset-password`,
+    });
+    if (error) {
+      return { ok: false, error: translateError(error.message) };
+    }
+    return { ok: true };
+  };
+
+  const updatePassword = async (
+    newPassword: string,
+  ): Promise<{ ok: true } | { ok: false; error: string }> => {
+    if (newPassword.length < 6) {
+      return { ok: false, error: "A senha precisa ter pelo menos 6 caracteres." };
+    }
+    const { error } = await supabase.auth.updateUser({ password: newPassword });
+    if (error) {
+      return { ok: false, error: translateError(error.message) };
+    }
+    return { ok: true };
+  };
+
   const user = session?.user ?? null;
   const username = (user?.user_metadata?.username as string | undefined) ?? null;
 
@@ -178,6 +209,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         signIn,
         signOut,
         refreshTrofeus,
+        sendPasswordReset,
+        updatePassword,
       }}
     >
       {children}

@@ -16,6 +16,8 @@ import Login from "./pages/Login";
 import Cadastro from "./pages/Cadastro";
 import Termos from "./pages/Termos";
 import Profile from "./pages/Profile";
+import ForgotPassword from "./pages/ForgotPassword";
+import ResetPassword from "./pages/ResetPassword";
 
 // Bootstrap clientId synchronously (localStorage is sync)
 initClientId();
@@ -54,6 +56,8 @@ export const App = () => {
                 <Route path="/cadastro" element={<Cadastro />} />
                 <Route path="/termos" element={<Termos />} />
                 <Route path="/perfil" element={<Profile />} />
+                <Route path="/esqueci-senha" element={<ForgotPassword />} />
+                <Route path="/reset-password" element={<ResetPassword />} />
               </Routes>
               <DragOverlayRenderer />
             </ProfileProvider>

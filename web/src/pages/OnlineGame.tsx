@@ -1,4 +1,5 @@
-import { IoAlertCircle, IoChevronBack, IoExitOutline, IoFlagOutline } from "react-icons/io5";
+import { IoAlertCircle, IoChevronBack, IoExitOutline, IoFlagOutline, IoLogoWhatsapp, IoCopy } from "react-icons/io5";
+import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { ConfirmModal } from "../components/ConfirmModal";
 import { CountdownOverlay } from "../components/CountdownOverlay";
@@ -18,9 +19,48 @@ const L = {
   bgBottom: "#E8EEF8",
 };
 
+// Monta o link compartilhável que dispara auto-join na Home.
+// Quem clicar no link cai em "/" com ?join=CODE&pw=PW; a Home detecta
+// e chama joinRoom direto, redirecionando pra /online-game.
+const buildShareUrl = (code: string, password: string | null): string => {
+  const base = window.location.origin;
+  const params = new URLSearchParams({ join: code });
+  if (password) params.set("pw", password);
+  return `${base}/?${params.toString()}`;
+};
+
+const buildWhatsAppText = (code: string, password: string | null): string => {
+  const url = buildShareUrl(code, password);
+  const lines = [
+    "Bora jogar Barreira?",
+    `Sala: ${code}`,
+    ...(password ? [`Senha: ${password}`] : []),
+    `Entre direto: ${url}`,
+  ];
+  return lines.join("\n");
+};
+
 export default function OnlineGameScreen() {
   const game = useOnlineGame();
   const navigate = useNavigate();
+  const [copied, setCopied] = useState(false);
+
+  const onShareWhatsApp = () => {
+    const text = buildWhatsAppText(game.code, game.password ?? null);
+    const wa = `https://wa.me/?text=${encodeURIComponent(text)}`;
+    window.open(wa, "_blank", "noopener,noreferrer");
+  };
+
+  const onCopyLink = async () => {
+    const url = buildShareUrl(game.code, game.password ?? null);
+    try {
+      await navigator.clipboard.writeText(url);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1800);
+    } catch {
+      // Clipboard pode falhar em contexto não-seguro (http) — silencia.
+    }
+  };
 
   // Waiting screen (before game starts)
   if (!game.ready) {
@@ -66,6 +106,48 @@ export default function OnlineGameScreen() {
                   </div>
                 </>
               )}
+
+              <div style={{ display: "flex", gap: 10, marginTop: 28, flexWrap: "wrap", justifyContent: "center" }}>
+                <button
+                  onClick={onShareWhatsApp}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 8,
+                    padding: "12px 18px",
+                    borderRadius: 12,
+                    background: "#25D366",
+                    border: "none",
+                    color: L.white,
+                    fontWeight: 800,
+                    fontSize: 14,
+                    cursor: "pointer",
+                    boxShadow: "0 4px 12px rgba(37,211,102,0.3)",
+                  }}
+                >
+                  <IoLogoWhatsapp size={20} />
+                  Compartilhar no WhatsApp
+                </button>
+                <button
+                  onClick={onCopyLink}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 8,
+                    padding: "12px 18px",
+                    borderRadius: 12,
+                    background: L.white,
+                    border: `1px solid ${L.border}`,
+                    color: L.navy,
+                    fontWeight: 700,
+                    fontSize: 14,
+                    cursor: "pointer",
+                  }}
+                >
+                  <IoCopy size={18} />
+                  {copied ? "Copiado!" : "Copiar link"}
+                </button>
+              </div>
             </>
           )}
         </div>

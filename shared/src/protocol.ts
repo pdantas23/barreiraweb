@@ -119,6 +119,7 @@ export type RpcError =
   | "game-not-over"
   | "rematch-already-pending"
   | "no-rematch-pending"
+  | "self-match"
   | "invalid-payload"
   | "internal-error";
 

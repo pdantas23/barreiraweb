@@ -50,8 +50,6 @@ Barreira team
 ---
 
 1. **Modo Rankeada** — coluna `elo_ranqueada` separada (não reaproveitar `trofeus_casual`); pareamento por faixa; reset sazonal opcional.
-2. **Recuperação de senha via email (Supabase)** — botão "Esqueci minha senha" em `Login.tsx` que chama `supabase.auth.resetPasswordForEmail(email, { redirectTo: "<dominio>/reset-password" })`; nova rota/página `web/src/pages/ResetPassword.tsx` que lê o `access_token` do hash da URL e chama `supabase.auth.updateUser({ password })` pra finalizar a troca. No Supabase Dashboard: confirmar template de email em Authentication → Email Templates → "Reset Password" e a Site URL/Redirect URLs em Authentication → URL Configuration.
-3. **[Web] Não autoplay da música no menu** — abrir o site e ouvir música sem ter pedido é desconfortável e foge da convenção web (browsers inclusive bloqueiam autoplay com som). Mobile/app pode manter o comportamento atual (autoplay é convenção em jogo nativo). Opções de fix no web: (a) default `musicEnabled = false` em `web/src/state/audioSettings.tsx` (mais simples — usuário liga no modal de Configurações se quiser), OU (b) só iniciar a música após primeira interação do usuário (mais elaborado — guardar `hasUserInteracted` no `AudioSettingsProvider` e gatear o `useMenuMusic`), OU (c) remover `useMenuMusic` do `Home.tsx` web inteiramente. Recomendado: (a) — preserva o toggle existente em Configurações sem mudar arquitetura.
 
 > [AdSense] revisão já solicitada no painel em 2026-05-26 — aguardando resposta do Google (2–7 dias). Se aprovado, slot `9953596385` já está ativo em `web/src/ads/adsConfig.ts:24`. Se rejeitado de novo, anotar o motivo aqui e abrir nova task.
 
@@ -70,6 +68,19 @@ Barreira team
 ---
 
 ## Histórico
+
+### 2026-05-26 — Compartilhar sala via WhatsApp + auto-join por link
+
+- **Botão "Compartilhar no WhatsApp"** na tela de aguardando oponente (`web/src/pages/OnlineGame.tsx`): abre `wa.me/?text=...` com mensagem pré-preenchida ("Bora jogar Barreira? Sala: XYZ Senha: ABC Entre direto: https://barreirajogo.com/?join=XYZ&pw=ABC"). Botão secundário "Copiar link" usa `navigator.clipboard.writeText` com feedback "Copiado!" por 1.8s.
+- **Auto-join via deep-link** (`web/src/pages/Home.tsx`): nova lógica detecta `?join=CODE[&pw=PWD]` na URL da Home, chama `joinRoom` automaticamente e redireciona pra `/online-game`. Self-match cai no popup existente (`errorPopup` via `errorInfo("self-match")`). Params são limpos da URL via `setSearchParams({}, { replace: true })` pra um refresh não re-disparar o join.
+
+### 2026-05-26 — Bugs online: self-match, timer da revanche, trofeu, toast invertido + reset de senha
+
+- **Self-match bloqueado** (`server/src/lobby.ts`): `joinRoom` agora rejeita com `self-match` quando `input.authUserId` bate com o `authUserId` do host. `listPublicRooms(excludeAuthUserId)` ganhou filtro pra esconder as próprias salas da lista de quick-play. Novo código `self-match` em `shared/src/protocol.ts` (`RpcError`), com mensagens amigáveis em `web/src/net/errors.ts` e `Home.tsx`.
+- **Timer da revanche resetando** (`web/src/hooks/useOnlineGame.ts`): o `resetTimers` retornado por `useGameTimers` estava destructurado como `_resetTimers` — efetivamente unused. Agora é capturado via ref e chamado no `onGameStart`, então a revanche começa com tempo cheio e zera o `timedOutPlayer`.
+- **Trofeu na revanche (race condition)** (`server/src/index.ts`): `awardCasualTrophy` era chamado com `void` (fire-and-forget) DEPOIS do `io.emit("gameOver")`. O cliente recebia o evento e chamava `refreshTrofeus` antes do INSERT terminar — lia o valor stale. Agora o handler de `move` é `async` e dá `await` no `awardCasualTrophy` antes do emit; mesma mudança no callback de timeout (W.O.).
+- **Toast "Caminho bloqueado" invertido pro P2** (`web/src/components/BlockedPathToast.tsx`, `Board.tsx`, `GameLayout.tsx`): o `<Board>` é rotacionado 180° pro player 2 em `GameLayout`, e o `BlockedPathToast` (filho do Board) herdava a rotação — texto saía de cabeça pra baixo. Adicionado prop `flipped` que aplica `transform: rotate(180deg)` no container do toast pra contra-rotacionar.
+- **Reset de senha via email** (Supabase): nova `useAuth().sendPasswordReset(email)` e `useAuth().updatePassword(newPassword)`. Botão "Esqueci minha senha" no `Login.tsx` → `/esqueci-senha` (nova página `ForgotPassword.tsx`) → `supabase.auth.resetPasswordForEmail` com `redirectTo: <origin>/reset-password`. Nova página `ResetPassword.tsx` escuta `PASSWORD_RECOVERY` do `onAuthStateChange`, valida sessão temporária, e chama `supabase.auth.updateUser({ password })`. Rotas registradas em `App.tsx`. Supabase Dashboard configurado (Redirect URL + email template).
 
 ### 2026-05-26 — Deploy: SPA pra barreirajogo.com + nginx + prerender + drop-in
 

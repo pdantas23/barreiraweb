@@ -108,7 +108,7 @@ export function useOnlineGame() {
   const myPlayer: PlayerId = meta?.yourEnginePlayer ?? 1;
   const opponentPlayer: PlayerId = myPlayer === 1 ? 2 : 1;
 
-  const { p1TimeMs, p2TimeMs, timedOutPlayer, resetTimers: _resetTimers } = useGameTimers(
+  const { p1TimeMs, p2TimeMs, timedOutPlayer, resetTimers } = useGameTimers(
     state?.turn ?? 1,
     state?.winner ?? null,
     countdownActive,
@@ -146,6 +146,8 @@ export function useOnlineGame() {
   myPlayerRef.current = myPlayer;
   const refreshTrofeusRef = useRef(refreshTrofeus);
   refreshTrofeusRef.current = refreshTrofeus;
+  const resetTimersRef = useRef(resetTimers);
+  resetTimersRef.current = resetTimers;
 
   // Socket events
   useEffect(() => {
@@ -169,6 +171,10 @@ export function useOnlineGame() {
       setRematchExpiresAt(0);
       setRematchRequesterName("");
       setGameOverReason("goal");
+      // Zera os timers — sem isso, a revanche herda o tempo restante
+      // da partida anterior (e o timedOutPlayer ficaria fixo se o jogo
+      // tivesse terminado por estouro).
+      resetTimersRef.current();
     };
     const onStateUpdate = (payload: StateUpdatePayload) => {
       setState(deserializeState(payload.state));

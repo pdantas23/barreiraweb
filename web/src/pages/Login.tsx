@@ -69,6 +69,12 @@ export default function LoginPage() {
             {submitting ? "Entrando..." : "Entrar"}
           </button>
 
+          <div className="text-center text-[13px]">
+            <Link to="/esqueci-senha" className="text-brand font-semibold underline">
+              Esqueci minha senha
+            </Link>
+          </div>
+
           <div className="text-center text-[13px] text-muted">
             Nao tem conta?{" "}
             <Link to="/cadastro" className="text-brand font-semibold underline">

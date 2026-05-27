@@ -143,7 +143,7 @@ const sendGameStartTo = (room: ServerRoom, me: ServerPlayer) => {
 };
 
 // Callback: timer de desconexão estourou — quem sobrou vence por W.O.
-setOnPlayerTimeout((_clientId, room, remaining) => {
+setOnPlayerTimeout(async (_clientId, room, remaining) => {
   if (remaining.length === 1 && room.gameState) {
     const winner = remaining[0].enginePlayer;
     console.log(
@@ -152,12 +152,13 @@ setOnPlayerTimeout((_clientId, room, remaining) => {
     // Marca winner no state pra UI mostrar gameOver coerente.
     room.gameState = { ...room.gameState, winner };
     io.to(room.code).emit("stateUpdate", { state: serializeState(room.gameState) });
+    // Premia o vencedor logado (W.O. conta como vitoria casual) ANTES
+    // do emit, pra refreshTrofeus do cliente não ler valor stale.
+    if (remaining[0].authUserId) {
+      await awardCasualTrophy(remaining[0].authUserId, 1);
+    }
     io.to(room.code).emit("gameOver", { winner });
     io.to(room.code).emit("opponentLeft");
-    // Premia o vencedor logado (W.O. conta como vitoria casual).
-    if (remaining[0].authUserId) {
-      void awardCasualTrophy(remaining[0].authUserId, 1);
-    }
   }
 });
 
@@ -263,7 +264,7 @@ io.on("connection", (socket: TypedSocket) => {
   );
 
   socket.on("listRooms", (payload, ack) =>
-    rpc(() => ({ rooms: listPublicRooms() }))(payload, socket, ack),
+    rpc(() => ({ rooms: listPublicRooms(socket.data.authUserId) }))(payload, socket, ack),
   );
 
   socket.on("leaveRoom", (payload, ack) =>
@@ -284,7 +285,7 @@ io.on("connection", (socket: TypedSocket) => {
   // applyMove aceita. Qualquer "não" devolve erro tipado pelo ack, e o
   // estado não é modificado. Cliente nunca consegue avançar sem o "ok" daqui.
   socket.on("move", (payload, ack) =>
-    rpc((p: typeof payload) => {
+    rpc(async (p: typeof payload) => {
       const room = getRoomBySocket(socket.id);
       if (!room) throw new LobbyError("not-in-room");
       if (room.status === "finished") throw new LobbyError("game-over");
@@ -318,14 +319,17 @@ io.on("connection", (socket: TypedSocket) => {
       // Vitória? Fecha a sala e dispara gameOver.
       if (result.state.winner !== null) {
         room.status = "finished";
-        io.to(room.code).emit("gameOver", { winner: result.state.winner });
-        // Premia o vencedor se for um user logado (vale contra bot tambem).
+        // Premia o vencedor ANTES do emit pra evitar race com o
+        // refreshTrofeus do cliente: o client recebe gameOver e lê
+        // a tabela imediatamente — se o increment ainda não tiver
+        // commitado, ele puxa valor stale.
         const winnerPlayer = room.players.find(
           (pl) => pl.enginePlayer === result.state.winner,
         );
         if (winnerPlayer?.authUserId) {
-          void awardCasualTrophy(winnerPlayer.authUserId, 1);
+          await awardCasualTrophy(winnerPlayer.authUserId, 1);
         }
+        io.to(room.code).emit("gameOver", { winner: result.state.winner });
       }
 
       // Se o oponente é um bot e agora é a vez dele, agenda jogada.

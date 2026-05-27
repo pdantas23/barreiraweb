@@ -3,9 +3,10 @@ import { gc } from "../gameColors";
 type Props = {
   visible: boolean;
   position: "top" | "bottom";
+  flipped?: boolean;
 };
 
-export const BlockedPathToast = ({ visible, position }: Props) => {
+export const BlockedPathToast = ({ visible, position, flipped = false }: Props) => {
   if (!visible) return null;
 
   return (
@@ -18,6 +19,10 @@ export const BlockedPathToast = ({ visible, position }: Props) => {
         zIndex: 50,
         pointerEvents: "none",
         animation: "fadeIn 120ms ease-out",
+        // O board é rotacionado 180° pro P2 em GameLayout, e o toast é
+        // filho do board — sem counter-rotation, o texto saía de cabeça
+        // pra baixo na visão do P2.
+        transform: flipped ? "rotate(180deg)" : undefined,
       }}
     >
       <div

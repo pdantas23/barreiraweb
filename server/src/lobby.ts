@@ -255,6 +255,16 @@ export const joinRoom = (input: JoinInput): ServerRoom => {
   if (room.isPrivate && room.password !== input.password) {
     throw new LobbyError("wrong-password");
   }
+  // Bloqueia mesma conta enfrentando a si própria — mesmo authUserId logado
+  // em duas sessões/abas/dispositivos não pode pegar ambos os lados da sala.
+  // Anônimos (authUserId=null) ficam liberados; bots têm authUserId=null por design.
+  if (
+    input.authUserId &&
+    room.players[0].authUserId &&
+    room.players[0].authUserId === input.authUserId
+  ) {
+    throw new LobbyError("self-match");
+  }
 
   // Resolve cores agora que sabemos os 2 jogadores.
   const hostColor = resolveColor(room.hostColor);
@@ -318,10 +328,17 @@ export const getRoomBySocket = (socketId: string): ServerRoom | null => {
   return rooms.get(code) ?? null;
 };
 
-export const listPublicRooms = (): PublicRoom[] => {
+export const listPublicRooms = (excludeAuthUserId: string | null = null): PublicRoom[] => {
   const out: PublicRoom[] = [];
   for (const room of rooms.values()) {
     if (room.status !== "waiting") continue;
+    // Esconde salas do próprio usuário logado pra evitar self-match.
+    if (
+      excludeAuthUserId &&
+      room.players[0]?.authUserId === excludeAuthUserId
+    ) {
+      continue;
+    }
     out.push(toPublicRoom(room));
   }
   return out;
