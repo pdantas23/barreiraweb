@@ -8,6 +8,11 @@ export const INITIAL_P2 = 4; // linha 0, col 4 (base de cima)
 
 export const WALLS_PER_PLAYER = 10;
 
+// Tempo total por jogador (Fischer clock client-side). Centralizado aqui
+// pra web e mobile resetarem com o mesmo limite — sem isso os dois lados
+// dessincronizam (um termina antes do outro).
+export const GAME_TIME_TOTAL_MS = 300_000; // 5 minutos por jogador
+
 export const row = (index: number): number => Math.floor(index / BOARD_SIZE);
 export const col = (index: number): number => index % BOARD_SIZE;
 export const at = (r: number, c: number): number => r * BOARD_SIZE + c;

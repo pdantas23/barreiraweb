@@ -545,6 +545,51 @@ const startRematch = (room: ServerRoom) => {
   room.rematch = null;
 };
 
+// === Rematch — variantes pra bot ===
+//
+// `requestRematch`/`respondRematch` validam via socketId + clientId, mas
+// bots têm clientId=null E socketId fake (não estão em socketToRoom).
+// Estas variantes recebem `room` direto e pulam essas guardas. Caller
+// (index.ts) é responsável por emitir os eventos pros sockets reais.
+
+/** Bot aceita o rematch que um humano pediu. Caller deve broadcastGameStart. */
+export const acceptRematchAsBot = (room: ServerRoom): void => {
+  if (!room.rematch) throw new LobbyError("no-rematch-pending");
+  clearRematch(room);
+  startRematch(room);
+  if (onRematchAcceptedCb) onRematchAcceptedCb(room);
+};
+
+/**
+ * Bot inicia um pedido de revanche. Seta `room.rematch.requestedBy` com
+ * um id sintético (`bot:<code>`) que nunca colide com clientId real, pra
+ * o `respondRematch` do humano (que checa `!== me.clientId`) funcionar
+ * normalmente. Caller deve emitir `rematchRequested` pro socket do humano.
+ */
+export const requestRematchAsBot = (
+  room: ServerRoom,
+  botName: string,
+): { expiresAt: number; fromName: string } | null => {
+  if (room.status !== "finished") return null;
+  if (room.players.length < 2) return null;
+  if (room.rematch) return null; // alguém já pediu — não duplica
+
+  const now = Date.now();
+  const expiresAt = now + REMATCH_TIMEOUT_MS;
+  const timer = setTimeout(() => {
+    room.rematch = null;
+    if (onRematchExpiredCb) onRematchExpiredCb(room);
+  }, REMATCH_TIMEOUT_MS);
+
+  room.rematch = {
+    requestedBy: `bot:${room.code}`,
+    requestedAt: now,
+    expiresAt,
+    timer,
+  };
+  return { expiresAt, fromName: botName };
+};
+
 export const getRematchTimeoutMs = () => REMATCH_TIMEOUT_MS;
 
 // === Erro tipado ===

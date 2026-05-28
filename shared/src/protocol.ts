@@ -68,6 +68,11 @@ export type GameStartPayload = {
   // Timestamp (ms) a partir do qual o countdown de 3s começa.
   // Ambos os clientes calculam o restante com base nesse valor.
   countdownStartsAt: number;
+  // Tempo total por jogador na partida (Fischer clock). Server é a fonte da
+  // verdade — sem isso, web e mobile podem dessincronizar se uma versão
+  // deployada tiver hardcoded diferente. Opcional pra retrocompat com client
+  // antigo (que cai pra constante local GAME_TIME_TOTAL_MS).
+  timeTotalMs?: number;
 };
 
 export type StateUpdatePayload = {

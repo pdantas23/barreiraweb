@@ -119,6 +119,7 @@ export default function OnlineGameScreen() {
     state?.turn ?? 1,
     state?.winner ?? null,
     countdownActive,
+    meta?.timeTotalMs,
   );
 
   const [gameOverReason, setGameOverReason] = useState<GameOverReason>("goal");

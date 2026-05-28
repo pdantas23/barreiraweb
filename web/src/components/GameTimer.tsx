@@ -1,13 +1,15 @@
 import { useEffect, useRef, useState } from "react";
+import { GAME_TIME_TOTAL_MS } from "@barreira/shared";
 import { gc } from "../gameColors";
 
-const TOTAL_TIME_MS = 180_000;
 const DANGER_THRESHOLD_MS = 30_000;
 
 type Props = {
   timeRemainingMs: number;
   isActive: boolean;
   isPlayer: boolean;
+  /** Tempo total da partida em ms. Server manda no gameStart; default = constante shared. */
+  timeTotalMs?: number;
 };
 
 const formatTime = (ms: number): string => {
@@ -17,8 +19,8 @@ const formatTime = (ms: number): string => {
   return `${min}:${sec.toString().padStart(2, "0")}`;
 };
 
-export const GameTimer = ({ timeRemainingMs, isActive, isPlayer }: Props) => {
-  const fraction = Math.max(0, Math.min(1, timeRemainingMs / TOTAL_TIME_MS));
+export const GameTimer = ({ timeRemainingMs, isActive, isPlayer, timeTotalMs = GAME_TIME_TOTAL_MS }: Props) => {
+  const fraction = Math.max(0, Math.min(1, timeRemainingMs / timeTotalMs));
   const isDanger = timeRemainingMs <= DANGER_THRESHOLD_MS;
   const baseColor = isPlayer ? gc.blue : gc.red;
   const baseGradient: readonly [string, string] = isPlayer ? gc.timerBarFill : [gc.red, gc.redLight];
@@ -93,9 +95,17 @@ export const useGameTimers = (
   turn: 1 | 2,
   winner: 1 | 2 | null,
   countdownActive: boolean,
+  // Tempo total enviado pelo server no gameStart. Caller passa undefined em
+  // partidas locais (sem server) — daí cai pra constante shared.
+  timeTotalMs?: number,
 ) => {
-  const [p1TimeMs, setP1TimeMs] = useState(TOTAL_TIME_MS);
-  const [p2TimeMs, setP2TimeMs] = useState(TOTAL_TIME_MS);
+  const total = timeTotalMs ?? GAME_TIME_TOTAL_MS;
+  // Ref pra resetTimers sempre ler o valor mais recente do server, mesmo
+  // que a partida tenha começado com fallback (race do gameStart com mount).
+  const totalRef = useRef(total);
+  totalRef.current = total;
+  const [p1TimeMs, setP1TimeMs] = useState(total);
+  const [p2TimeMs, setP2TimeMs] = useState(total);
   const [timedOutPlayer, setTimedOutPlayer] = useState<1 | 2 | null>(null);
   const lastTickRef = useRef<number>(Date.now());
 
@@ -133,8 +143,8 @@ export const useGameTimers = (
   }, [turn, winner, countdownActive, timedOutPlayer]);
 
   const resetTimers = () => {
-    setP1TimeMs(TOTAL_TIME_MS);
-    setP2TimeMs(TOTAL_TIME_MS);
+    setP1TimeMs(totalRef.current);
+    setP2TimeMs(totalRef.current);
     setTimedOutPlayer(null);
     lastTickRef.current = Date.now();
   };

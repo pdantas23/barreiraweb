@@ -16,6 +16,7 @@ import { createServer } from "node:http";
 import { Server, type Socket } from "socket.io";
 import {
   applyMove,
+  GAME_TIME_TOTAL_MS,
   serializeState,
   type ClientToServerEvents,
   type GameStartPayload,
@@ -25,6 +26,7 @@ import {
 } from "@barreira/shared";
 import {
   LobbyError,
+  acceptRematchAsBot,
   attemptReanchor,
   clearRematch,
   createRoom,
@@ -34,6 +36,7 @@ import {
   listPublicRooms,
   markDisconnected,
   requestRematch,
+  requestRematchAsBot,
   respondRematch,
   setOnLobbyChanged,
   setOnPlayerTimeout,
@@ -47,6 +50,7 @@ import { getOrCreateProfile, getUsernameForAuthUser } from "./profiles.js";
 import { resolveAuthUser } from "./auth.js";
 import { awardCasualTrophy } from "./trophies.js";
 import {
+  maybeBotRequestRematch,
   maybeScheduleBotMove,
   scheduleBotRescue,
   setOnBotRescueStarted,
@@ -121,6 +125,7 @@ const broadcastGameStart = (room: ServerRoom) => {
       opponentName: opponent.name,
       opponentColor: opponent.color,
       countdownStartsAt,
+      timeTotalMs: GAME_TIME_TOTAL_MS,
     };
     io.to(me.socketId).emit("gameStart", payload);
   }
@@ -139,6 +144,7 @@ const sendGameStartTo = (room: ServerRoom, me: ServerPlayer) => {
     opponentName: opponent.name,
     opponentColor: opponent.color,
     countdownStartsAt: Date.now() - COUNTDOWN_DURATION_MS - 1000,
+    timeTotalMs: GAME_TIME_TOTAL_MS,
   };
   io.to(me.socketId).emit("gameStart", payload);
 };
@@ -160,6 +166,8 @@ setOnPlayerTimeout(async (_clientId, room, remaining) => {
     }
     io.to(room.code).emit("gameOver", { winner });
     io.to(room.code).emit("opponentLeft");
+    // Sala vs bot: bot pode pedir revanche.
+    maybeBotRequestRematch(room);
   }
 });
 
@@ -385,6 +393,8 @@ io.on("connection", (socket: TypedSocket) => {
           await awardCasualTrophy(winnerPlayer.authUserId, 1);
         }
         io.to(room.code).emit("gameOver", { winner: result.state.winner });
+        // Sala vs bot: bot pode pedir revanche.
+        maybeBotRequestRematch(room);
       }
 
       // Se o oponente é um bot e agora é a vez dele, agenda jogada.
@@ -407,16 +417,23 @@ io.on("connection", (socket: TypedSocket) => {
         const opponent = result.room.players.find((p) => p.socketId !== socket.id);
         if (opponent && result.room.rematch) {
           if (opponent.isBot) {
-            // Bot auto-aceita rematch após 1-4s
+            // Bot auto-aceita rematch após 1-4s. Não dá pra usar
+            // respondRematch() porque ela exige socketId em socketToRoom
+            // E clientId não-nulo — bot falha em ambos. acceptRematchAsBot
+            // recebe a room direto e pula as guardas.
             const delay = 1000 + Math.random() * 3000;
             setTimeout(() => {
               try {
-                const room = respondRematch(opponent.socketId, true);
-                console.log(`[rematch] bot aceitou em ${room.code}`);
-                broadcastGameStart(room);
-                maybeScheduleBotMove(room);
-              } catch {
-                // Room may have been cleaned up
+                // Re-checa a room — pode ter sumido (humano saiu, etc).
+                const current = getRoomBySocket(socket.id);
+                if (!current || current.code !== result.room.code) return;
+                if (!current.rematch) return;
+                acceptRematchAsBot(current);
+                console.log(`[rematch] bot aceitou em ${current.code}`);
+                broadcastGameStart(current);
+                maybeScheduleBotMove(current);
+              } catch (err) {
+                console.warn(`[rematch] bot accept falhou:`, err);
               }
             }, delay);
           } else {

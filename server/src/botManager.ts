@@ -36,6 +36,7 @@ import {
   createBotHostRoom,
   getAllRooms,
   removeBotFromRoom,
+  requestRematchAsBot,
   type ServerPlayer,
   type ServerRoom,
 } from "./lobby.js";
@@ -56,6 +57,10 @@ const LEAVE_DELAY_MAX_MS = Number(process.env.BOT_LEAVE_MAX_MS ?? 6_000);
 // entra como guest pra começar a partida. Configurável via env pra testes.
 const RESCUE_DELAY_MIN_MS = Number(process.env.BOT_RESCUE_MIN_MS ?? 10_000);
 const RESCUE_DELAY_MAX_MS = Number(process.env.BOT_RESCUE_MAX_MS ?? 15_000);
+// Após game over, com essa chance o bot pede revanche ao humano em 1.5-3.5s.
+const BOT_REMATCH_CHANCE = 0.45;
+const BOT_REMATCH_DELAY_MIN_MS = 1_500;
+const BOT_REMATCH_DELAY_MAX_MS = 3_500;
 
 // Cores válidas pro bot escolher na criação da sala.
 const BOT_COLORS = ["cyan", "random", "red"] as const;
@@ -143,6 +148,42 @@ export const scheduleBotRescue = (room: ServerRoom): void => {
 // em cenários que o lobby não captura sozinho.
 export const cancelPendingBotRescue = (room: ServerRoom): void => {
   cancelBotRescue(room);
+};
+
+/**
+ * Após game over numa sala com bot+humano, com chance `BOT_REMATCH_CHANCE`
+ * o bot agenda um pedido de revanche em 1.5-3.5s. Index.ts chama isso em
+ * todos os caminhos de fim (vitória normal, W.O., bot vence). Idempotente:
+ * se a sala já tem revanche pendente, ou se o bot ou humano saíram, no-op.
+ */
+export const maybeBotRequestRematch = (room: ServerRoom): void => {
+  if (!io) return;
+  const bot = room.players.find((p) => p.isBot);
+  const human = room.players.find((p) => !p.isBot);
+  if (!bot || !human) return;
+  if (Math.random() > BOT_REMATCH_CHANCE) return;
+
+  const delay = randomBetween(BOT_REMATCH_DELAY_MIN_MS, BOT_REMATCH_DELAY_MAX_MS);
+  setTimeout(() => {
+    if (!io) return;
+    // Re-checa estado: pode ter mudado durante o delay (humano já pediu,
+    // saiu, sala foi limpa, etc).
+    const current = getAllRooms().get(room.code);
+    if (!current) return;
+    if (current.status !== "finished") return;
+    if (current.rematch) return;
+    if (!current.players.some((p) => p.isBot)) return;
+    const humanNow = current.players.find((p) => !p.isBot);
+    if (!humanNow) return;
+
+    const pending = requestRematchAsBot(current, bot.name);
+    if (!pending) return;
+    io.to(humanNow.socketId).emit("rematchRequested", {
+      fromName: pending.fromName,
+      expiresAt: pending.expiresAt,
+    });
+    console.log(`[rematch] bot pediu em ${current.code} (${bot.name})`);
+  }, delay);
 };
 
 // Chamado pelo index.ts após cada `move` aceito + após broadcastGameStart.
@@ -241,6 +282,8 @@ const playBotMove = (room: ServerRoom, bot: ServerPlayer): void => {
     room.status = "finished";
     const payload: GameOverPayload = { winner: result.state.winner };
     io.to(room.code).emit("gameOver", payload);
+    // Bot pode pedir revanche (chance pequena, delay 1.5-3.5s).
+    maybeBotRequestRematch(room);
     scheduleBotLeave(room);
     return;
   }
@@ -262,6 +305,14 @@ const scheduleBotLeave = (room: ServerRoom): void => {
   const delay = randomBetween(LEAVE_DELAY_MIN_MS, LEAVE_DELAY_MAX_MS);
   setTimeout(() => {
     scheduledLeaves.delete(room.code);
+    // Re-checa: se uma revanche está pendente ou já começou nova partida,
+    // o bot precisa ficar na sala. Será re-agendado quando a próxima
+    // partida acabar (via novo gameOver).
+    const current = getAllRooms().get(room.code);
+    if (current) {
+      if (current.rematch) return;
+      if (current.status === "playing") return;
+    }
     // Limpa personalidades dos bots dessa sala pra não vazar memória.
     for (const p of room.players.filter((pl) => pl.isBot)) {
       botPersonalities.delete(p.socketId);
