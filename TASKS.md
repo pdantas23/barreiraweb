@@ -6,49 +6,6 @@ Backlog vivo do Barreira. A ordem reflete prioridade — o que está no topo é 
 
 ## Próximas
 
-### 🚨 [Mobile] BLOQUEIO App Store — Rejeição 5.1.2(i) (26/05/2026)
-
-Submission `9fea6ee4-b6b7-4120-b25e-551967dc0628`, v1.0 (2), revisado em iPad Air 11" (M3).
-Apple alegou cookies + falta de ATT. Diagnóstico: o app não tem WebView/cookies/tracking/IDFA — o modal de "Política de Privacidade" do primeiro launch foi interpretado como cookie consent banner.
-
-**Já feito no código** (commit pendente):
-- Modal do primeiro launch removido em `mobile/app/index.tsx` (junto com `AsyncStorage`, `ScrollView`, estado `showPrivacy`, função `onAcceptPrivacy`, constante `PRIVACY_ACCEPTED_KEY` e estilo `privacyText`). Política continua acessível em Configurações → Política de Privacidade.
-- Verificado: `privacy.tsx` (nativa), `privacy.html` (web standalone) e `Privacy.tsx` (SPA) não mencionam cookies.
-
-**Próximos passos (manuais)**:
-
-1. **Auditar App Privacy em App Store Connect** — em "App Privacy", garantir que nada esteja marcado como "Cookies" ou "Identifiers for tracking". O único dado é `client_id` aleatório → marcar como "Data Not Linked to You" / "Not Used to Track You".
-2. **Bump de build no Expo** — incrementar `ios.buildNumber` (ou deixar o EAS auto-incrementar) e rodar `eas build --platform ios --profile production` no `mobile/`.
-3. **Submit** — `eas submit --platform ios --latest` (ou via App Store Connect).
-4. **Responder no Resolution Center** com o texto abaixo (em inglês, Apple reviewers respondem em inglês):
-
-```
-Hi App Review Team,
-
-Thank you for the detailed feedback. We want to clarify that Barreira does NOT track users and does NOT collect cookies. We believe the rejection was triggered by a misinterpretation of a privacy disclosure modal as a cookie consent prompt. We have removed it entirely in the new build (1.0, build 3) to eliminate any ambiguity.
-
-Specifically:
-
-1. NO WebView. The app contains no WebView component and does not load any external web content. The "Privacy Policy" screen is a fully native React Native screen (see app/privacy.tsx).
-
-2. NO cookies. The app does not set, read, or transmit cookies of any kind.
-
-3. NO tracking, NO analytics, NO advertising SDKs. The app does not use Google Analytics, Facebook SDK, AdMob, or any third-party tracking framework. We do not collect IDFA. We do not link any data to a user's identity, and we do not share data with third parties.
-
-4. Only data collected: a random session identifier (client_id) generated locally on the device to allow reconnection during online matches. It is not linked to user identity and is never used for tracking or advertising purposes. This is also reflected accurately in our App Privacy disclosure ("Data Not Used to Track You").
-
-5. What changed in build 3: the first-launch privacy disclosure modal — which we believe was misread as a cookie consent banner — has been removed. The Privacy Policy is still accessible at any time via Settings > Privacy Policy inside the app.
-
-Because we do not perform any user tracking as defined by Apple's policy, App Tracking Transparency is not applicable to this app.
-
-Please let us know if you need any additional clarification.
-
-Best regards,
-Barreira team
-```
-
----
-
 1. **Modo Rankeada** — coluna `elo_ranqueada` separada (não reaproveitar `trofeus_casual`); pareamento por faixa; reset sazonal opcional.
 
 > [AdSense] revisão já solicitada no painel em 2026-05-26 — aguardando resposta do Google (2–7 dias). Se aprovado, slot `9953596385` já está ativo em `web/src/ads/adsConfig.ts:24`. Se rejeitado de novo, anotar o motivo aqui e abrir nova task.
@@ -68,6 +25,60 @@ Barreira team
 ---
 
 ## Histórico
+
+### 2026-05-28 — Auth nativa mobile + Replay web + bugs do lobby + UX
+
+**Mobile — autenticação via deep link (sem signUp/signIn no app):**
+- Cliente Supabase nativo (`mobile/src/net/supabase.ts`) com persistência via AsyncStorage. Singleton + `persistSession: true` + `autoRefreshToken: true` + `detectSessionInUrl: false` (deep link traz tokens manualmente).
+- `AuthProvider` mobile (`mobile/src/state/auth.tsx`) espelha o da web: expõe `session`, `user`, `username`, `trofeusCasual`, `signOut`, `refreshTrofeus`, `setSessionFromTokens`. Listener `onAuthStateChange` chama `reconnectSocket()` em SIGNED_IN/OUT/TOKEN_REFRESHED/INITIAL_SESSION pra o server receber o novo access_token no próximo handshake.
+- Tela `mobile/app/auth.tsx` — rota-ponte do deep link. Lê `access_token`/`refresh_token` via `useLocalSearchParams`, hidrata sessão, fecha `WebBrowser`, navega pra `/perfil`. Substitui o handler global anterior (que mostrava "Unmatched Route" porque o Expo Router roteava `/auth` como tela inexistente).
+- Tela `mobile/app/perfil.tsx` — réplica nativa de `web/src/pages/Profile.tsx` (header PERFIL Bebas Neue, avatar com inicial, card de troféus, placeholder de stats, botão sair). Botão voltar usa `router.canGoBack()` — se chegou via deep link sem history, cai pra `router.replace("/")` em vez de "reiniciar o app".
+- Site web (`web/src/net/deepLink.ts`, `web/src/pages/Login.tsx`, `Cadastro.tsx`) aceita `?from=app&redirect=<URL>`. Após signIn/signUp bem-sucedido, se veio do app, dispara `window.location.href = <redirect>?access_token=...&refresh_token=...`. Links internos do Login/Cadastro propagam os params via helper `withAppParams`.
+- Socket mobile (`mobile/src/net/socket.ts`) agora envia `accessToken` no handshake via callback async (espelha a web): `supabase.auth.getSession()` + fallback `refreshSession()` se vier null antes do AsyncStorage carregar. Sem isso, cold start envia anônimo e o server não premia troféus.
+
+**Mobile — TopBar full-width estilo web:**
+- Novo componente `mobile/src/components/TopBar.tsx`: fundo branco edge-to-edge, logo BARREIRA em Bebas Neue (cor brand, letterSpacing 3) à esquerda, ícone perfil + engrenagem à direita. Status bar branca até o notch (`useSafeAreaInsets` no `paddingTop` da própria barra + `<StatusBar style="dark" backgroundColor="#FFF" translucent={false} />`).
+- Pílula "Entrar / {username}" pequena com ícone — clique em logado vai pra `/perfil` (router.push), anônimo abre site no `expo-web-browser` com `?from=app&redirect=...`. Substitui o `floatingRow` antigo que ficava boiando sobre o gradiente.
+- Bebas Neue carregada via `@expo-google-fonts/bebas-neue` no `_layout.tsx` (`useFonts`).
+
+**Mobile — outras mudanças de UX:**
+- Ícone central das tabs casual/treino (`mobile/app/index.tsx`): substituído wordmark "BARREIRA" + arena visual 6x6 com pawns/walls pelo `<Image source={require("../assets/icon.png")} resizeMode="contain" />`. Removidos os styles órfãos (`wordmark`, `logoSub`, `arenaOuter`, `arenaCard`, `arenaGrid`, `arenaCell`, `arenaPawn*`, `arenaWall*`).
+- Música começa **desabilitada** por padrão (`mobile/src/state/audioSettings.tsx`): default `musicEnabled: false`. Só liga se o user salvou "1" explicitamente. SFX continua default true.
+- Lobby reorganizado (`mobile/app/online.tsx`): `Leaderboard` no topo via `ListHeaderComponent` do `FlatList`, salas embaixo, tudo scroll junto. Footer (Entrar por código / Criar sala) fixo embaixo.
+- `mobile/src/components/Leaderboard.tsx` (novo) lê top 10 de `profiles` via Supabase ANON_KEY (RLS permite leitura anônima). Medalha colorida 1–3, número simples 4+. Destaca usuário atual. Anônimos veem o card com `BlurView` (expo-blur) sobreposto + CTA "Entrar pra ver" que abre o site no in-app browser (mesmo fluxo da TopBar).
+- Botão "Compartilhar sala" na waiting room (`mobile/app/online-game.tsx`): usa `Share.share()` nativo do RN. URL no formato `https://barreirajogo.com/?join=CODE[&pw=SENHA]`, mensagem multilinha com "Bora jogar Barreira?".
+
+**Server — username real nas salas (web e mobile):**
+- Bug: `createRoom`/`joinRoom` usavam `playerName` do cliente (sempre o `anonimoXXXX` da tabela `players`), mesmo com `authUserId` resolvido. Resultado: dois autenticados na mesma sala apareciam como anônimos.
+- Fix (`server/src/profiles.ts` + `server/src/index.ts`): nova função `getUsernameForAuthUser(authUserId)` (`SELECT username FROM profiles` com cache em memória) e helper `resolvePlayerName(authUserId, clientName)` que devolve username se achou, senão fallback pro nome do cliente. Aplicado em ambos os handlers — server-side cobre web e mobile.
+
+**Server — vinculação clientId↔conta (preparado, sem persistir):**
+- Decisão original: usar accessToken no handshake é suficiente. Como `resolveAuthUser` já valida JWT e identifica o user, a tabela `account_clients` virou desnecessária pro fluxo básico.
+
+**Lobby — auto-update em tempo real (web + mobile):**
+- Novo evento `lobbyUpdated` em `shared/src/protocol.ts` (`ServerToClientEvents`).
+- `server/src/lobby.ts`: callback `setOnLobbyChanged` + chamadas `notifyLobbyChanged()` em `createRoom`, `joinRoom`, `leaveRoom`, `finalizeTimeout`, `createBotHostRoom`, `addBotGuest`, `removeBotFromRoom` (filtrado por `wasWaiting` pra não disparar em transições de sala já playing/finished).
+- `server/src/index.ts`: registra callback que faz `io.emit("lobbyUpdated")` global. Custo desprezível — quem não está no lobby ignora (listener não montado).
+- `web/src/pages/Home.tsx` + `mobile/app/online.tsx`: listener no useEffect chama `refresh()`. Sem polling, sem timer.
+
+**Bug "Sem conexão" no primeiro carregamento (web + mobile):**
+- Diagnóstico: `safeRpc()` em `api.ts` chamava `emitWithAck` imediatamente após `connectSocket()`. O callback de auth do socket faz `await` em `supabase.auth.getSession()` + eventual `refreshSession()` (1–2s no cold start). Se o RPC dispara durante o handshake, o timeout de 8s estoura antes do server ver a mensagem.
+- Fix (web/`src/net/socket.ts` + mobile/`src/net/socket.ts`): nova função `whenConnected(timeoutMs=6_000)` que resolve quando o socket conecta (ou rejeita após o timeout). `safeRpc()` agora aguarda `whenConnected()` antes do `fn()`. Toast só aparece após uma tentativa REAL falhar.
+
+**Bug bot "instantâneo" no mobile (cache stale do gameStart):**
+- Diagnóstico: ao voltar pro lobby via `router.back()`, `/online` não unmonta e o `useEffect` inicial não roda de novo. O `lastGameStart` no cache do socket guardava o gameStart de uma partida anterior. Próxima criação de sala → `/online-game` lia o cache → pulava direto pra "vs anônimoXXXX" como se o bot tivesse entrado imediato.
+- Fix: `mobile/app/online.tsx` chama `clearLastGameStart()` no `useFocusEffect` (não só no mount). `mobile/app/online-game.tsx` consome o cache E limpa logo após — gameStart subsequentes (do server) chegam via listener.
+
+**Bug toast "Caminho bloqueado" invertido pro guest no mobile:**
+- `BlockedPathToast` renderiza dentro do `Board`, que pro P2 está com `transform: rotate(180deg)` no online. Toast herdava a rotação → texto de cabeça pra baixo.
+- Fix análogo ao da web (commit `3173644`): nova prop `flipped?: boolean` em `BlockedPathToast` aplica `rotate: 180deg` no card + troca `top`↔`bottom` na posição absoluta. `Board.tsx` aceita e propaga; `online-game.tsx` passa `flipped={myPlayer === 2}`.
+
+**Replay in-memory (apenas web, sem banco):**
+- Captura dos moves: `shared/src/protocol.ts` — `StateUpdatePayload` ganhou `move?: Move` opcional. `server/src/index.ts` + `botManager.ts` incluem o `move` no broadcast de `stateUpdate` (humano e bot). Cliente empilha via listener.
+- Estado in-memory: `useLocalGame` e `useOnlineGame` adicionam `replayMoves: Move[]` + `replayFirstTurn: PlayerId` (capturado no init / `onRestart` / `onGameStart`). Tudo `useState` — sai da rota e some.
+- `web/src/components/ReplayModal.tsx` (novo) — modal sobreposto ao GameOverModal (z-index 300 > 200). Pré-computa todos os states com `useMemo([moves, firstTurn])` aplicando `applyMove` em cadeia. Controles ⏮ ⏯ ⏭ + slider `<input range>` 0..moves.length. Auto-play 600ms, pausa sozinho no fim, play rebobina se já estiver no fim. `flipped` mantém a perspectiva da partida pro P2.
+- `web/src/components/GameOverModal.tsx`: novas props `replayAvailable` + `onWatchReplay`. Link sutil "Ver replay desta partida" com `IoPlayCircleOutline` abaixo das ações. Só aparece se houve ≥1 move (W.O. instantâneo não mostra).
+- `web/src/components/GameOverlays.tsx`: gerencia o `showReplay` local pro modo offline. `web/src/pages/OnlineGame.tsx`: gerencia o `showReplay` direto pro online.
 
 ### 2026-05-26 — Fix race do authUserId no handshake (self-match continuava furando)
 

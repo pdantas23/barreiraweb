@@ -6,16 +6,21 @@
 // o usuário sai. Evita conexão fantasma quando o usuário nunca abre o online.
 
 import { io, type Socket } from "socket.io-client";
+import Constants from "expo-constants";
 import type {
   ClientToServerEvents,
   GameStartPayload,
   ServerToClientEvents,
 } from "@barreira/shared";
 import { getClientId } from "./clientId";
+import { supabase } from "./supabase";
 
-// EXPO_PUBLIC_* é exposto pelo Expo em runtime via process.env.
-// Fallback pra localhost só pra não quebrar em dev se o .env sumir.
-const SERVER_URL = process.env.EXPO_PUBLIC_SERVER_URL ?? "http://localhost:3000";
+// SERVER_URL vem de Constants.expoConfig.extra.serverUrl, populado pelo
+// app.config.js lendo o .env da raiz. Não dá pra usar process.env.EXPO_PUBLIC_*
+// porque o Metro inlina lendo de mobile/.env, e aqui o .env mora na raiz.
+const SERVER_URL =
+  (Constants.expoConfig?.extra?.serverUrl as string | undefined) ??
+  "http://localhost:3000";
 console.log("[socket] SERVER_URL:", SERVER_URL);
 
 // Convenção do socket.io-client: ServerToClient vai primeiro (eventos
@@ -60,8 +65,33 @@ export const getSocket = (): AppSocket => {
       reconnection: true,
       reconnectionAttempts: 5,
       reconnectionDelay: 800,
-      // clientId vai no handshake auth → server lê via socket.handshake.auth.
-      auth: { clientId: getClientId() },
+      // Função async — avaliada a cada tentativa de conexão. Login/logout
+      // ou refresh do JWT são refletidos sem recriar o socket. Espelha a
+      // estratégia da web (web/src/net/socket.ts) que precisa esperar o
+      // SDK do Supabase terminar de ler do storage antes do handshake.
+      auth: (cb) => {
+        void (async () => {
+          const clientId = getClientId();
+          const first = await supabase.auth.getSession();
+          let session = first.data.session;
+          if (!session) {
+            // Force load/refresh — em RN o AsyncStorage é async, então
+            // getSession() pode voltar null antes do _loadSession() interno.
+            try {
+              const r = await supabase.auth.refreshSession();
+              if (r.data.session) session = r.data.session;
+            } catch {
+              // Sem sessão mesmo — segue anônimo.
+            }
+          }
+          const accessToken = session?.access_token ?? null;
+          console.log("[socket-auth]", {
+            hasToken: !!accessToken,
+            sessionUserId: session?.user?.id ?? null,
+          });
+          cb({ clientId, accessToken });
+        })();
+      },
     });
     wireGlobalListeners(socket);
   }
@@ -74,8 +104,42 @@ export const connectSocket = (): AppSocket => {
   return s;
 };
 
+/**
+ * Aguarda o handshake terminar antes de prosseguir. RPCs (api.ts) usam pra
+ * não estourar timeout durante o boot — o callback de auth do socket faz
+ * await em supabase.auth.getSession + refreshSession (lê AsyncStorage), o
+ * que pode levar 1-2s no cold start. Sem essa espera, o primeiro listRooms
+ * mostra "Sem conexão" falso.
+ */
+export const whenConnected = (timeoutMs = 6_000): Promise<void> => {
+  const s = getSocket();
+  if (s.connected) return Promise.resolve();
+  if (!s.active) s.connect();
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => {
+      s.off("connect", onConnect);
+      reject(new Error("connect-timeout"));
+    }, timeoutMs);
+    const onConnect = () => {
+      clearTimeout(timer);
+      resolve();
+    };
+    s.once("connect", onConnect);
+  });
+};
+
 export const disconnectSocket = () => {
   if (socket?.connected) socket.disconnect();
+};
+
+// Força disconnect+connect pra refletir mudança de auth state. Chamado
+// pelo AuthProvider quando user loga/desloga. Sempre disconnect antes —
+// se o socket estiver em mid-handshake com auth stale, só connect() é no-op.
+export const reconnectSocket = () => {
+  if (!socket) return;
+  console.log("[reconnectSocket] forçando disconnect+connect");
+  socket.disconnect();
+  socket.connect();
 };
 
 export const getServerUrl = () => SERVER_URL;

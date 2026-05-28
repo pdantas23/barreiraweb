@@ -97,6 +97,21 @@ export const setOnPlayerTimeout = (cb: TimeoutCallback) => {
   onTimeoutCb = cb;
 };
 
+// === Callback de mudança no lobby (registrado pelo index.ts) ===
+//
+// Disparado sempre que o conjunto de salas em "waiting" muda (criar/entrar/
+// sair/finalizar). index.ts usa pra emitir `lobbyUpdated` pros clientes,
+// que refazem listRooms — assim o lobby fica vivo sem polling.
+
+export type LobbyChangedCallback = () => void;
+let onLobbyChangedCb: LobbyChangedCallback | null = null;
+export const setOnLobbyChanged = (cb: LobbyChangedCallback) => {
+  onLobbyChangedCb = cb;
+};
+const notifyLobbyChanged = (): void => {
+  if (onLobbyChangedCb) onLobbyChangedCb();
+};
+
 // === Helpers ===
 
 const CODE_CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
@@ -232,6 +247,7 @@ export const createRoom = (input: CreateInput): ServerRoom => {
   rooms.set(code, room);
   socketToRoom.set(input.hostSocketId, code);
   if (input.hostClientId) clientToRoom.set(input.hostClientId, code);
+  notifyLobbyChanged();
   return room;
 };
 
@@ -291,6 +307,8 @@ export const joinRoom = (input: JoinInput): ServerRoom => {
 
   socketToRoom.set(input.socketId, code);
   if (input.clientId) clientToRoom.set(input.clientId, code);
+  // Sala saiu de "waiting" → some da lista pública.
+  notifyLobbyChanged();
   return room;
 };
 
@@ -317,11 +335,14 @@ export const leaveRoom = (socketId: string): ServerRoom | null => {
     room.players = room.players.filter((p) => p.socketId !== socketId);
   }
 
+  const wasWaiting = room.status === "waiting";
   if (room.players.length === 0) {
     rooms.delete(code);
+    if (wasWaiting) notifyLobbyChanged();
     return null;
   }
   room.status = "finished";
+  if (wasWaiting) notifyLobbyChanged();
   return room;
 };
 
@@ -393,11 +414,13 @@ const finalizeTimeout = (clientId: string): void => {
   room.players = remaining;
 
   // Se ninguém sobrou, descarta a sala. Caso contrário marca como finished.
+  const wasWaiting = room.status === "waiting";
   if (remaining.length === 0) {
     rooms.delete(code);
   } else {
     room.status = "finished";
   }
+  if (wasWaiting) notifyLobbyChanged();
 
   if (onTimeoutCb) onTimeoutCb(clientId, room, remaining);
 };
@@ -577,6 +600,7 @@ export const createBotHostRoom = (input: BotHostInput): ServerRoom => {
   };
   rooms.set(code, room);
   // NÃO seta socketToRoom — o socketId é fake, não tem socket.io listener.
+  notifyLobbyChanged();
   return room;
 };
 
@@ -587,6 +611,7 @@ export const removeBotFromRoom = (code: string): void => {
   if (!room) return;
   // Se ainda tinha timer de rescue pendente, cancela.
   cancelBotRescue(room);
+  const wasWaiting = room.status === "waiting";
   room.players = room.players.filter((p) => !p.isBot);
   if (room.players.length === 0) {
     clearRematch(room);
@@ -594,6 +619,7 @@ export const removeBotFromRoom = (code: string): void => {
   } else {
     room.status = "finished";
   }
+  if (wasWaiting) notifyLobbyChanged();
 };
 
 // === Bot Rescue ===
@@ -646,5 +672,7 @@ export const addBotGuest = (input: AddBotGuestInput): ServerRoom | null => {
   // Timer já não importa — cancela por garantia.
   cancelBotRescue(room);
 
+  // Sala saiu de "waiting" — desaparece do lobby público.
+  notifyLobbyChanged();
   return room;
 };

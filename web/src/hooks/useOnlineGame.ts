@@ -9,6 +9,7 @@ import {
   type GameOverPayload,
   type GameStartPayload,
   type GameState,
+  type Move,
   type PlayerId,
   type RematchDeclinedPayload,
   type RematchExpiredPayload,
@@ -94,6 +95,11 @@ export function useOnlineGame() {
   const [opponentLeft, setOpponentLeft] = useState(false);
   const [reconnecting, setReconnecting] = useState(false);
 
+  // Replay capture. moves[] vem populado via stateUpdate (server inclui o
+  // Move no payload), firstTurn fica congelado do estado inicial de gameStart.
+  const [replayMoves, setReplayMoves] = useState<Move[]>([]);
+  const [replayFirstTurn, setReplayFirstTurn] = useState<PlayerId>(1);
+
   const [countdownStartsAt, setCountdownStartsAt] = useState<number | null>(null);
   const [countdownActive, setCountdownActive] = useState(false);
 
@@ -162,8 +168,9 @@ export function useOnlineGame() {
     const socket = getSocket();
 
     const onGameStart = (payload: GameStartPayload) => {
+      const initial = deserializeState(payload.state);
       setMeta(payload);
-      setState(deserializeState(payload.state));
+      setState(initial);
       setOpponentLeft(false);
       setCountdownStartsAt(payload.countdownStartsAt);
       setCountdownActive(true);
@@ -171,6 +178,9 @@ export function useOnlineGame() {
       setRematchExpiresAt(0);
       setRematchRequesterName("");
       setGameOverReason("goal");
+      // Replay reinicia a cada gameStart (inclui revanche).
+      setReplayMoves([]);
+      setReplayFirstTurn(initial.turn);
       // Zera os timers — sem isso, a revanche herda o tempo restante
       // da partida anterior (e o timedOutPlayer ficaria fixo se o jogo
       // tivesse terminado por estouro).
@@ -178,6 +188,12 @@ export function useOnlineGame() {
     };
     const onStateUpdate = (payload: StateUpdatePayload) => {
       setState(deserializeState(payload.state));
+      // Server inclui o `move` no payload pra o replay reconstruir o jogo.
+      // Pode estar undefined em paths que só atualizam state sem move real
+      // (ex: W.O. de timeout marca winner sem aplicar move).
+      if (payload.move) {
+        setReplayMoves((prev) => [...prev, payload.move as Move]);
+      }
     };
     const onGameOver = (payload: GameOverPayload) => {
       // Eu venci? Re-busca trofeus_casual pra UI refletir o +1.
@@ -407,6 +423,8 @@ export function useOnlineGame() {
     onBackToLobby,
     onRequestRematch,
     onAcceptRematch,
+    replayMoves,
+    replayFirstTurn,
     onDeclineRematch,
 
     // Quit / report confirmation modals

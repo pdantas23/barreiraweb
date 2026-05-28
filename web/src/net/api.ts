@@ -6,7 +6,7 @@ import type {
   RoomDetail,
   RpcResult,
 } from "@barreira/shared";
-import { connectSocket } from "./socket";
+import { connectSocket, whenConnected } from "./socket";
 
 const RPC_TIMEOUT_MS = 8000;
 
@@ -20,7 +20,12 @@ function withTimeout<T>(promise: Promise<T>, ms = RPC_TIMEOUT_MS): Promise<T> {
 }
 
 function safeRpc<T>(fn: () => Promise<RpcResult<T>>): Promise<RpcResult<T>> {
-  return withTimeout(fn()).catch((err) => {
+  // Espera o socket conectar antes do RPC. Sem isso, no primeiro mount o
+  // emitWithAck dispara durante o handshake — o callback de auth (Supabase
+  // session) pode demorar e o RPC estourar timeout antes mesmo de o servidor
+  // ver a mensagem. Resultado: toast falso de "Sem conexão" na primeira
+  // abertura do site, que some no reload (cache + sessão já hidratada).
+  return withTimeout(whenConnected().then(fn)).catch((err) => {
     console.warn("[safeRpc] erro capturado:", err?.message ?? err, "| socket connected:", connectSocket().connected);
     return {
       ok: false as const,

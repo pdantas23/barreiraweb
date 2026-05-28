@@ -4,10 +4,12 @@ import {
   Alert,
   Linking,
   Pressable,
+  Share,
   StyleSheet,
   Text,
   View,
 } from "react-native";
+import Constants from "expo-constants";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -162,6 +164,12 @@ export default function OnlineGameScreen() {
       setCountdownStartsAt(cached.countdownStartsAt);
       setCountdownActive(true);
     }
+    // Consome o cache UMA VEZ no mount. Sem isso, se o user navega de
+    // volta pro lobby e cria outra sala, a próxima montagem desta tela
+    // lê o gameStart antigo (de partida anterior) e pula direto pro modo
+    // jogo — o que parece "bot entrou instantâneo" mas é só lixo no buffer.
+    // gameStart subsequentes (do server) chegam via listener abaixo.
+    clearLastGameStart();
 
     const socket = getSocket();
 
@@ -353,6 +361,30 @@ export default function OnlineGameScreen() {
   };
 
   const onBackToMenu = () => router.replace("/");
+
+  // Monta link de convite — formato igual à web: /?join=CODE[&pw=SENHA].
+  // Share.share() abre o menu nativo (WhatsApp, Messages, Copy, etc).
+  const onShareRoom = async () => {
+    playButtonSound();
+    const base =
+      (Constants.expoConfig?.extra?.serverUrl as string | undefined) ??
+      "https://barreirajogo.com";
+    const params = new URLSearchParams({ join: code });
+    if (password) params.set("pw", password);
+    const url = `${base}/?${params.toString()}`;
+    const lines = [
+      "Bora jogar Barreira?",
+      `Sala: ${code}`,
+      ...(password ? [`Senha: ${password}`] : []),
+      `Entre direto: ${url}`,
+    ];
+    try {
+      await Share.share({ message: lines.join("\n"), url });
+    } catch (err) {
+      console.warn("[share] falhou:", err);
+    }
+  };
+
   const onBackToLobby = async () => {
     // Mesmo motivo do doLeave: espera ack pra evitar sala fantasma.
     await Promise.race([
@@ -423,6 +455,17 @@ export default function OnlineGameScreen() {
                     </View>
                   </>
                 )}
+
+                <Pressable
+                  onPress={onShareRoom}
+                  style={({ pressed }) => [
+                    styles.shareBtn,
+                    pressed && { opacity: 0.85, transform: [{ scale: 0.98 }] },
+                  ]}
+                >
+                  <Ionicons name="share-social" size={18} color={L.white} />
+                  <Text style={styles.shareBtnText}>Compartilhar sala</Text>
+                </Pressable>
               </>
             )}
           </View>
@@ -498,6 +541,7 @@ export default function OnlineGameScreen() {
             ghost={ghost}
             ghostInvalid={ghostInvalid}
             showBlockedToast={showBlockedToast}
+            flipped={myPlayer === 2}
             onSquareTap={onSquareTap}
             boardRef={boardRef}
           />
@@ -713,6 +757,27 @@ const styles = StyleSheet.create({
     fontWeight: "900",
     letterSpacing: 8,
     fontVariant: ["tabular-nums"],
+  },
+  shareBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginTop: 22,
+    paddingVertical: 13,
+    paddingHorizontal: 24,
+    borderRadius: 12,
+    backgroundColor: theme.player1,
+    shadowColor: theme.player1,
+    shadowOpacity: 0.25,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 4,
+  },
+  shareBtnText: {
+    color: L.white,
+    fontWeight: "800",
+    fontSize: 14,
+    letterSpacing: 0.5,
   },
   // === Banner de reconexão (overlay durante partida) ===
   reconnectBanner: {

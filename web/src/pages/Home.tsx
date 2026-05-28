@@ -163,8 +163,17 @@ export default function HomeScreen() {
 
   useEffect(() => {
     clearLastGameStart();
-    connectSocket();
+    const socket = connectSocket();
     refresh();
+    // Server avisa quando o conjunto de salas waiting muda — sem isso o
+    // user precisaria apertar refresh pra ver sala nova/morta.
+    const onLobbyUpdated = () => {
+      refresh();
+    };
+    socket.on("lobbyUpdated", onLobbyUpdated);
+    return () => {
+      socket.off("lobbyUpdated", onLobbyUpdated);
+    };
   }, [refresh]);
 
   const goToOnlineGame = (params: Record<string, string>) => {

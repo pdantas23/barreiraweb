@@ -55,6 +55,10 @@ export default function GameScreen() {
         showReloadWarning={game.showReloadWarning}
         onDismissReloadWarning={() => game.setShowReloadWarning(false)}
         onConfirmReloadDefeat={game.confirmReloadDefeat}
+        replayMoves={game.replayMoves}
+        replayFirstTurn={game.replayFirstTurn}
+        myName={game.myName}
+        opponentName={game.opponentName}
       />
 
       <ConfirmModal

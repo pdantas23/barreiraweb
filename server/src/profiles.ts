@@ -117,6 +117,42 @@ export const getOrCreateProfile = async (
   );
 };
 
+// === Username dos users autenticados (tabela `profiles`, distinto de `players`) ===
+//
+// Quando o socket tem accessToken válido, `resolveAuthUser` devolve o user_id
+// do Supabase Auth. Aqui resolvemos o `username` escolhido no cadastro, pra
+// usar como displayName na sala (em vez do "anonimoXXXX" da tabela players).
+//
+// Cache em memória idêntica à do display_name. Usernames mudam raramente
+// (não temos rename na UI hoje), então invalidação não é prioridade.
+
+const usernameCache = new Map<string, string | null>(); // authUserId → username (null = sem profile)
+
+export const getUsernameForAuthUser = async (
+  authUserId: string,
+): Promise<string | null> => {
+  const cached = usernameCache.get(authUserId);
+  if (cached !== undefined) return cached;
+
+  const { data, error } = await getSupabase()
+    .from("profiles")
+    .select("username")
+    .eq("user_id", authUserId)
+    .maybeSingle();
+
+  if (error) {
+    console.warn(
+      `[profiles] erro buscando username de ${authUserId.slice(0, 8)}…:`,
+      error.message,
+    );
+    return null;
+  }
+
+  const username = (data?.username as string | undefined) ?? null;
+  usernameCache.set(authUserId, username);
+  return username;
+};
+
 // Atualiza last_seen_at de forma fire-and-forget.
 const touchLastSeen = async (clientId: string): Promise<void> => {
   try {

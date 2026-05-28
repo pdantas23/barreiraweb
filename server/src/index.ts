@@ -35,6 +35,7 @@ import {
   markDisconnected,
   requestRematch,
   respondRematch,
+  setOnLobbyChanged,
   setOnPlayerTimeout,
   setOnRematchAccepted,
   setOnRematchExpired,
@@ -42,7 +43,7 @@ import {
   type ServerPlayer,
   type ServerRoom,
 } from "./lobby.js";
-import { getOrCreateProfile } from "./profiles.js";
+import { getOrCreateProfile, getUsernameForAuthUser } from "./profiles.js";
 import { resolveAuthUser } from "./auth.js";
 import { awardCasualTrophy } from "./trophies.js";
 import {
@@ -172,6 +173,13 @@ setOnRematchAccepted((_room) => {
   // broadcastGameStart já foi chamado dentro do respondRematch.
 });
 
+// Avisa todos os sockets sempre que o conjunto de salas "waiting" muda.
+// Quem está no lobby refaz listRooms; quem não está, ignora (não montou
+// listener). Custo desprezível pra escala atual e dispensa polling.
+setOnLobbyChanged(() => {
+  io.emit("lobbyUpdated");
+});
+
 // === Conexões ===
 
 // Devolve o authUserId do socket. Se a resolução em background ainda não
@@ -186,6 +194,19 @@ const ensureAuthUserId = async (socket: TypedSocket): Promise<string | null> => 
   const uid = await resolveAuthUser(token);
   socket.data.authUserId = uid;
   return uid;
+};
+
+// Resolve o nome a mostrar na sala. Pra user logado, busca `username` na
+// tabela profiles do Supabase Auth — fallback pro nome enviado pelo
+// cliente (anonimoXXXX) se não tiver username ainda (novo cadastro ou
+// erro de fetch). Anônimos sempre usam o nome do cliente.
+const resolvePlayerName = async (
+  authUserId: string | null,
+  clientName: string,
+): Promise<string> => {
+  if (!authUserId) return clientName;
+  const username = await getUsernameForAuthUser(authUserId);
+  return username ?? clientName;
 };
 
 io.on("connection", (socket: TypedSocket) => {
@@ -242,19 +263,20 @@ io.on("connection", (socket: TypedSocket) => {
   socket.on("createRoom", (payload, ack) =>
     rpc(async (p: typeof payload) => {
       const hostAuthUserId = await ensureAuthUserId(socket);
+      const hostName = await resolvePlayerName(hostAuthUserId, p.hostName);
       console.log(
-        `[createRoom] socket=${socket.id} clientId=${clientId ?? "null"} authUserId=${hostAuthUserId ?? "null"}`,
+        `[createRoom] socket=${socket.id} clientId=${clientId ?? "null"} authUserId=${hostAuthUserId ?? "null"} name=${hostName}`,
       );
       const room = createRoom({
         hostSocketId: socket.id,
         hostClientId: clientId,
         hostAuthUserId,
-        hostName: p.hostName,
+        hostName,
         color: p.color,
         isPrivate: p.isPrivate,
       });
       socket.join(room.code);
-      console.log(`[room] criada ${room.code} por ${p.hostName} (${socket.id})`);
+      console.log(`[room] criada ${room.code} por ${hostName} (${socket.id})`);
       // Agenda bot rescue: se ninguém entrar em 10-15s, bot entra como guest.
       // (Salas privadas e salas criadas por bots são puladas dentro da função.)
       scheduleBotRescue(room);
@@ -265,19 +287,20 @@ io.on("connection", (socket: TypedSocket) => {
   socket.on("joinRoom", (payload, ack) =>
     rpc(async (p: typeof payload) => {
       const authUserId = await ensureAuthUserId(socket);
+      const playerName = await resolvePlayerName(authUserId, p.playerName);
       console.log(
-        `[joinRoom] socket=${socket.id} clientId=${clientId ?? "null"} authUserId=${authUserId ?? "null"} sala=${p.code}`,
+        `[joinRoom] socket=${socket.id} clientId=${clientId ?? "null"} authUserId=${authUserId ?? "null"} sala=${p.code} name=${playerName}`,
       );
       const room = joinRoom({
         socketId: socket.id,
         clientId,
         authUserId,
-        playerName: p.playerName,
+        playerName,
         code: p.code,
         password: p.password,
       });
       socket.join(room.code);
-      console.log(`[room] ${p.playerName} entrou em ${room.code}`);
+      console.log(`[room] ${playerName} entrou em ${room.code}`);
 
       broadcastGameStart(room);
       // Se a sala era de bot, ele é P1 e começa (50% das vezes via random).
@@ -342,9 +365,11 @@ io.on("connection", (socket: TypedSocket) => {
       }
 
       // Estado virou autoritativo. Persiste e broadcasta pros 2 sockets da room.
+      // Inclui o `move` no payload pra o replay client-side empilhar o lance
+      // do oponente (que o client não vê de outra forma, só vê state final).
       room.gameState = result.state;
       const wireState = serializeState(result.state);
-      io.to(room.code).emit("stateUpdate", { state: wireState });
+      io.to(room.code).emit("stateUpdate", { state: wireState, move: p.move });
 
       // Vitória? Fecha a sala e dispara gameOver.
       if (result.state.winner !== null) {

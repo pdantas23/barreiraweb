@@ -233,7 +233,9 @@ const playBotMove = (room: ServerRoom, bot: ServerPlayer): void => {
 
   room.gameState = result.state;
   const wireState = serializeState(result.state);
-  io.to(room.code).emit("stateUpdate", { state: wireState });
+  // Inclui o `move` pro client empilhar no replay (sem isso o oponente
+  // humano não vê o lance do bot, só o state resultante).
+  io.to(room.code).emit("stateUpdate", { state: wireState, move });
 
   if (result.state.winner !== null) {
     room.status = "finished";

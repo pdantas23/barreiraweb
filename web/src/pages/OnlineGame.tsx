@@ -6,6 +6,7 @@ import { CountdownOverlay } from "../components/CountdownOverlay";
 import { GameLayout } from "../components/GameLayout";
 import { GameOverModal } from "../components/GameOverModal";
 import { PageGate } from "../components/PageGate";
+import { ReplayModal } from "../components/ReplayModal";
 import { gc } from "../gameColors";
 import { useOnlineGame } from "../hooks/useOnlineGame";
 import { theme } from "../theme";
@@ -44,6 +45,7 @@ export default function OnlineGameScreen() {
   const game = useOnlineGame();
   const navigate = useNavigate();
   const [copied, setCopied] = useState(false);
+  const [showReplay, setShowReplay] = useState(false);
 
   const onShareWhatsApp = () => {
     const text = buildWhatsAppText(game.code, game.password ?? null);
@@ -235,6 +237,8 @@ export default function OnlineGameScreen() {
         onAcceptRematch={game.onAcceptRematch}
         onDeclineRematch={game.onDeclineRematch}
         onLeave={game.onBackToLobby}
+        replayAvailable={game.replayMoves.length > 0}
+        onWatchReplay={() => setShowReplay(true)}
       />
 
       {/* Opponent left game over (player who stayed wins) */}
@@ -245,8 +249,21 @@ export default function OnlineGameScreen() {
           reason="abandon"
           onRematch={game.onBackToLobby}
           onBackToMenu={game.onBackToMenu}
+          replayAvailable={game.replayMoves.length > 0}
+          onWatchReplay={() => setShowReplay(true)}
         />
       )}
+
+      {/* Replay modal — in-memory, descartado quando a rota desmonta. */}
+      <ReplayModal
+        visible={showReplay}
+        moves={game.replayMoves}
+        firstTurn={game.replayFirstTurn}
+        flipped={game.flipped}
+        p1Name={game.myPlayer === 1 ? game.myName : game.opponentName}
+        p2Name={game.myPlayer === 1 ? game.opponentName : game.myName}
+        onClose={() => setShowReplay(false)}
+      />
 
       {/* Quit confirmation modal */}
       <ConfirmModal

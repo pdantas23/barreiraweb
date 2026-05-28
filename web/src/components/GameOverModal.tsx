@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { IoTrophy, IoCloseCircle, IoTimerOutline, IoRefresh, IoExitOutline, IoTimeOutline, IoGameController, IoCheckmark, IoClose, IoHomeOutline, IoCloseCircleOutline } from "react-icons/io5";
+import { IoTrophy, IoCloseCircle, IoTimerOutline, IoRefresh, IoExitOutline, IoTimeOutline, IoGameController, IoCheckmark, IoClose, IoHomeOutline, IoCloseCircleOutline, IoPlayCircleOutline } from "react-icons/io5";
 import type { PlayerId } from "@barreira/shared";
 import { useGameResultSound } from "../hooks/useGameResultSound";
 import { useAudioSettings } from "../state/audioSettings";
@@ -26,6 +26,9 @@ type Props = {
   onAcceptRematch?: () => void;
   onDeclineRematch?: () => void;
   onLeave?: () => void;
+  /** Habilita botão "Ver replay" — true quando há ao menos 1 move gravado. */
+  replayAvailable?: boolean;
+  onWatchReplay?: () => void;
 };
 
 const useCountdown = (expiresAt: number, active: boolean) => {
@@ -83,6 +86,8 @@ export const GameOverModal = ({
   onAcceptRematch,
   onDeclineRematch,
   onLeave,
+  replayAvailable = false,
+  onWatchReplay,
 }: Props) => {
   const isVictory = winner === 1;
   const isTimeout = reason === "timeout";
@@ -316,6 +321,32 @@ export const GameOverModal = ({
         </span>
 
         {renderActions()}
+
+        {/* Link "Ver replay" — sutil, abaixo das ações principais. Só aparece
+            se houve moves (W.O. instantâneo, por ex., não tem replay). */}
+        {replayAvailable && onWatchReplay && (
+          <button
+            onClick={onWatchReplay}
+            style={{
+              marginTop: 14,
+              padding: "8px 16px",
+              background: "none",
+              border: "none",
+              color: L.muted,
+              fontSize: 12,
+              fontWeight: 700,
+              display: "flex",
+              alignItems: "center",
+              gap: 6,
+              cursor: "pointer",
+              textDecoration: "underline",
+              textUnderlineOffset: 3,
+            }}
+          >
+            <IoPlayCircleOutline size={16} />
+            Ver replay desta partida
+          </button>
+        )}
       </div>
     </div>
   );

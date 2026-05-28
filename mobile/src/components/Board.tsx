@@ -23,6 +23,8 @@ type Props = {
   ghost: WallPlacement | null;
   ghostInvalid?: boolean;
   showBlockedToast?: boolean;
+  /** Board pai rotacionado 180° (P2/guest online). Passa pro toast contra-rotacionar. */
+  flipped?: boolean;
   onSquareTap: (index: number) => void;
   boardRef: AnimatedRef<Animated.View>;
 };
@@ -33,6 +35,7 @@ export const Board = ({
   ghost,
   ghostInvalid = false,
   showBlockedToast = false,
+  flipped = false,
   onSquareTap,
   boardRef,
 }: Props) => {
@@ -148,6 +151,7 @@ export const Board = ({
           <BlockedPathToast
             visible={showBlockedToast}
             position={ghost && ghost.interRow < 4 ? "bottom" : "top"}
+            flipped={flipped}
           />
         </Animated.View>
       </LinearGradient>

@@ -9,7 +9,7 @@ import type {
   RoomDetail,
   RpcResult,
 } from "@barreira/shared";
-import { connectSocket } from "./socket";
+import { connectSocket, whenConnected } from "./socket";
 
 const RPC_TIMEOUT_MS = 8000;
 
@@ -23,7 +23,10 @@ function withTimeout<T>(promise: Promise<T>, ms = RPC_TIMEOUT_MS): Promise<T> {
 }
 
 function safeRpc<T>(fn: () => Promise<RpcResult<T>>): Promise<RpcResult<T>> {
-  return withTimeout(fn()).catch((err) => {
+  // Aguarda handshake antes do RPC — sem isso, no boot o auth callback do
+  // socket (Supabase getSession async) pode demorar mais que o timeout do
+  // safeRpc e o usuário vê "Sem conexão" mesmo conectando OK em seguida.
+  return withTimeout(whenConnected().then(fn)).catch((err) => {
     console.warn("[safeRpc] erro capturado:", err?.message ?? err, "| socket connected:", connectSocket().connected);
     return {
       ok: false as const,

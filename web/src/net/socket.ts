@@ -104,6 +104,32 @@ export const connectSocket = (): AppSocket => {
   return s;
 };
 
+/**
+ * Espera o socket estar conectado antes de prosseguir. Usado pelos wrappers
+ * de RPC pra não disparar emitWithAck antes do handshake terminar — se
+ * disparar, o socket buffera mas o callback de auth (que faz await em
+ * supabase.auth.getSession + refreshSession) pode demorar segundos, e o
+ * timeout do safeRpc dispara antes mostrando "Sem conexão" no boot.
+ *
+ * Resolve imediato se já conectado. Rejeita após timeoutMs se nunca conectar.
+ */
+export const whenConnected = (timeoutMs = 6_000): Promise<void> => {
+  const s = getSocket();
+  if (s.connected) return Promise.resolve();
+  if (!s.active) s.connect();
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => {
+      s.off("connect", onConnect);
+      reject(new Error("connect-timeout"));
+    }, timeoutMs);
+    const onConnect = () => {
+      clearTimeout(timer);
+      resolve();
+    };
+    s.once("connect", onConnect);
+  });
+};
+
 export const disconnectSocket = () => {
   if (socket?.connected) socket.disconnect();
 };

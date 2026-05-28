@@ -1,7 +1,9 @@
-import type { PlayerId } from "@barreira/shared";
+import { useState } from "react";
+import type { Move, PlayerId } from "@barreira/shared";
 import { useNavigate } from "react-router-dom";
 import { CountdownOverlay } from "./CountdownOverlay";
 import { GameOverModal, type GameOverReason } from "./GameOverModal";
+import { ReplayModal } from "./ReplayModal";
 
 interface GameOverlaysProps {
   countdownActive: boolean;
@@ -14,6 +16,11 @@ interface GameOverlaysProps {
   showReloadWarning: boolean;
   onDismissReloadWarning: () => void;
   onConfirmReloadDefeat: () => void;
+  // Dados pro replay in-memory (offline: vs Bot, P1 sempre humano).
+  replayMoves?: Move[];
+  replayFirstTurn?: PlayerId;
+  myName?: string;
+  opponentName?: string;
 }
 
 export function GameOverlays({
@@ -27,8 +34,13 @@ export function GameOverlays({
   showReloadWarning,
   onDismissReloadWarning,
   onConfirmReloadDefeat,
+  replayMoves = [],
+  replayFirstTurn = 1,
+  myName = "Você",
+  opponentName = "Oponente",
 }: GameOverlaysProps) {
   const navigate = useNavigate();
+  const [showReplay, setShowReplay] = useState(false);
 
   return (
     <>
@@ -36,7 +48,24 @@ export function GameOverlays({
         <CountdownOverlay startsAt={countdownStartsAt} onComplete={onCountdownComplete} />
       )}
 
-      <GameOverModal visible={winner !== null && !reloadDefeat} winner={winner} reason={gameOverReason} onRematch={onRematch} onBackToMenu={() => navigate("/")} />
+      <GameOverModal
+        visible={winner !== null && !reloadDefeat}
+        winner={winner}
+        reason={gameOverReason}
+        onRematch={onRematch}
+        onBackToMenu={() => navigate("/")}
+        replayAvailable={replayMoves.length > 0}
+        onWatchReplay={() => setShowReplay(true)}
+      />
+
+      <ReplayModal
+        visible={showReplay}
+        moves={replayMoves}
+        firstTurn={replayFirstTurn}
+        p1Name={myName}
+        p2Name={opponentName}
+        onClose={() => setShowReplay(false)}
+      />
 
       {/* Reload warning modal */}
       {showReloadWarning && !reloadDefeat && (

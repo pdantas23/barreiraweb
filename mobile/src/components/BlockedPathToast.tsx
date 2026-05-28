@@ -12,9 +12,15 @@ import { gc } from "../gameColors";
 type Props = {
   visible: boolean;
   position: "top" | "bottom";
+  /**
+   * Quando o board pai está rotacionado 180° (P2/guest no online), o toast
+   * herda a rotação e fica de cabeça pra baixo. Esta prop aplica
+   * contra-rotação pra manter o texto legível.
+   */
+  flipped?: boolean;
 };
 
-export const BlockedPathToast = ({ visible, position }: Props) => {
+export const BlockedPathToast = ({ visible, position, flipped = false }: Props) => {
   const opacity = useSharedValue(0);
   const slideOffset = useSharedValue(position === "top" ? -10 : 10);
 
@@ -30,7 +36,12 @@ export const BlockedPathToast = ({ visible, position }: Props) => {
 
   const animatedStyle = useAnimatedStyle(() => ({
     opacity: opacity.value,
-    transform: [{ translateY: slideOffset.value }],
+    transform: [
+      { translateY: slideOffset.value },
+      // Cancela a rotação do board pai pro P2 — sem isso, texto/ícone ficam
+      // de ponta-cabeça e a "seta" do toast aponta pro lado errado.
+      { rotate: flipped ? "180deg" : "0deg" },
+    ],
   }));
 
   if (!visible) return null;
@@ -39,7 +50,18 @@ export const BlockedPathToast = ({ visible, position }: Props) => {
     <Animated.View
       style={[
         styles.wrapper,
-        position === "top" ? styles.posTop : styles.posBottom,
+        // Quando flipped, "top" e "bottom" precisam trocar visualmente —
+        // o board está girado, então style top:8 vira "embaixo na tela".
+        // Queremos que o toast continue aparecendo do lado OPOSTO à parede,
+        // que é o mesmo lado visual independente da rotação. Invertendo o
+        // position aqui equivale a posicionar relativo à tela do user.
+        flipped
+          ? position === "top"
+            ? styles.posBottom
+            : styles.posTop
+          : position === "top"
+            ? styles.posTop
+            : styles.posBottom,
         animatedStyle,
       ]}
       pointerEvents="none"

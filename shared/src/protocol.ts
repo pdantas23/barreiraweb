@@ -72,6 +72,10 @@ export type GameStartPayload = {
 
 export type StateUpdatePayload = {
   state: SerializedGameState;
+  // Move que produziu este state. Opcional pra retrocompatibilidade com
+  // clientes antigos; usado pelo replay in-memory pra empilhar a sequência
+  // de moves do oponente (que o client não envia, só recebe state).
+  move?: Move;
 };
 
 export type GameOverPayload = {
@@ -164,6 +168,12 @@ export type ClientToServerEvents = {
 export type ServerToClientEvents = {
   profile: (payload: ProfilePayload) => void;
   roomUpdate: (room: PublicRoom) => void;
+  /**
+   * Avisa que a lista de salas mudou (sala criada, encerrada, fechou
+   * com 2 jogadores, etc). Cliente que está no lobby refaz listRooms.
+   * Emitido pra todos os sockets — quem não está no lobby ignora.
+   */
+  lobbyUpdated: () => void;
   gameStart: (payload: GameStartPayload) => void;
   stateUpdate: (payload: StateUpdatePayload) => void;
   moveRejected: (payload: MoveRejectedPayload) => void;

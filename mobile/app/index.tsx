@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
 import {
+  Image,
   Modal,
   Pressable,
   StyleSheet,
@@ -10,6 +11,7 @@ import { router, useFocusEffect } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
+import { TopBar } from "../src/components/TopBar";
 import Animated, {
   Easing,
   useAnimatedStyle,
@@ -81,25 +83,11 @@ export default function HomeScreen() {
 
   return (
     <LinearGradient colors={[C.bgTop, C.bgBottom]} style={styles.root}>
-      <View style={[styles.container, { paddingTop: insets.top + 8, paddingBottom: 0 }]}>
+      <View style={[styles.container, { paddingBottom: 0 }]}>
 
-        {/* ─── Floating elements ─── */}
-        <View style={styles.floatingRow}>
-          <Pressable
-            onPress={() => { playButtonSound(); setShowSettings(true); }}
-            style={({ pressed }) => [styles.settingsBtn, pressed && styles.btnPressed]}
-          >
-            <Ionicons name="settings-outline" size={20} color={C.muted} />
-          </Pressable>
-
-          {/* Profile button */}
-          <Pressable
-            onPress={() => {}}
-            style={({ pressed }) => [styles.profileBtn, pressed && styles.btnPressed]}
-          >
-            <Ionicons name="person" size={20} color={C.white} />
-          </Pressable>
-        </View>
+        {/* ─── Top bar (estilo web: logo + entrar/perfil + engrenagem) ─── */}
+        {/* TopBar absorve o insets.top no próprio bg branco — sem padding aqui. */}
+        <TopBar onSettingsPress={() => setShowSettings(true)} />
 
         {/* ─── Tab content ─── */}
         <View style={styles.content}>
@@ -216,30 +204,12 @@ const TabPane = ({ visible, children }: { visible: boolean; children: React.Reac
 
 const CasualTab = ({ onPlay }: { onPlay: () => void }) => (
   <View style={styles.casualWrap}>
-    {/* Logo */}
-    <Text style={styles.wordmark}>BARREIRA</Text>
-
-    {/* Arena card placeholder */}
-    <View style={styles.arenaOuter}>
-      <LinearGradient
-        colors={[C.blue, C.blueLight]}
-        style={styles.arenaCard}
-      >
-        {/* TODO: replace placeholder grid with actual arena tier visual & name */}
-        {/* 6x6 grid */}
-        <View style={styles.arenaGrid}>
-          {Array.from({ length: 36 }).map((_, i) => (
-            <View key={i} style={styles.arenaCell} />
-          ))}
-        </View>
-        {/* Pawns */}
-        <View style={[styles.arenaPawn, styles.arenaPawnRed]} />
-        <View style={[styles.arenaPawn, styles.arenaPawnBlue]} />
-        {/* Walls */}
-        <View style={[styles.arenaWall, styles.arenaWallH]} />
-        <View style={[styles.arenaWall, styles.arenaWallV]} />
-      </LinearGradient>
-    </View>
+    {/* Ícone do app — substitui o wordmark "BARREIRA" + arena visual */}
+    <Image
+      source={require("../assets/icon.png")}
+      style={styles.heroIcon}
+      resizeMode="contain"
+    />
 
     {/* Play button */}
     <Pressable
@@ -272,30 +242,12 @@ const DIFFICULTIES: { key: Difficulty; label: string }[] = [
 
 const OfflineTab = ({ onPlay }: { onPlay: () => void }) => (
   <View style={styles.casualWrap}>
-    {/* Logo */}
-    <Text style={styles.wordmark}>BARREIRA</Text>
-
-    {/* Arena card (training) */}
-    <View style={styles.arenaOuter}>
-      <LinearGradient
-        colors={[C.blue, C.blueLight]}
-        style={styles.arenaCard}
-      >
-        {/* 6x6 grid */}
-        <View style={styles.arenaGrid}>
-          {Array.from({ length: 36 }).map((_, i) => (
-            <View key={i} style={styles.arenaCell} />
-          ))}
-        </View>
-        {/* Bot pawn (top) */}
-        <View style={[styles.arenaPawn, styles.arenaPawnRed]} />
-        {/* Player pawn (bottom) */}
-        <View style={[styles.arenaPawn, styles.arenaPawnBlue]} />
-        {/* Walls */}
-        <View style={[styles.arenaWall, styles.arenaWallH]} />
-        <View style={[styles.arenaWall, styles.arenaWallV]} />
-      </LinearGradient>
-    </View>
+    {/* Ícone do app — substitui o wordmark "BARREIRA" + arena visual */}
+    <Image
+      source={require("../assets/icon.png")}
+      style={styles.heroIcon}
+      resizeMode="contain"
+    />
 
     {/* Play button — identical to casual */}
     <Pressable
@@ -472,38 +424,6 @@ const BottomNav = ({
 const styles = StyleSheet.create({
   root: { flex: 1 },
   container: { flex: 1 },
-  // ─── Floating elements ───
-  floatingRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    paddingHorizontal: 16,
-    marginBottom: 4,
-    zIndex: 10,
-  },
-  settingsBtn: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: C.white,
-    borderWidth: 1,
-    borderColor: C.cellBg,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  profileBtn: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: C.blue,
-    alignItems: "center",
-    justifyContent: "center",
-    shadowColor: C.blue,
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 2 },
-    elevation: 4,
-  },
   // ─── Content area ───
   content: {
     flex: 1,
@@ -537,78 +457,11 @@ const styles = StyleSheet.create({
     width: 6,
     borderRadius: 3,
   },
-  wordmark: {
-    fontSize: 26,
-    fontWeight: "900",
-    color: C.navy,
-    letterSpacing: 3,
-  },
-  logoSub: {
-    fontSize: 12,
-    color: C.muted,
-    marginTop: -10,
-  },
-  // Arena card
-  arenaOuter: {
-    shadowColor: C.blue,
-    shadowOpacity: 0.2,
-    shadowRadius: 20,
-    shadowOffset: { width: 0, height: 6 },
-    elevation: 8,
+  // Hero icon central das tabs casual/treino — substitui wordmark+arena.
+  heroIcon: {
+    width: 220,
+    height: 220,
     marginVertical: 8,
-  },
-  arenaCard: {
-    width: 280,
-    height: 196,
-    borderRadius: 20,
-    alignItems: "center",
-    justifyContent: "center",
-    overflow: "hidden",
-  },
-  arenaGrid: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    width: 180,
-    gap: 6,
-  },
-  arenaCell: {
-    width: 24,
-    height: 24,
-    borderRadius: 6,
-    backgroundColor: "rgba(255,255,255,0.15)",
-  },
-  arenaPawn: {
-    position: "absolute",
-    width: 18,
-    height: 18,
-    borderRadius: 9,
-  },
-  arenaPawnRed: {
-    backgroundColor: C.red,
-    top: 28,
-    right: 50,
-  },
-  arenaPawnBlue: {
-    backgroundColor: C.blue,
-    bottom: 28,
-    left: 50,
-  },
-  arenaWall: {
-    position: "absolute",
-    backgroundColor: "rgba(255,255,255,0.6)",
-    borderRadius: 3,
-  },
-  arenaWallH: {
-    width: 48,
-    height: 6,
-    top: 80,
-    left: 40,
-  },
-  arenaWallV: {
-    width: 6,
-    height: 48,
-    bottom: 60,
-    right: 60,
   },
   // Play button
   playBtn: {

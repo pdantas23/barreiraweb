@@ -19,9 +19,10 @@ import {
   type CreateRoomConfig,
 } from "../src/components/CreateRoomModal";
 import { JoinByCodeModal } from "../src/components/JoinByCodeModal";
+import { Leaderboard } from "../src/components/Leaderboard";
 import { createRoom, joinRoom, listRooms } from "../src/net/api";
 import { errorInfo } from "../src/net/errors";
-import { clearLastGameStart, connectSocket } from "../src/net/socket";
+import { clearLastGameStart, connectSocket, getSocket } from "../src/net/socket";
 import { playButtonSound, useButtonSound } from "../src/hooks/useButtonSound";
 import { usePlayerName } from "../src/state/profile";
 
@@ -92,10 +93,26 @@ export default function OnlineScreen() {
     clearLastGameStart();
     connectSocket();
     refresh();
+    // Server avisa quando salas waiting mudam — refaz a lista sem polling.
+    const socket = getSocket();
+    const onLobbyUpdated = () => {
+      refresh();
+    };
+    socket.on("lobbyUpdated", onLobbyUpdated);
+    return () => {
+      socket.off("lobbyUpdated", onLobbyUpdated);
+    };
   }, [refresh]);
 
   useFocusEffect(
     useCallback(() => {
+      // Limpa o cache do último gameStart sempre que voltamos ao lobby.
+      // Sem isso, se o user joga uma partida e volta via router.back(),
+      // /online não unmonta → seu useEffect inicial não roda → o cache
+      // fica com o gameStart da partida anterior. Daí o próximo push pra
+      // /online-game lê esse cache e pula direto pra "vs anônimo..." como
+      // se o bot tivesse entrado imediato. Limpar no focus blinda esse caso.
+      clearLastGameStart();
       refresh();
     }, [refresh]),
   );
@@ -233,40 +250,40 @@ export default function OnlineScreen() {
           <View style={styles.backButton} />
         </View>
 
-        <View style={styles.subRow}>
-          <Text style={styles.subText}>
-            {loading
-              ? "Carregando..."
-              : `${rooms.length} sala${rooms.length === 1 ? "" : "s"} disponíve${rooms.length === 1 ? "l" : "is"}`}
-          </Text>
-          <Pressable
-            onPress={refresh}
-            disabled={loading || busy}
-            style={({ pressed }) => [
-              styles.refreshBtn,
-              pressed && styles.pressed,
-              (loading || busy) && styles.disabled,
-            ]}
-          >
-            {loading ? (
-              <ActivityIndicator size="small" color={C.muted} />
-            ) : (
-              <Ionicons name="refresh" size={16} color={C.blue} />
-            )}
-          </Pressable>
-        </View>
-
         <FlatList
           data={rooms}
           keyExtractor={(r) => r.code}
           renderItem={renderRoom}
-          contentContainerStyle={
-            rooms.length === 0
-              ? [styles.listContent, styles.listEmpty]
-              : styles.listContent
-          }
+          contentContainerStyle={styles.listContent}
           ItemSeparatorComponent={() => <View style={{ height: 10 }} />}
           showsVerticalScrollIndicator={false}
+          ListHeaderComponent={
+            <View>
+              <Leaderboard />
+              <View style={styles.subRow}>
+                <Text style={styles.subText}>
+                  {loading
+                    ? "Carregando..."
+                    : `${rooms.length} sala${rooms.length === 1 ? "" : "s"} disponíve${rooms.length === 1 ? "l" : "is"}`}
+                </Text>
+                <Pressable
+                  onPress={refresh}
+                  disabled={loading || busy}
+                  style={({ pressed }) => [
+                    styles.refreshBtn,
+                    pressed && styles.pressed,
+                    (loading || busy) && styles.disabled,
+                  ]}
+                >
+                  {loading ? (
+                    <ActivityIndicator size="small" color={C.muted} />
+                  ) : (
+                    <Ionicons name="refresh" size={16} color={C.blue} />
+                  )}
+                </Pressable>
+              </View>
+            </View>
+          }
           ListEmptyComponent={!loading ? emptyView : null}
         />
 
@@ -357,8 +374,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    paddingHorizontal: 20,
-    paddingTop: 6,
+    paddingTop: 18,
     paddingBottom: 12,
   },
   subText: {

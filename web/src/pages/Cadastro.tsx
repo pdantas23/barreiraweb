@@ -3,6 +3,8 @@ import { useNavigate, Link } from "react-router-dom";
 import { IoArrowBack, IoMail, IoLockClosed, IoPerson } from "react-icons/io5";
 import { useAuth } from "../state/auth";
 import { playButtonSound } from "../hooks/useButtonSound";
+import { redirectToAppIfFromApp, withAppParams } from "../net/deepLink";
+import { supabase } from "../net/supabase";
 
 export default function CadastroPage() {
   const navigate = useNavigate();
@@ -60,6 +62,14 @@ export default function CadastroPage() {
       setError(result.error);
       return;
     }
+
+    // Se cadastro já cria sessão (confirmação de email DESABILITADA no
+    // Supabase) e o usuário veio do app, redireciona direto pro deep link.
+    // Se confirmação tá habilitada, getSession() retorna null e a tela de
+    // sucesso aparece pedindo pra confirmar email.
+    const { data } = await supabase.auth.getSession();
+    if (redirectToAppIfFromApp(data.session)) return;
+
     setSuccess(true);
   };
 
@@ -78,7 +88,7 @@ export default function CadastroPage() {
               </span>
             </p>
             <button
-              onClick={() => { playButtonSound(); navigate("/login"); }}
+              onClick={() => { playButtonSound(); navigate(withAppParams("/login")); }}
               className="w-full py-3 rounded-xl bg-gradient-to-r from-brand to-brand-light border-none text-white font-black text-[15px] cursor-pointer hover:opacity-90"
             >
               Ir pra tela de login
@@ -168,7 +178,7 @@ export default function CadastroPage() {
 
           <div className="text-center text-[13px] text-muted">
             Ja tem conta?{" "}
-            <Link to="/login" className="text-brand font-semibold underline">
+            <Link to={withAppParams("/login")} className="text-brand font-semibold underline">
               Entrar
             </Link>
           </div>

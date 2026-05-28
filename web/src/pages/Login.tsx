@@ -3,6 +3,8 @@ import { useNavigate, Link } from "react-router-dom";
 import { IoArrowBack, IoPerson, IoLockClosed } from "react-icons/io5";
 import { useAuth } from "../state/auth";
 import { playButtonSound } from "../hooks/useButtonSound";
+import { redirectToAppIfFromApp, withAppParams } from "../net/deepLink";
+import { supabase } from "../net/supabase";
 
 export default function LoginPage() {
   const navigate = useNavigate();
@@ -24,6 +26,12 @@ export default function LoginPage() {
       return;
     }
     playButtonSound();
+
+    // Se o usuário veio do app mobile (?from=app&redirect=...), redireciona
+    // pro deep link com tokens da sessão — app intercepta e fica logado.
+    const { data } = await supabase.auth.getSession();
+    if (redirectToAppIfFromApp(data.session)) return;
+
     navigate("/");
   };
 
@@ -70,14 +78,14 @@ export default function LoginPage() {
           </button>
 
           <div className="text-center text-[13px]">
-            <Link to="/esqueci-senha" className="text-brand font-semibold underline">
+            <Link to={withAppParams("/esqueci-senha")} className="text-brand font-semibold underline">
               Esqueci minha senha
             </Link>
           </div>
 
           <div className="text-center text-[13px] text-muted">
             Nao tem conta?{" "}
-            <Link to="/cadastro" className="text-brand font-semibold underline">
+            <Link to={withAppParams("/cadastro")} className="text-brand font-semibold underline">
               Cadastrar
             </Link>
           </div>

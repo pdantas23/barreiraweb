@@ -96,8 +96,10 @@ export function useLocalGame() {
     setReloadDefeat(true);
   };
 
-  // Game state
+  // Game state. firstTurn salvo separado: pro replay reconstruir do início.
   const [state, setState] = useState<GameState>(() => initialState(randomFirstTurn()));
+  const [replayMoves, setReplayMoves] = useState<Move[]>([]);
+  const [replayFirstTurn, setReplayFirstTurn] = useState<PlayerId>(() => state.turn);
   usePieceMoveSound(state.p1, state.p2);
   const totalWallsUsed = (WALLS_PER_PLAYER - state.wallsLeft[1]) + (WALLS_PER_PLAYER - state.wallsLeft[2]);
   useWallPlaceSound(totalWallsUsed);
@@ -149,15 +151,22 @@ export function useLocalGame() {
       const move = botMove(state, OPPONENT);
       if (!move) return;
       const res = applyMove(state, OPPONENT, move);
-      if (res.ok) setState(res.state);
+      if (res.ok) {
+        setState(res.state);
+        setReplayMoves((prev) => [...prev, move]);
+      }
     }, OPPONENT_THINK_MS);
     return () => clearTimeout(timer);
   }, [state, botMove, countdownActive]);
 
   const onSquareTap = (index: number) => {
     if (!myTurn) return;
-    const res = applyMove(state, HUMAN, { kind: "piece", to: index });
-    if (res.ok) setState(res.state);
+    const move: Move = { kind: "piece", to: index };
+    const res = applyMove(state, HUMAN, move);
+    if (res.ok) {
+      setState(res.state);
+      setReplayMoves((prev) => [...prev, move]);
+    }
   };
 
   const onDragStart = (type: WallType) => {
@@ -198,8 +207,12 @@ export function useLocalGame() {
     if (dragTypeRef.current === null) return;
     const g = ghostRef.current;
     if (g && !ghostInvalidRef.current) {
-      const res = applyMove(stateRef.current, HUMAN, { kind: "wall", placement: g });
-      if (res.ok) setState(res.state);
+      const move: Move = { kind: "wall", placement: g };
+      const res = applyMove(stateRef.current, HUMAN, move);
+      if (res.ok) {
+        setState(res.state);
+        setReplayMoves((prev) => [...prev, move]);
+      }
     }
     setDragType(null);
     setGhost(null);
@@ -209,7 +222,10 @@ export function useLocalGame() {
   };
 
   const onRestart = () => {
-    setState(initialState(randomFirstTurn()));
+    const fresh = initialState(randomFirstTurn());
+    setState(fresh);
+    setReplayMoves([]);
+    setReplayFirstTurn(fresh.turn);
     setDragType(null);
     setGhost(null);
     setGhostInvalid(false);
@@ -276,5 +292,8 @@ export function useLocalGame() {
     showQuitConfirm,
     cancelQuit: () => setShowQuitConfirm(false),
     confirmQuit,
+    // Replay data — descartado quando o hook desmonta (sai da rota).
+    replayMoves,
+    replayFirstTurn,
   };
 }
