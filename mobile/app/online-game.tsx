@@ -29,6 +29,7 @@ import {
   type GameOverPayload,
   type GameStartPayload,
   type GameState,
+  type Move,
   type PlayerId,
   type RematchDeclinedPayload,
   type RematchExpiredPayload,
@@ -42,6 +43,7 @@ import { CountdownOverlay } from "../src/components/CountdownOverlay";
 import { GameOverModal, type GameOverReason } from "../src/components/GameOverModal";
 import { GameTimer, useGameTimers } from "../src/components/GameTimer";
 import { PlayerCard, TurnArrow } from "../src/components/PlayerCard";
+import { ReplayModal } from "../src/components/ReplayModal";
 import { WallBank } from "../src/components/WallBank";
 import { useResponsiveBoard } from "../src/hooks/useResponsiveBoard";
 import {
@@ -107,6 +109,13 @@ export default function OnlineGameScreen() {
   const [rematchStatus, setRematchStatus] = useState<RematchStatus>("idle");
   const [rematchExpiresAt, setRematchExpiresAt] = useState(0);
   const [rematchRequesterName, setRematchRequesterName] = useState("");
+
+  // Replay in-memory. Os moves chegam no `stateUpdate` e são reconstruídos pelo
+  // ReplayModal. firstTurn fica congelado do estado inicial do gameStart (o
+  // payload só traz o move, não o firstTurn).
+  const [replayMoves, setReplayMoves] = useState<Move[]>([]);
+  const [replayFirstTurn, setReplayFirstTurn] = useState<PlayerId>(1);
+  const [showReplay, setShowReplay] = useState(false);
 
   usePieceMoveSound(state?.p1 ?? -1, state?.p2 ?? -1);
   const totalWallsUsed = state ? (WALLS_PER_PLAYER - state.wallsLeft[1]) + (WALLS_PER_PLAYER - state.wallsLeft[2]) : 0;
@@ -206,6 +215,10 @@ export default function OnlineGameScreen() {
         setRematchExpiresAt(0);
         setRematchRequesterName("");
         setGameOverReason("goal");
+        // Replay reinicia só num jogo novo (inclui revanche).
+        setReplayMoves([]);
+        setReplayFirstTurn(incoming.turn);
+        setShowReplay(false);
         // Zera os relógios — sem isso a revanche herda o tempo restante da
         // partida anterior (e o timedOutPlayer ficaria fixo se tivesse estourado).
         resetTimersRef.current();
@@ -213,6 +226,12 @@ export default function OnlineGameScreen() {
     };
     const onStateUpdate = (payload: StateUpdatePayload) => {
       setState(deserializeState(payload.state));
+      // Server inclui o `move` no payload pra o replay reconstruir o jogo.
+      // Pode vir undefined em paths que só atualizam state sem move real
+      // (ex.: W.O. de timeout marca winner sem aplicar move).
+      if (payload.move) {
+        setReplayMoves((prev) => [...prev, payload.move as Move]);
+      }
     };
     const onGameOver = (_payload: GameOverPayload) => {
       // O winner já vem no state via stateUpdate (vem antes do gameOver).
@@ -657,6 +676,19 @@ export default function OnlineGameScreen() {
         onAcceptRematch={onAcceptRematch}
         onDeclineRematch={onDeclineRematch}
         onLeave={onBackToLobby}
+        replayAvailable={replayMoves.length > 0}
+        onWatchReplay={() => setShowReplay(true)}
+      />
+
+      {/* Replay sobreposto ao GameOverModal — reconstrói a partida que acabou. */}
+      <ReplayModal
+        visible={showReplay}
+        moves={replayMoves}
+        firstTurn={replayFirstTurn}
+        flipped={myPlayer === 2}
+        p1Name={myPlayer === 1 ? myName : (meta?.opponentName ?? "P1")}
+        p2Name={myPlayer === 1 ? (meta?.opponentName ?? "P2") : myName}
+        onClose={() => setShowReplay(false)}
       />
 
       {/* Modal "Oponente saiu" — só durante partida ativa (sem winner). */}

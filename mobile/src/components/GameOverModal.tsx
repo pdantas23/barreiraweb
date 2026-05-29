@@ -30,6 +30,9 @@ type Props = {
   onAcceptRematch?: () => void;
   onDeclineRematch?: () => void;
   onLeave?: () => void;
+  /** Habilita link "Ver replay" — true quando há ao menos 1 move gravado. */
+  replayAvailable?: boolean;
+  onWatchReplay?: () => void;
 };
 
 const useCountdown = (expiresAt: number, active: boolean) => {
@@ -63,6 +66,8 @@ export const GameOverModal = ({
   onAcceptRematch,
   onDeclineRematch,
   onLeave,
+  replayAvailable = false,
+  onWatchReplay,
 }: Props) => {
   const isVictory = winner === 1;
   const isTimeout = reason === "timeout";
@@ -144,21 +149,24 @@ export const GameOverModal = ({
         );
 
       case "requesting":
+        // Countdown DENTRO do botão; "aguardando o adversário" como linha
+        // separada FORA do botão (abaixo das ações).
         return (
-          <View style={styles.actions}>
-            <Pressable
-              onPress={onLeave}
-              style={({ pressed }) => [styles.btnSecondary, pressed && styles.pressed]}
-            >
-              <Ionicons name="exit-outline" size={18} color="#1A2A4A" />
-              <Text style={styles.btnSecondaryText}>Sair</Text>
-            </Pressable>
-            <View style={[styles.btnDisabled]}>
-              <Ionicons name="time-outline" size={18} color="#666" />
-              <Text style={styles.btnDisabledText}>
-                Aguardando resposta... {countdown}s
-              </Text>
+          <View style={{ width: "100%", gap: 10 }}>
+            <View style={styles.actions}>
+              <Pressable
+                onPress={onLeave}
+                style={({ pressed }) => [styles.btnSecondary, pressed && styles.pressed]}
+              >
+                <Ionicons name="exit-outline" size={18} color="#1A2A4A" />
+                <Text style={styles.btnSecondaryText}>Sair</Text>
+              </Pressable>
+              <View style={[styles.btnDisabled]}>
+                <Ionicons name="time-outline" size={18} color="#666" />
+                <Text style={styles.btnDisabledText}>{countdown}s</Text>
+              </View>
             </View>
+            <Text style={styles.waitingText}>Aguardando o adversário…</Text>
           </View>
         );
 
@@ -251,6 +259,18 @@ export const GameOverModal = ({
           <Text style={styles.subtitle}>{subtitle}</Text>
 
           {renderActions()}
+
+          {/* Link "Ver replay" — sutil, abaixo das ações. Só aparece se houve
+              moves (W.O. instantâneo, por ex., não tem replay). */}
+          {replayAvailable && onWatchReplay && (
+            <Pressable
+              onPress={onWatchReplay}
+              style={({ pressed }) => [styles.replayLink, pressed && styles.pressed]}
+            >
+              <Ionicons name="play-circle-outline" size={16} color={L.muted} />
+              <Text style={styles.replayLinkText}>Ver replay desta partida</Text>
+            </Pressable>
+          )}
         </Animated.View>
       </Animated.View>
     </Modal>
@@ -368,6 +388,26 @@ const styles = StyleSheet.create({
     color: L.muted,
     fontWeight: "700",
     fontSize: 13,
+  },
+  waitingText: {
+    color: L.textSecondary,
+    fontSize: 13,
+    fontWeight: "600",
+    textAlign: "center",
+  },
+  replayLink: {
+    marginTop: 14,
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  replayLinkText: {
+    color: L.muted,
+    fontSize: 12,
+    fontWeight: "700",
+    textDecorationLine: "underline",
   },
   pressed: {
     opacity: 0.8,
