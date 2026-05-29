@@ -22,7 +22,7 @@ import {
 } from "react";
 import type { Session, User } from "@supabase/supabase-js";
 import { supabase } from "../net/supabase";
-import { reconnectSocket } from "../net/socket";
+import { getHandshakeToken, reconnectSocket } from "../net/socket";
 
 type AuthState = {
   session: Session | null;
@@ -60,13 +60,17 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         userId: sess?.user?.id ?? null,
       });
       setSession(sess);
-      // Reconecta socket pra novo handshake levar (ou não) o access_token.
-      if (
-        event === "SIGNED_IN" ||
-        event === "SIGNED_OUT" ||
-        event === "TOKEN_REFRESHED" ||
-        event === "INITIAL_SESSION"
-      ) {
+      // Reconecta o socket pra o novo handshake levar (ou não) o access_token
+      // — MAS só se o token realmente mudou em relação ao do handshake atual.
+      // INITIAL_SESSION/TOKEN_REFRESHED disparam em todo cold start; como o
+      // auth callback do socket já lê a sessão antes do handshake, reconectar
+      // à toa derrubava a 1ª RPC do lobby ("Sem conexão" falso) e podia
+      // resetar uma partida. handshakeToken === undefined = socket ainda não
+      // conectou → ele pega o token certo sozinho, sem reconnect.
+      const newToken = sess?.access_token ?? null;
+      const handshakeToken = getHandshakeToken();
+      if (handshakeToken !== undefined && handshakeToken !== newToken) {
+        console.log("[auth-state-change] token mudou — reconectando socket");
         reconnectSocket();
       }
     });

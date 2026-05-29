@@ -29,6 +29,12 @@ export type AppSocket = Socket<ServerToClientEvents, ClientToServerEvents>;
 
 let socket: AppSocket | null = null;
 
+// Token (JWT) enviado no handshake atual. `undefined` = socket ainda não fez
+// nenhum handshake. O AuthProvider compara com o token do evento de auth pra
+// decidir se precisa reconectar — sem isso, reconectava à toa no
+// INITIAL_SESSION e derrubava a 1ª RPC do lobby (mesma raiz da web).
+let currentHandshakeToken: string | null | undefined = undefined;
+
 // Cache global do último gameStart recebido.
 // Por que existe: quando o usuário entra como guest, o fluxo é:
 //   1. /online chama joinRoom() RPC
@@ -89,6 +95,9 @@ export const getSocket = (): AppSocket => {
             hasToken: !!accessToken,
             sessionUserId: session?.user?.id ?? null,
           });
+          // Registra o token deste handshake pra o AuthProvider só reconectar
+          // quando ele realmente mudar.
+          currentHandshakeToken = accessToken;
           cb({ clientId, accessToken });
         })();
       },
@@ -143,3 +152,8 @@ export const reconnectSocket = () => {
 };
 
 export const getServerUrl = () => SERVER_URL;
+
+// Token (JWT) usado no handshake atual. `undefined` = ainda não conectou
+// (vai pegar o token certo sozinho no primeiro handshake, sem reconnect).
+export const getHandshakeToken = (): string | null | undefined =>
+  currentHandshakeToken;
