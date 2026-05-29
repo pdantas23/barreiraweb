@@ -154,6 +154,11 @@ export default function OnlineGameScreen() {
   ghostRef.current = ghost;
   const dragTypeRef = useRef<WallType | null>(null);
   dragTypeRef.current = dragType;
+  // Ref pra o handler de gameStart (registrado uma vez, deps []) sempre ler o
+  // resetTimers atual. Sem isso a revanche herdaria os relógios da partida
+  // anterior (timedOutPlayer fixo / tempo restante errado).
+  const resetTimersRef = useRef(resetTimers);
+  resetTimersRef.current = resetTimers;
 
   // === Listeners do socket ===
   // gameStart pode chegar ANTES desta tela montar (race típica do guest:
@@ -189,6 +194,9 @@ export default function OnlineGameScreen() {
       setRematchExpiresAt(0);
       setRematchRequesterName("");
       setGameOverReason("goal");
+      // Zera os relógios — sem isso a revanche herda o tempo restante da
+      // partida anterior (e o timedOutPlayer ficaria fixo se tivesse estourado).
+      resetTimersRef.current();
     };
     const onStateUpdate = (payload: StateUpdatePayload) => {
       setState(deserializeState(payload.state));
