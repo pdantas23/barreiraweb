@@ -219,7 +219,22 @@ export const maybeScheduleBotMove = (room: ServerRoom): void => {
 
 // === Internals ===
 
+// Remove salas que ficaram só com bot (o humano saiu ou caiu por W.O.).
+// Sem isso elas viram "finished" e ficam pra sempre no mapa: o scan de spawn
+// só olha salas "waiting", então nunca as limpa → vazamento de memória.
+// Reusa scheduleBotLeave (que re-checa rematch/playing e remove após delay).
+const reapOrphanedBotRooms = (): void => {
+  for (const room of getAllRooms().values()) {
+    if (room.status === "waiting") continue; // decoy aguardando humano — intencional
+    if (room.players.length === 0) continue; // sala vazia: a lobby já deleta
+    const hasHuman = room.players.some((p) => !p.isBot);
+    if (!hasHuman) scheduleBotLeave(room);
+  }
+};
+
 const scan = (): void => {
+  reapOrphanedBotRooms();
+
   let waitingCount = 0;
   for (const room of getAllRooms().values()) {
     if (room.status === "waiting") waitingCount++;
