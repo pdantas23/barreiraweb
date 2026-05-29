@@ -9,7 +9,7 @@
 import { useEffect, useState } from "react";
 import { IoClose, IoGameController } from "react-icons/io5";
 
-const APP_STORE_URL = "https://apps.apple.com/app/barreira";
+const APP_STORE_URL = "https://apps.apple.com/br/app/barreira/id6772620765";
 const SESSION_KEY = "barreira.ios_promo_shown";
 const SHOW_DELAY_MS = 1_500;
 

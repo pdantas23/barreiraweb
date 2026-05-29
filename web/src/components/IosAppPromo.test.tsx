@@ -43,7 +43,7 @@ describe("IosAppPromo", () => {
     act(() => vi.advanceTimersByTime(1500));
 
     const link = screen.getByRole("link");
-    expect(link).toHaveAttribute("href", "https://apps.apple.com/app/barreira");
+    expect(link).toHaveAttribute("href", "https://apps.apple.com/br/app/barreira/id6772620765");
     expect(link).toHaveAttribute("target", "_blank");
 
     fireEvent.click(screen.getByLabelText("Fechar"));
