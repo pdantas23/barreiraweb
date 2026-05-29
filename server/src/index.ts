@@ -59,6 +59,7 @@ import {
   validateListRooms,
   validateMove,
 } from "./validation.js";
+import { isAllowedOrigin } from "./cors.js";
 import {
   maybeBotRequestRematch,
   maybeScheduleBotMove,
@@ -78,28 +79,15 @@ app.get("/health", (_req, res) => {
 });
 
 // === WebSocket ===
-// Origens permitidas a abrir socket no backend. Em produção, só os domínios
-// do jogo; localhost pros dev servers (Vite 5173, preview 3000, Expo 8081).
-const ALLOWED_ORIGINS = new Set([
-  "https://barreirajogo.com",
-  "https://www.barreirajogo.com",
-  "http://localhost:5173",
-  "http://localhost:3000",
-  "http://localhost:8081",
-]);
-
-// Apps nativos (React Native) não enviam header Origin — origin vem
-// undefined/null e é permitido. Quando vem uma string (browser), validamos
-// contra a allowlist.
+// Origens permitidas a abrir socket no backend — ver cors.ts. Bloqueia sites
+// http/https arbitrários, mas libera app nativo (sem Origin), Expo (exp://) e
+// dev local/LAN, pra não derrubar o mobile em desenvolvimento.
 const corsOrigin = (
   origin: string | undefined,
   cb: (err: Error | null, allow?: boolean) => void,
 ): void => {
-  if (!origin || ALLOWED_ORIGINS.has(origin)) {
-    cb(null, true);
-  } else {
-    cb(new Error("Origin não permitida pelo CORS"));
-  }
+  if (isAllowedOrigin(origin)) cb(null, true);
+  else cb(new Error("Origin não permitida pelo CORS"));
 };
 
 const httpServer = createServer(app);
