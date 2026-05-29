@@ -74,25 +74,14 @@ export const getSocket = (): AppSocket => {
               refreshError = err instanceof Error ? err.message : String(err);
             }
           }
-          // Snapshot do que existe no localStorage — pra distinguir "sem
-          // sessão" de "sessão lá mas SDK não conseguiu ler".
-          let lsKeys: string[] = [];
-          try {
-            lsKeys = Object.keys(localStorage).filter((k) => k.startsWith("sb-"));
-          } catch {
-            /* localStorage bloqueado (incognito etc) — segue */
-          }
           const accessToken = session?.access_token ?? null;
+          // Log de diagnóstico SEM dados sensíveis (sem token, sem user id,
+          // sem chaves do storage) — só sinais booleanos e tempo.
           console.log("[socket-auth]", {
-            clientId,
             hasToken: !!accessToken,
-            tokenSnippet: accessToken ? `${accessToken.slice(0, 20)}…` : null,
-            sessionUserId: session?.user?.id ?? null,
-            sessionExpiresAt: session?.expires_at ?? null,
             firstSessionFound: !!first.data.session,
             refreshed,
             refreshError,
-            sbStorageKeys: lsKeys,
             ms: Date.now() - t0,
           });
           // Registra o token deste handshake pra o AuthProvider saber se um

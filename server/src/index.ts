@@ -72,9 +72,33 @@ app.get("/health", (_req, res) => {
 });
 
 // === WebSocket ===
+// Origens permitidas a abrir socket no backend. Em produção, só os domínios
+// do jogo; localhost pros dev servers (Vite 5173, preview 3000, Expo 8081).
+const ALLOWED_ORIGINS = new Set([
+  "https://barreirajogo.com",
+  "https://www.barreirajogo.com",
+  "http://localhost:5173",
+  "http://localhost:3000",
+  "http://localhost:8081",
+]);
+
+// Apps nativos (React Native) não enviam header Origin — origin vem
+// undefined/null e é permitido. Quando vem uma string (browser), validamos
+// contra a allowlist.
+const corsOrigin = (
+  origin: string | undefined,
+  cb: (err: Error | null, allow?: boolean) => void,
+): void => {
+  if (!origin || ALLOWED_ORIGINS.has(origin)) {
+    cb(null, true);
+  } else {
+    cb(new Error("Origin não permitida pelo CORS"));
+  }
+};
+
 const httpServer = createServer(app);
 const io = new Server<ClientToServerEvents, ServerToClientEvents>(httpServer, {
-  cors: { origin: "*" },
+  cors: { origin: corsOrigin },
 });
 
 type TypedSocket = Socket<ClientToServerEvents, ServerToClientEvents>;
@@ -88,6 +112,11 @@ const errResult = (error: RpcError, message?: string): RpcResult<never> => ({
 });
 
 const okResult = <T>(data: T): RpcResult<T> => ({ ok: true, data });
+
+// Trunca IDs (clientId/authUserId) nos logs pra não expor o valor inteiro —
+// já é o padrão dos demais logs do projeto (slice 0,8).
+const short = (id: string | null | undefined): string =>
+  id ? `${id.slice(0, 8)}…` : "null";
 
 // Envelopa um handler RPC: captura LobbyError e devolve via ack;
 // qualquer outra exceção vira "internal-error" e é logada.
@@ -103,8 +132,10 @@ const rpc = <P, R>(
         ack(errResult(err.code, err.message));
         return;
       }
+      // Detalhe do erro fica só no log do server — o cliente recebe só o
+      // código genérico, sem vazar mensagens/estrutura internas.
       console.error("[rpc] erro inesperado:", err);
-      ack(errResult("internal-error", err instanceof Error ? err.message : String(err)));
+      ack(errResult("internal-error"));
     }
   };
 };
@@ -292,7 +323,7 @@ io.on("connection", (socket: TypedSocket) => {
       const hostAuthUserId = await ensureAuthUserId(socket);
       const hostName = await resolvePlayerName(hostAuthUserId, p.hostName);
       console.log(
-        `[createRoom] socket=${socket.id} clientId=${clientId ?? "null"} authUserId=${hostAuthUserId ?? "null"} name=${hostName}`,
+        `[createRoom] socket=${socket.id} clientId=${short(clientId)} authUserId=${short(hostAuthUserId)} name=${hostName}`,
       );
       const room = createRoom({
         hostSocketId: socket.id,
@@ -316,7 +347,7 @@ io.on("connection", (socket: TypedSocket) => {
       const authUserId = await ensureAuthUserId(socket);
       const playerName = await resolvePlayerName(authUserId, p.playerName);
       console.log(
-        `[joinRoom] socket=${socket.id} clientId=${clientId ?? "null"} authUserId=${authUserId ?? "null"} sala=${p.code} name=${playerName}`,
+        `[joinRoom] socket=${socket.id} clientId=${short(clientId)} authUserId=${short(authUserId)} sala=${p.code} name=${playerName}`,
       );
       const room = joinRoom({
         socketId: socket.id,
@@ -341,7 +372,7 @@ io.on("connection", (socket: TypedSocket) => {
       const uid = await ensureAuthUserId(socket);
       const rooms = listPublicRooms(uid);
       console.log(
-        `[listRooms] socket=${socket.id} clientId=${clientId ?? "null"} authUserId=${uid ?? "null"} returned=${rooms.length}`,
+        `[listRooms] socket=${socket.id} clientId=${short(clientId)} authUserId=${short(uid)} returned=${rooms.length}`,
       );
       return { rooms };
     })(payload, socket, ack),
