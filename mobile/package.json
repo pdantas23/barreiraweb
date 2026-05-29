@@ -15,7 +15,9 @@
     "moduleNameMapper": {
       "^@barreira/shared$": "<rootDir>/../shared/src/index.ts"
     },
-    "testMatch": ["<rootDir>/(src|app)/**/*.test.{ts,tsx}"],
+    "testMatch": [
+      "<rootDir>/(src|app)/**/*.test.{ts,tsx}"
+    ],
     "transformIgnorePatterns": [
       "node_modules/(?!((jest-)?react-native|@react-native(-community)?|expo(nent)?|@expo(nent)?/.*|@expo-google-fonts/.*|@react-navigation/.*|react-native-.*|@supabase/.*|socket.io-client|engine.io-client|@barreira/.*))"
     ]
@@ -49,6 +51,7 @@
   },
   "devDependencies": {
     "@testing-library/react-native": "^13.3.3",
+    "@types/jest": "^30.0.0",
     "@types/react": "~19.1.10",
     "jest": "^29.7.0",
     "jest-expo": "~54.0.0",

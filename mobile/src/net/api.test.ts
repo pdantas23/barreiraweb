@@ -6,7 +6,7 @@ jest.mock("./socket", () => ({
 }));
 
 import { connectSocket, whenConnected } from "./socket";
-import { listRooms } from "./api";
+import { listRooms, reportTimeout } from "./api";
 
 const mockConnect = connectSocket as jest.Mock;
 const mockWhenConnected = whenConnected as jest.Mock;
@@ -48,5 +48,14 @@ describe("safeRpc (mobile, via listRooms)", () => {
       expect(res.message).toMatch(/Sem conexão/i);
     }
     expect(emitWithAck).not.toHaveBeenCalled();
+  });
+
+  it("reportTimeout emite o evento reportTimeout (CRÍTICO 3)", async () => {
+    mockWhenConnected.mockResolvedValue(undefined);
+    const emitWithAck = jest.fn().mockResolvedValue({ ok: true, data: null });
+    mockConnect.mockReturnValue({ connected: true, emitWithAck });
+
+    await reportTimeout();
+    expect(emitWithAck).toHaveBeenCalledWith("reportTimeout", {});
   });
 });

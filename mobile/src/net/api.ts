@@ -55,6 +55,11 @@ export const leaveRoom = (): Promise<RpcResult<null>> =>
 export const sendMove = (move: Move): Promise<RpcResult<null>> =>
   safeRpc(() => connectSocket().emitWithAck("move", { move }));
 
+// Avisa o server que o relógio do jogador da vez estourou. O server valida
+// com o próprio relógio antes de encerrar e premiar (vitória por tempo).
+export const reportTimeout = (): Promise<RpcResult<null>> =>
+  safeRpc(() => connectSocket().emitWithAck("reportTimeout", {}));
+
 export const requestRematch = (): Promise<RpcResult<null>> =>
   safeRpc(() => connectSocket().emitWithAck("requestRematch", {}));
 

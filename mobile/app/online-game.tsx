@@ -44,6 +44,7 @@ import { WallBank } from "../src/components/WallBank";
 import { useResponsiveBoard } from "../src/hooks/useResponsiveBoard";
 import {
   leaveRoom,
+  reportTimeout,
   requestRematch as requestRematchRpc,
   respondRematch as respondRematchRpc,
   sendMove,
@@ -130,6 +131,9 @@ export default function OnlineGameScreen() {
       const winner = timedOutPlayer === 1 ? 2 : 1;
       setGameOverReason("timeout");
       setState((prev) => prev ? { ...prev, winner } : prev);
+      // Avisa o server pra ele encerrar/premiar — o relógio é client-side; sem
+      // isso o awardCasualTrophy nunca rodava em vitória por tempo no mobile.
+      void reportTimeout();
     }
   }, [timedOutPlayer, state?.winner]);
 
