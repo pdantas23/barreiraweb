@@ -6,7 +6,7 @@
 // porque applyMove é pura.
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Modal, Pressable, StyleSheet, Text, View } from "react-native";
+import { Pressable, StyleSheet, Text, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import Animated, {
   FadeIn,
@@ -125,8 +125,11 @@ export const ReplayModal = ({
 
   const fillPct = lastIdx > 0 ? (Math.min(idx, lastIdx) / lastIdx) * 100 : 0;
 
+  // Renderizado DENTRO do Modal do GameOverModal (overlay absoluto), não como
+  // um segundo Modal nativo — o iOS só apresenta um Modal por vez.
+  if (!visible) return null;
+
   return (
-    <Modal transparent visible={visible} animationType="fade" statusBarTranslucent>
       <Animated.View entering={FadeIn.duration(220)} style={styles.backdrop}>
         <View style={styles.card}>
           {/* Header: título + close */}
@@ -220,7 +223,6 @@ export const ReplayModal = ({
           </View>
         </View>
       </Animated.View>
-    </Modal>
   );
 };
 
@@ -230,7 +232,7 @@ const NOOP = () => {};
 
 const styles = StyleSheet.create({
   backdrop: {
-    flex: 1,
+    ...StyleSheet.absoluteFillObject,
     backgroundColor: "rgba(26, 42, 74, 0.55)",
     alignItems: "center",
     justifyContent: "center",

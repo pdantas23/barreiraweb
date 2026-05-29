@@ -678,18 +678,19 @@ export default function OnlineGameScreen() {
         onLeave={onBackToLobby}
         replayAvailable={replayMoves.length > 0}
         onWatchReplay={() => setShowReplay(true)}
-      />
-
-      {/* Replay sobreposto ao GameOverModal — reconstrói a partida que acabou. */}
-      <ReplayModal
-        visible={showReplay}
-        moves={replayMoves}
-        firstTurn={replayFirstTurn}
-        flipped={myPlayer === 2}
-        p1Name={myPlayer === 1 ? myName : (meta?.opponentName ?? "P1")}
-        p2Name={myPlayer === 1 ? (meta?.opponentName ?? "P2") : myName}
-        onClose={() => setShowReplay(false)}
-      />
+      >
+        {/* Replay vive DENTRO do Modal do GameOverModal (overlay absoluto) —
+            evita a corrida de dois Modais nativos no iOS. */}
+        <ReplayModal
+          visible={showReplay}
+          moves={replayMoves}
+          firstTurn={replayFirstTurn}
+          flipped={myPlayer === 2}
+          p1Name={myPlayer === 1 ? myName : (meta?.opponentName ?? "P1")}
+          p2Name={myPlayer === 1 ? (meta?.opponentName ?? "P2") : myName}
+          onClose={() => setShowReplay(false)}
+        />
+      </GameOverModal>
 
       {/* Modal "Oponente saiu" — só durante partida ativa (sem winner). */}
       <GameOverModal

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { Modal, Pressable, StyleSheet, Text, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import Animated, { FadeIn, FadeInDown } from "react-native-reanimated";
@@ -22,6 +22,10 @@ type Props = {
   reason?: GameOverReason;
   onRematch: () => void;
   onBackToMenu: () => void;
+  /** Overlay renderizado DENTRO do Modal (ex.: o replay). O iOS só apresenta
+      um Modal nativo por vez, então o replay vive aqui dentro em vez de abrir
+      um segundo Modal — assim não há corrida de present/dismiss. */
+  children?: ReactNode;
   // Online rematch props (optional — omit for local/bot games)
   online?: boolean;
   rematchStatus?: RematchStatus;
@@ -57,6 +61,7 @@ export const GameOverModal = ({
   visible,
   winner,
   reason = "goal",
+  children,
   onRematch,
   onBackToMenu,
   online = false,
@@ -272,6 +277,9 @@ export const GameOverModal = ({
             </Pressable>
           )}
         </Animated.View>
+
+        {/* Overlay (replay) por cima do card, dentro do mesmo Modal nativo. */}
+        {children}
       </Animated.View>
     </Modal>
   );
