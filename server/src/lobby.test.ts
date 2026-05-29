@@ -156,12 +156,41 @@ describe("attemptReanchor", () => {
     expect(lobby.getRoomBySocket("s-host-novo")?.code).toBe(room.code);
   });
 
-  it("não sobrescreve authUserId já existente", () => {
+  it("player logado: permite reanchor com o MESMO authUserId (preserva identidade)", () => {
     const room = lobby.createRoom(createInput({ hostClientId: "c-host", hostAuthUserId: "u-original" }));
     lobby.joinRoom(joinInput({ code: room.code }));
     lobby.markDisconnected("s-host");
-    const anchor = lobby.attemptReanchor("c-host", "s-novo", "u-diferente");
+    const anchor = lobby.attemptReanchor("c-host", "s-novo", "u-original");
+    expect(anchor).not.toBeNull();
     expect(anchor?.player.authUserId).toBe("u-original");
+    expect(anchor?.player.socketId).toBe("s-novo");
+  });
+
+  it("player logado: REJEITA reanchor com authUserId diferente (anti-sequestro)", () => {
+    const room = lobby.createRoom(createInput({ hostClientId: "c-host", hostAuthUserId: "u-original" }));
+    lobby.joinRoom(joinInput({ code: room.code }));
+    lobby.markDisconnected("s-host");
+    const anchor = lobby.attemptReanchor("c-host", "s-atacante", "u-atacante");
+    expect(anchor).toBeNull();
+    // o slot NÃO foi movido pro socket do atacante
+    expect(lobby.getRoomBySocket("s-atacante")).toBeNull();
+  });
+
+  it("player logado: REJEITA reanchor sem token no socket novo (authUserId null)", () => {
+    const room = lobby.createRoom(createInput({ hostClientId: "c-host", hostAuthUserId: "u-original" }));
+    lobby.joinRoom(joinInput({ code: room.code }));
+    lobby.markDisconnected("s-host");
+    const anchor = lobby.attemptReanchor("c-host", "s-atacante", null);
+    expect(anchor).toBeNull();
+  });
+
+  it("player anônimo: reanchor segue só com clientId (sem exigir token)", () => {
+    const room = lobby.createRoom(createInput({ hostClientId: "c-anon", hostAuthUserId: null }));
+    lobby.joinRoom(joinInput({ code: room.code }));
+    lobby.markDisconnected("s-host");
+    const anchor = lobby.attemptReanchor("c-anon", "s-novo", null);
+    expect(anchor).not.toBeNull();
+    expect(anchor?.player.socketId).toBe("s-novo");
   });
 
   it("clientId desconhecido → null", () => {

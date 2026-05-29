@@ -54,6 +54,12 @@ import { getOrCreateProfile, getUsernameForAuthUser } from "./profiles.js";
 import { resolveAuthUser } from "./auth.js";
 import { awardCasualTrophy } from "./trophies.js";
 import {
+  validateCreateRoom,
+  validateJoinRoom,
+  validateListRooms,
+  validateMove,
+} from "./validation.js";
+import {
   maybeBotRequestRematch,
   maybeScheduleBotMove,
   scheduleBotRescue,
@@ -320,6 +326,7 @@ io.on("connection", (socket: TypedSocket) => {
 
   socket.on("createRoom", (payload, ack) =>
     rpc(async (p: typeof payload) => {
+      validateCreateRoom(p);
       const hostAuthUserId = await ensureAuthUserId(socket);
       const hostName = await resolvePlayerName(hostAuthUserId, p.hostName);
       console.log(
@@ -344,6 +351,7 @@ io.on("connection", (socket: TypedSocket) => {
 
   socket.on("joinRoom", (payload, ack) =>
     rpc(async (p: typeof payload) => {
+      validateJoinRoom(p);
       const authUserId = await ensureAuthUserId(socket);
       const playerName = await resolvePlayerName(authUserId, p.playerName);
       console.log(
@@ -368,7 +376,8 @@ io.on("connection", (socket: TypedSocket) => {
   );
 
   socket.on("listRooms", (payload, ack) =>
-    rpc(async () => {
+    rpc(async (p: typeof payload) => {
+      validateListRooms(p);
       const uid = await ensureAuthUserId(socket);
       const rooms = listPublicRooms(uid);
       console.log(
@@ -414,6 +423,7 @@ io.on("connection", (socket: TypedSocket) => {
   // estado não é modificado. Cliente nunca consegue avançar sem o "ok" daqui.
   socket.on("move", (payload, ack) =>
     rpc(async (p: typeof payload) => {
+      validateMove(p);
       const room = getRoomBySocket(socket.id);
       if (!room) throw new LobbyError("not-in-room");
       if (room.status === "finished") throw new LobbyError("game-over");

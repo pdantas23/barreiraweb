@@ -457,6 +457,18 @@ export const attemptReanchor = (
   const player = room.players.find((p) => p.clientId === clientId);
   if (!player) return null;
 
+  // Segurança: se o player está logado, só o MESMO authUserId (vindo de um
+  // JWT válido no socket novo) pode reanexar. Sem isso, quem descobrisse o
+  // clientId (que não é segredo) sequestraria a sessão de um jogador logado.
+  // Anônimos (authUserId null) seguem só com clientId (comportamento atual).
+  // Checado ANTES de qualquer mutação de estado.
+  if (player.authUserId && authUserId !== player.authUserId) {
+    console.warn(
+      `[reanchor] REJEITADO pra ${clientId.slice(0, 8)}…: player é logado e o socket apresentou authUserId diferente`,
+    );
+    return null;
+  }
+
   // Cancela timer (se houver) — player voltou a tempo.
   const t = disconnectTimers.get(clientId);
   if (t) clearTimeout(t);
