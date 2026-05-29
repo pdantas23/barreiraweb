@@ -80,17 +80,13 @@ const pickRandomColor = (): "cyan" | "random" | "red" =>
   BOT_COLORS[Math.floor(Math.random() * BOT_COLORS.length)];
 
 // Dificuldade de cada bot: socketId → BotDifficulty. Atribuída no spawn/rescue
-// e consultada a cada jogada. Assim o lobby tem uma mistura de bots fácil,
-// médio e difícil (a variação de jogada dentro de cada nível vem do próprio
-// botMove). Distribuição enviesada pra casual: mais fácil/médio que difícil.
+// e consultada a cada jogada (botMove decide via minimax na profundidade do
+// nível). No multiplayer online NUNCA usamos "easy" — só médio e difícil,
+// 50/50: o online é pra valer, o "easy" fica só pro treino offline.
 const botDifficulties = new Map<string, BotDifficulty>();
 
-const randomDifficulty = (): BotDifficulty => {
-  const r = Math.random();
-  if (r < 0.4) return "easy";   // 40%
-  if (r < 0.8) return "medium"; // 40%
-  return "hard";                // 20%
-};
+const randomDifficulty = (): BotDifficulty =>
+  Math.random() < 0.5 ? "medium" : "hard";
 
 // Pra evitar spawns concorrentes na mesma "janela" (race do setInterval +
 // múltiplos setTimeouts agendados). Conta spawns em voo.

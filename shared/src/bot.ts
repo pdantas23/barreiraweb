@@ -1,196 +1,259 @@
-// === Bot do Barreira — 3 dificuldades ===
+// === Bot do Barreira — minimax α-β único, 3 dificuldades por profundidade ===
 //
-// Substitui o antigo sistema de "personalidades" fixas por 3 níveis simples:
-// fácil, médio e difícil. Cada nível é STATELESS (recebe só o estado atual)
-// e usa aleatoriedade POR JOGADA — então o bot varia de partida pra partida
-// e dentro da mesma partida, sem nunca repetir a mesma sequência. Não há
-// estilo fixo: a variação vem de sorteios a cada decisão, não de um perfil.
+// IMPLEMENTAÇÃO ÚNICA, reutilizada por todos os consumidores (web/mobile
+// offline e server online) via `botMove(state, botId, difficulty)`. Nenhum
+// consumidor tem lógica de bot própria — todos importam daqui.
 //
-// Resumo do comportamento:
-//   fácil  — avança em direção ao objetivo, mas erra ~30% das vezes (move
-//            aleatório); usa parede raramente e mal escolhida; nunca usa a
-//            última parede (sempre guarda reserva); nunca bloqueia bem.
-//   médio  — avança consistente via pathfinding (nunca volta casas); ~40% das
-//            jogadas tenta atrasar o humano com a melhor parede disponível;
-//            guarda reserva (não gasta a última à toa).
-//   difícil— minimax otimizado (ver minimaxOpponent.ts): equilibra avanço e
-//            bloqueio, sempre competente, com variação entre jogadas de mesmo
-//            valor.
+// Os 3 níveis usam EXATAMENTE o mesmo minimax α-β com avaliação por BFS. A
+// ÚNICA diferença entre eles é a PROFUNDIDADE de lookahead (quantos plies à
+// frente o bot enxerga):
+//   easy   = 1 ply  → decide olhando só o estado imediato (andar vs. parede agora)
+//   medium = 3 plies → planeja 2-3 jogadas à frente
+//   hard   = 4 plies → sequências longas de avanço + bloqueio (muito forte)
+//
+// SEM aleatoriedade em qualquer nível: toda jogada é resultado do minimax.
+// Empates são resolvidos de forma DETERMINÍSTICA — a ordenação coloca peças
+// antes de paredes, e o root só troca a melhor jogada em score ESTRITAMENTE
+// maior, então em empate fica o primeiro lance (prefere avançar). Se o minimax
+// não achar jogada (não deve acontecer), cai num fallback BFS rumo ao objetivo.
 
 import { BOARD_SIZE, goalRow, opponentOf } from "./board";
+import { applyMove } from "./engine";
 import { getValidMoves } from "./moves";
-import type { GameState, Move, PlayerId, WallPlacement } from "./types";
-import { minimaxOpponentMove } from "./minimaxOpponent";
-import {
-  allPossiblePlacements,
-  canPlaceWall,
-  neighbors,
-  registerWall,
-} from "./walls";
+import type { GameState, Move, PlayerId } from "./types";
+import { allPossiblePlacements, canPlaceWall, isBlocked } from "./walls";
+
+const TOTAL_SQUARES = BOARD_SIZE * BOARD_SIZE;
 
 export type BotDifficulty = "easy" | "medium" | "hard";
 
+// Profundidade de busca por nível (em plies). Único parâmetro que diferencia
+// as dificuldades. hard fica em 4 (dentro de 4-5) por equilíbrio entre força e
+// custo: o minimax é síncrono e, no server online, segurar o event loop por
+// muito tempo atrasaria as outras partidas.
+const DEPTH: Record<BotDifficulty, number> = {
+  easy: 1,
+  medium: 3,
+  hard: 4,
+};
+
 const UNREACHABLE = 999;
+const WIN_SCORE = 100_000;
+// Só considera paredes a até N casas de alguma peça — reduz o branching de 128
+// placements pra ~algumas dezenas, mantendo as paredes que de fato importam.
+// Raio 1 (paredes adjacentes às peças) mantém o branching baixo o bastante pra
+// a busca profunda do "hard" rodar rápido sem travar o event loop do server.
+const WALL_RADIUS = 1;
 
 const rowOf = (idx: number): number => Math.floor(idx / BOARD_SIZE);
+const colOf = (idx: number): number => idx % BOARD_SIZE;
 const pieceOf = (state: GameState, id: PlayerId): number =>
   id === 1 ? state.p1 : state.p2;
-const pickRandom = <T>(arr: readonly T[]): T =>
-  arr[Math.floor(Math.random() * arr.length)];
 
-// BFS: menor número de passos de `from` até qualquer casa da linha-objetivo.
-// UNREACHABLE se a parede trancou o caminho.
+// BFS por níveis: menor número de passos de `from` até a linha-objetivo.
+// Hot path do minimax (chamado em cada folha + na avaliação), então é
+// otimizado: vizinhos inline (sem alocar array por nó) e `visited` em
+// Uint8Array. `isBlocked` é só um lookup de Set.
 const shortestPathDistance = (
   state: GameState,
   from: number,
   targetRow: number,
 ): number => {
   if (rowOf(from) === targetRow) return 0;
-  const visited = new Set<number>([from]);
-  const queue: Array<[number, number]> = [[from, 0]];
-  let head = 0;
-  while (head < queue.length) {
-    const [cur, dist] = queue[head++];
-    for (const n of neighbors(state.walls, cur)) {
-      if (visited.has(n)) continue;
-      if (rowOf(n) === targetRow) return dist + 1;
-      visited.add(n);
-      queue.push([n, dist + 1]);
+  const walls = state.walls;
+  const visited = new Uint8Array(TOTAL_SQUARES);
+  visited[from] = 1;
+  let frontier: number[] = [from];
+  let dist = 0;
+  while (frontier.length > 0) {
+    dist++;
+    const next: number[] = [];
+    for (let i = 0; i < frontier.length; i++) {
+      const cur = frontier[i];
+      const r = (cur / BOARD_SIZE) | 0;
+      const c = cur % BOARD_SIZE;
+      // 4 vizinhos ortogonais, inline (evita alocação de array por nó).
+      if (r > 0) {
+        const n = cur - BOARD_SIZE;
+        if (!visited[n] && !isBlocked(walls, cur, n)) {
+          if (((n / BOARD_SIZE) | 0) === targetRow) return dist;
+          visited[n] = 1;
+          next.push(n);
+        }
+      }
+      if (r < BOARD_SIZE - 1) {
+        const n = cur + BOARD_SIZE;
+        if (!visited[n] && !isBlocked(walls, cur, n)) {
+          if (((n / BOARD_SIZE) | 0) === targetRow) return dist;
+          visited[n] = 1;
+          next.push(n);
+        }
+      }
+      if (c > 0) {
+        const n = cur - 1;
+        if (!visited[n] && !isBlocked(walls, cur, n)) {
+          // mesma linha → nunca é a targetRow ao mover lateral; checa mesmo assim
+          if (((n / BOARD_SIZE) | 0) === targetRow) return dist;
+          visited[n] = 1;
+          next.push(n);
+        }
+      }
+      if (c < BOARD_SIZE - 1) {
+        const n = cur + 1;
+        if (!visited[n] && !isBlocked(walls, cur, n)) {
+          if (((n / BOARD_SIZE) | 0) === targetRow) return dist;
+          visited[n] = 1;
+          next.push(n);
+        }
+      }
     }
+    frontier = next;
   }
   return UNREACHABLE;
 };
 
-// === Peça ===
+// Avaliação da posição (do ponto de vista do bot):
+// + distância BFS do adversário ao objetivo (quanto mais longe, melhor)
+// − distância BFS do bot ao objetivo (quanto mais perto, melhor)
+// + saldo de paredes na mão (ter mais paredes que o oponente é vantagem).
+const evaluate = (state: GameState, botId: PlayerId, humanId: PlayerId): number => {
+  if (state.winner === botId) return WIN_SCORE;
+  if (state.winner === humanId) return -WIN_SCORE;
+  const botDist = shortestPathDistance(state, pieceOf(state, botId), goalRow(botId));
+  const humanDist = shortestPathDistance(state, pieceOf(state, humanId), goalRow(humanId));
+  if (botDist === UNREACHABLE) return -WIN_SCORE;
+  if (humanDist === UNREACHABLE) return WIN_SCORE;
+  const distScore = (humanDist - botDist) * 10;
+  const wallScore = (state.wallsLeft[botId] - state.wallsLeft[humanId]) * 1;
+  return distScore + wallScore;
+};
 
-// Move(s) de peça que MINIMIZAM a própria distância ao objetivo. Sorteia entre
-// empates — garante avanço (nunca volta casas) com variação natural.
-const greedyPieceMove = (state: GameState, botId: PlayerId): Move | null => {
+// Paredes candidatas: só as a até WALL_RADIUS de alguma peça.
+const wallNearPieces = (state: GameState, ir: number, ic: number): boolean => {
+  for (const t of [state.p1, state.p2]) {
+    if (Math.abs(ir - rowOf(t)) <= WALL_RADIUS && Math.abs(ic - colOf(t)) <= WALL_RADIUS) {
+      return true;
+    }
+  }
+  return false;
+};
+
+// Gera as jogadas candidatas de `player`. Peças PRIMEIRO (melhora os cortes do
+// α-β e dá prioridade determinística ao avanço em empates), paredes depois.
+// Não faz BFS de legalidade aqui — `applyMove` rejeita paredes que trancam o
+// caminho (res.ok=false), evitando o BFS duplicado e acelerando a busca.
+const generateMoves = (state: GameState, player: PlayerId): Move[] => {
+  const moves: Move[] = getValidMoves(state, player).map((to) => ({ kind: "piece", to }));
+  if (state.wallsLeft[player] > 0) {
+    for (const placement of allPossiblePlacements()) {
+      if (!wallNearPieces(state, placement.interRow, placement.interCol)) continue;
+      if (!canPlaceWall(state.walls, placement)) continue;
+      moves.push({ kind: "wall", placement });
+    }
+  }
+  return moves;
+};
+
+const minimax = (
+  state: GameState,
+  depth: number,
+  alpha: number,
+  beta: number,
+  isMax: boolean,
+  botId: PlayerId,
+  humanId: PlayerId,
+): number => {
+  if (depth === 0 || state.winner !== null) {
+    return evaluate(state, botId, humanId);
+  }
+  const player: PlayerId = isMax ? botId : humanId;
+  const turned: GameState = { ...state, turn: player };
+  const moves = generateMoves(turned, player);
+
+  let explored = false;
+  if (isMax) {
+    let best = -Infinity;
+    for (const move of moves) {
+      const res = applyMove(turned, player, move);
+      if (!res.ok) continue;
+      explored = true;
+      const score = minimax(res.state, depth - 1, alpha, beta, false, botId, humanId);
+      if (score > best) best = score;
+      if (best > alpha) alpha = best;
+      if (alpha >= beta) break;
+    }
+    return explored ? best : evaluate(state, botId, humanId);
+  }
+  let best = Infinity;
+  for (const move of moves) {
+    const res = applyMove(turned, player, move);
+    if (!res.ok) continue;
+    explored = true;
+    const score = minimax(res.state, depth - 1, alpha, beta, true, botId, humanId);
+    if (score < best) best = score;
+    if (best < beta) beta = best;
+    if (alpha >= beta) break;
+  }
+  return explored ? best : evaluate(state, botId, humanId);
+};
+
+// Fallback determinístico: passo de peça que mais reduz a distância BFS ao
+// objetivo (empate → o primeiro na ordem de getValidMoves).
+const bfsStep = (state: GameState, botId: PlayerId): Move | null => {
   const goal = goalRow(botId);
   const key = botId === 1 ? "p1" : "p2";
-  const scored = getValidMoves(state, botId).map((to) => {
+  let bestTo = -1;
+  let bestDist = Infinity;
+  for (const to of getValidMoves(state, botId)) {
     const sim = { ...state, [key]: to } as GameState;
-    return { to, dist: shortestPathDistance(sim, to, goal) };
-  });
-  if (scored.length === 0) return null;
-  const best = Math.min(...scored.map((m) => m.dist));
-  const ties = scored.filter((m) => m.dist === best);
-  return { kind: "piece", to: pickRandom(ties).to };
-};
-
-// === Paredes ===
-
-// Paredes legais que NÃO trancam o caminho de nenhum jogador.
-const legalWalls = (state: GameState, botId: PlayerId): WallPlacement[] => {
-  if (state.wallsLeft[botId] <= 0) return [];
-  const out: WallPlacement[] = [];
-  for (const placement of allPossiblePlacements()) {
-    if (!canPlaceWall(state.walls, placement)) continue;
-    const sim = { ...state, walls: registerWall(state.walls, placement) };
-    if (shortestPathDistance(sim, state.p1, goalRow(1)) === UNREACHABLE) continue;
-    if (shortestPathDistance(sim, state.p2, goalRow(2)) === UNREACHABLE) continue;
-    out.push(placement);
-  }
-  return out;
-};
-
-// Melhor parede pra atrasar o humano: maximiza (ganho na distância do humano −
-// penalidade na própria). Sorteia entre empates pra variar. Devolve também o
-// ganho puro do humano pra o caller decidir se vale a pena.
-const bestBlockingWall = (
-  state: GameState,
-  botId: PlayerId,
-): { placement: WallPlacement; humanGain: number } | null => {
-  const humanId = opponentOf(botId);
-  const humanGoal = goalRow(humanId);
-  const botGoal = goalRow(botId);
-  const humanBase = shortestPathDistance(state, pieceOf(state, humanId), humanGoal);
-  const botBase = shortestPathDistance(state, pieceOf(state, botId), botGoal);
-
-  let bestNet = -Infinity;
-  let pool: Array<{ placement: WallPlacement; humanGain: number }> = [];
-  for (const placement of legalWalls(state, botId)) {
-    const sim = { ...state, walls: registerWall(state.walls, placement) };
-    const humanGain =
-      shortestPathDistance(sim, pieceOf(state, humanId), humanGoal) - humanBase;
-    const botPenalty =
-      shortestPathDistance(sim, pieceOf(state, botId), botGoal) - botBase;
-    const net = humanGain - botPenalty; // equilibra atrasar o humano vs. atrapalhar a si
-    if (net > bestNet) {
-      bestNet = net;
-      pool = [{ placement, humanGain }];
-    } else if (net === bestNet) {
-      pool.push({ placement, humanGain });
+    const d = shortestPathDistance(sim, to, goal);
+    if (d < bestDist) {
+      bestDist = d;
+      bestTo = to;
     }
   }
-  return pool.length > 0 ? pickRandom(pool) : null;
+  return bestTo === -1 ? null : { kind: "piece", to: bestTo };
 };
 
-// Fallback: garante SEMPRE devolver uma jogada legal se existir alguma.
-const anyMove = (state: GameState, botId: PlayerId): Move | null => {
-  const piece = greedyPieceMove(state, botId);
-  if (piece) return piece;
-  const walls = legalWalls(state, botId);
-  return walls.length > 0 ? { kind: "wall", placement: pickRandom(walls) } : null;
-};
-
-// === Níveis ===
-
-// FÁCIL: avança com erros (~30% move aleatório). Parede rara (~12%), mal
-// escolhida (aleatória) e SÓ com reserva (>= 2 na mão → nunca usa a última).
-const easyMove = (state: GameState, botId: PlayerId): Move | null => {
-  if (state.wallsLeft[botId] >= 2 && Math.random() < 0.12) {
-    const walls = legalWalls(state, botId);
-    if (walls.length > 0) return { kind: "wall", placement: pickRandom(walls) };
-  }
-  const pieceMoves = getValidMoves(state, botId);
-  if (pieceMoves.length === 0) return anyMove(state, botId);
-  if (Math.random() < 0.3) return { kind: "piece", to: pickRandom(pieceMoves) };
-  return greedyPieceMove(state, botId) ?? anyMove(state, botId);
-};
-
-// MÉDIO: avança consistente (greedy, nunca volta casas). ~40% das jogadas
-// tenta atrasar o humano com a MELHOR parede — mas só se ela de fato aumenta
-// a distância dele (>= 1) e guardando reserva (não gasta a última à toa,
-// exceto se o humano estiver a <= 2 do objetivo).
-const mediumMove = (state: GameState, botId: PlayerId): Move | null => {
-  const humanId = opponentOf(botId);
-  const wallsLeft = state.wallsLeft[botId];
-  const humanDist = shortestPathDistance(
-    state,
-    pieceOf(state, humanId),
-    goalRow(humanId),
-  );
-  const mayUseLastWall = humanDist <= 2; // emergência: humano quase ganhando
-  const canWall = wallsLeft > 0 && (wallsLeft > 1 || mayUseLastWall);
-
-  if (canWall && Math.random() < 0.4) {
-    const block = bestBlockingWall(state, botId);
-    if (block && block.humanGain >= 1) {
-      return { kind: "wall", placement: block.placement };
-    }
-  }
-  return greedyPieceMove(state, botId) ?? anyMove(state, botId);
-};
-
-// DIFÍCIL: minimax otimizado (equilibra avanço e bloqueio, varia entre jogadas
-// equivalentes). Ver minimaxOpponent.ts.
-const hardMove = (state: GameState, botId: PlayerId): Move | null =>
-  minimaxOpponentMove(state, botId) ?? anyMove(state, botId);
-
-// Entrada única: escolhe a jogada do bot conforme a dificuldade.
+// Entrada ÚNICA: decide a jogada do bot via minimax α-β na profundidade do nível.
 export const botMove = (
   state: GameState,
   botId: PlayerId,
   difficulty: BotDifficulty,
 ): Move | null => {
-  switch (difficulty) {
-    case "hard":
-      return hardMove(state, botId);
-    case "medium":
-      return mediumMove(state, botId);
-    case "easy":
-    default:
-      return easyMove(state, botId);
+  if (state.winner !== null) return null;
+  const humanId = opponentOf(botId);
+  const depth = DEPTH[difficulty];
+  const turned: GameState = { ...state, turn: botId };
+  const moves = generateMoves(turned, botId);
+
+  let bestMove: Move | null = null;
+  let bestScore = -Infinity;
+  let alpha = -Infinity;
+  for (const move of moves) {
+    const res = applyMove(turned, botId, move);
+    if (!res.ok) continue;
+    const score = minimax(res.state, depth - 1, alpha, Infinity, false, botId, humanId);
+    // ESTRITAMENTE maior → empate mantém o primeiro (peças antes de paredes).
+    if (score > bestScore) {
+      bestScore = score;
+      bestMove = move;
+    }
+    if (bestScore > alpha) alpha = bestScore;
   }
+  if (bestMove) return bestMove;
+
+  // Fallback: o minimax não achou jogada (estado degenerado). Tenta o próximo
+  // passo BFS; se nem peça houver, qualquer parede legal; senão null.
+  const step = bfsStep(state, botId);
+  if (step) return step;
+  if (state.wallsLeft[botId] > 0) {
+    for (const placement of allPossiblePlacements()) {
+      if (!canPlaceWall(state.walls, placement)) continue;
+      if (applyMove(turned, botId, { kind: "wall", placement }).ok) {
+        return { kind: "wall", placement };
+      }
+    }
+  }
+  return null;
 };
