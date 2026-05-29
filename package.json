@@ -8,7 +8,8 @@
     "shared"
   ],
   "overrides": {
-    "react": "19.1.0"
+    "react": "19.1.0",
+    "react-dom": "19.1.0"
   },
   "scripts": {
     "dev:web": "npm --workspace=barreira-web run dev",
@@ -20,6 +21,18 @@
     "test:wo": "npm --workspace=@barreira/server run test-wo",
     "play:bot": "npm --workspace=@barreira/server run play-bot",
     "typecheck:shared": "npm --workspace=@barreira/shared run typecheck",
-    "typecheck:server": "npm --workspace=@barreira/server run typecheck"
+    "typecheck:server": "npm --workspace=@barreira/server run typecheck",
+    "test": "npm run test --workspaces --if-present && npm --prefix mobile test",
+    "test:shared": "npm --workspace=@barreira/shared run test",
+    "test:server": "npm --workspace=@barreira/server run test",
+    "test:web": "npm --workspace=barreira-web run test",
+    "test:mobile": "npm --prefix mobile test"
+  },
+  "devDependencies": {
+    "@testing-library/jest-dom": "^6.9.1",
+    "@testing-library/react": "^16.3.2",
+    "@testing-library/user-event": "^14.6.1",
+    "jsdom": "^25.0.1",
+    "vitest": "^2.1.9"
   }
 }

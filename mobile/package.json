@@ -7,7 +7,18 @@
     "android": "expo start --android",
     "ios": "expo start --ios",
     "web": "expo start --web",
-    "tunnel": "expo start --tunnel"
+    "tunnel": "expo start --tunnel",
+    "test": "jest"
+  },
+  "jest": {
+    "preset": "jest-expo",
+    "moduleNameMapper": {
+      "^@barreira/shared$": "<rootDir>/../shared/src/index.ts"
+    },
+    "testMatch": ["<rootDir>/(src|app)/**/*.test.{ts,tsx}"],
+    "transformIgnorePatterns": [
+      "node_modules/(?!((jest-)?react-native|@react-native(-community)?|expo(nent)?|@expo(nent)?/.*|@expo-google-fonts/.*|@react-navigation/.*|react-native-.*|@supabase/.*|socket.io-client|engine.io-client|@barreira/.*))"
+    ]
   },
   "dependencies": {
     "@barreira/shared": "file:../shared",
@@ -37,7 +48,11 @@
     "socket.io-client": "^4.8.3"
   },
   "devDependencies": {
+    "@testing-library/react-native": "^13.3.3",
     "@types/react": "~19.1.10",
+    "jest": "^29.7.0",
+    "jest-expo": "~54.0.0",
+    "react-test-renderer": "^19.1.0",
     "typescript": "^5.4.0"
   },
   "overrides": {

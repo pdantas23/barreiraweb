@@ -12,7 +12,9 @@
     "test-reconnect": "tsx scripts/test-reconnect.ts",
     "test-wo": "tsx scripts/test-wo.ts",
     "play-bot": "tsx scripts/play-bot.ts",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "dependencies": {
     "@barreira/shared": "*",
