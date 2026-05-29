@@ -180,10 +180,26 @@ export default function OnlineGameScreen() {
   useEffect(() => {
     const cached = getLastGameStart();
     if (cached) {
+      const incoming = deserializeState(cached.state);
       setMeta(cached);
-      setState(deserializeState(cached.state));
+      setState(incoming);
       setCountdownStartsAt(cached.countdownStartsAt);
       setCountdownActive(true);
+      // O gameStart do guest costuma chegar ANTES desta tela montar (vem do
+      // cache aqui), então o listener `onGameStart` abaixo nunca recebe esse
+      // evento inicial — é aqui que precisamos congelar o firstTurn do replay.
+      // Sem isso o replay reconstrói com firstTurn=1 (default) e, se o jogo
+      // começou com o player 2, o 1º applyMove falha ("not-your-turn") →
+      // replay trava em "Lance 0/0".
+      const isNewGame =
+        incoming.winner === null &&
+        incoming.walls.placements.length === 0 &&
+        incoming.p1 === INITIAL_P1 &&
+        incoming.p2 === INITIAL_P2;
+      if (isNewGame) {
+        setReplayMoves([]);
+        setReplayFirstTurn(incoming.turn);
+      }
     }
     // Consome o cache UMA VEZ no mount. Sem isso, se o user navega de
     // volta pro lobby e cria outra sala, a próxima montagem desta tela

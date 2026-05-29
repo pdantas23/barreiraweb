@@ -6,12 +6,13 @@
 // porque applyMove é pura.
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { Pressable, StyleSheet, Text, View, useWindowDimensions } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import Animated, {
   FadeIn,
   useAnimatedRef,
 } from "react-native-reanimated";
+import { useResponsiveBoard } from "../hooks/useResponsiveBoard";
 import {
   applyMove,
   initialState,
@@ -22,6 +23,7 @@ import {
 import { Board } from "./Board";
 
 const FRAME_MS = 600; // velocidade do play automático
+const CARD_MAX_W = 460; // largura máxima do card (espelha styles.card.maxWidth)
 
 type Props = {
   visible: boolean;
@@ -57,6 +59,15 @@ export const ReplayModal = ({
   const [playing, setPlaying] = useState(false);
   const boardRef = useAnimatedRef<Animated.View>();
   const trackWidth = useRef(0);
+
+  // O Board se dimensiona pra largura da TELA (useResponsiveBoard), o que
+  // estoura o card do replay. A gente reescala pra caber na largura útil do
+  // card: largura da tela − padding do backdrop (16*2) − padding do card (18*2).
+  const layout = useResponsiveBoard();
+  const { width: screenW } = useWindowDimensions();
+  const cardContentW = Math.min(screenW, CARD_MAX_W) - 16 * 2 - 18 * 2;
+  const boardScale = Math.min(1, cardContentW / layout.boardSize);
+  const scaledBoard = layout.boardSize * boardScale;
 
   // Reseta posição ao reabrir
   useEffect(() => {
@@ -150,16 +161,33 @@ export const ReplayModal = ({
             </Pressable>
           </View>
 
-          {/* Board */}
-          <View style={flipped ? { transform: [{ rotate: "180deg" }] } : undefined}>
-            <Board
-              state={currentState}
-              validMoves={EMPTY_MOVES}
-              ghost={null}
-              flipped={flipped}
-              onSquareTap={NOOP}
-              boardRef={boardRef}
-            />
+          {/* Board — reescalado pra caber no card. A caixa de layout usa o
+              tamanho já escalado; o transform centraliza o board dentro dela. */}
+          <View
+            style={{
+              width: scaledBoard,
+              height: scaledBoard,
+              alignItems: "center",
+              justifyContent: "center",
+            }}
+          >
+            <View
+              style={{
+                transform: [
+                  { scale: boardScale },
+                  { rotate: flipped ? "180deg" : "0deg" },
+                ],
+              }}
+            >
+              <Board
+                state={currentState}
+                validMoves={EMPTY_MOVES}
+                ghost={null}
+                flipped={flipped}
+                onSquareTap={NOOP}
+                boardRef={boardRef}
+              />
+            </View>
           </View>
 
           {/* Barra de progresso (tap pra buscar) */}
@@ -240,7 +268,7 @@ const styles = StyleSheet.create({
   },
   card: {
     width: "100%",
-    maxWidth: 460,
+    maxWidth: CARD_MAX_W,
     backgroundColor: L.white,
     borderRadius: 20,
     paddingHorizontal: 18,
