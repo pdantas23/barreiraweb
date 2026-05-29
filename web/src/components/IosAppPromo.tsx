@@ -7,7 +7,7 @@
 // Aparece só em iOS (UA /iPhone|iPad|iPod/i) — Android/desktop não veem nada.
 
 import { useEffect, useState } from "react";
-import { IoClose, IoGameController } from "react-icons/io5";
+import { IoClose } from "react-icons/io5";
 
 const APP_STORE_URL = "https://apps.apple.com/br/app/barreira/id6772620765";
 const SESSION_KEY = "barreira.ios_promo_shown";
@@ -87,8 +87,9 @@ export const IosAppPromo = () => {
         inset: 0,
         backgroundColor: C.overlay,
         display: "flex",
-        alignItems: "flex-end",
+        alignItems: "center",
         justifyContent: "center",
+        padding: 24,
         zIndex: 500,
         animation: "fadeIn 200ms ease-out",
       }}
@@ -98,29 +99,17 @@ export const IosAppPromo = () => {
         style={{
           position: "relative",
           width: "100%",
-          maxWidth: 460,
+          maxWidth: 360,
           backgroundColor: C.white,
-          borderTopLeftRadius: 28,
-          borderTopRightRadius: 28,
-          padding: "14px 24px calc(28px + env(safe-area-inset-bottom, 0px))",
-          boxShadow: "0 -12px 40px rgba(26, 42, 74, 0.22)",
+          borderRadius: 28,
+          padding: "30px 24px 26px",
+          boxShadow: "0 18px 48px rgba(26, 42, 74, 0.28)",
           display: "flex",
           flexDirection: "column",
           alignItems: "center",
-          animation: "slideUp 280ms ease-out",
+          animation: "slideUp 240ms ease-out",
         }}
       >
-        {/* Grabber (estética de bottom sheet) */}
-        <div
-          style={{
-            width: 40,
-            height: 5,
-            borderRadius: 3,
-            backgroundColor: C.border,
-            marginBottom: 18,
-          }}
-        />
-
         {/* Botão fechar (X) — canto superior direito */}
         <button
           onClick={close}
@@ -143,22 +132,21 @@ export const IosAppPromo = () => {
           <IoClose size={20} color={C.muted} />
         </button>
 
-        {/* Ícone do Barreira */}
-        <div
+        {/* Art do Barreira (cantos arredondados, estilo app icon) */}
+        <img
+          src="/photos/art.webp"
+          alt="Barreira"
+          width={96}
+          height={96}
           style={{
-            width: 72,
-            height: 72,
-            borderRadius: 20,
-            background: `linear-gradient(135deg, ${C.blue}, ${C.blueLight})`,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            boxShadow: `0 8px 20px ${C.blue}45`,
+            width: 96,
+            height: 96,
+            borderRadius: 22,
+            objectFit: "cover",
+            boxShadow: `0 10px 24px ${C.blue}40`,
             marginBottom: 16,
           }}
-        >
-          <IoGameController size={38} color={C.white} />
-        </div>
+        />
 
         {/* Título */}
         <span
