@@ -24,4 +24,13 @@ config.resolver.nodeModulesPaths = [
 //    Multiple copies of React".
 config.resolver.disableHierarchicalLookup = true;
 
+// 4. Nunca bundlar arquivos de teste (*.test / *.spec). Eles importam
+//    @testing-library/react-native, que puxa módulos do Node (console, util)
+//    que não existem no runtime RN — o que quebra o bundle. O Jest tem config
+//    própria, então isso não afeta os testes.
+const testFilesRE = /\.(test|spec)\.[jt]sx?$/;
+config.resolver.blockList = config.resolver.blockList
+  ? [].concat(config.resolver.blockList, testFilesRE)
+  : testFilesRE;
+
 module.exports = config;
