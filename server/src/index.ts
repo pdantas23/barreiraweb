@@ -157,8 +157,13 @@ const sendGameStartTo = (room: ServerRoom, me: ServerPlayer) => {
 };
 
 // Callback: timer de desconexão estourou — quem sobrou vence por W.O.
+//
+// Guarda crítica: só premia/encerra se a partida AINDA estava em andamento
+// (winner === null). Sem isso, se o jogo já tinha acabado (alguém chegou na
+// linha) e o perdedor só fechou a aba 30s depois, o timer dispararia aqui e
+// premiaria o vencedor uma SEGUNDA vez (troféu em dobro).
 setOnPlayerTimeout(async (_clientId, room, remaining) => {
-  if (remaining.length === 1 && room.gameState) {
+  if (remaining.length === 1 && room.gameState && room.gameState.winner === null) {
     const winner = remaining[0].enginePlayer;
     console.log(
       `[timeout] sala ${room.code}: ${winner} venceu por W.O. (oponente não voltou)`,
