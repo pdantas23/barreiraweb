@@ -278,6 +278,41 @@ describe("rematch", () => {
     expect(after.status).toBe("finished");
     expect(after.rematch).toBeNull();
   });
+
+  it("após recusar, NINGUÉM consegue pedir revanche de novo", () => {
+    setupFinishedGame();
+    // host pede, guest recusa
+    lobby.requestRematch("s-host");
+    const after = lobby.respondRematch("s-guest", false);
+    expect(after.rematchDeclined).toBe(true);
+
+    // Reabrir a revanche é bloqueado pra ambos os lados. Sem isso, quem
+    // recusou um bot poderia pedir de novo e o bot aceitaria na hora —
+    // entregando que era um bot só esperando.
+    expect(() => lobby.requestRematch("s-host")).toThrowError(/rematch-unavailable/);
+    expect(() => lobby.requestRematch("s-guest")).toThrowError(/rematch-unavailable/);
+    expect(after.rematch).toBeNull();
+  });
+
+  it("após recusar, o bot também não reabre o pedido (requestRematchAsBot → null)", () => {
+    const room = setupFinishedGame();
+    lobby.requestRematch("s-host");
+    lobby.respondRematch("s-guest", false);
+    expect(lobby.requestRematchAsBot(room, "anonimo1234")).toBeNull();
+  });
+
+  it("começar uma partida nova (revanche aceita) reabilita a revanche", () => {
+    const room = setupFinishedGame();
+    lobby.requestRematch("s-host");
+    lobby.respondRematch("s-guest", true); // nova partida → reseta o flag
+
+    // Simula o fim dessa nova partida e confirma que dá pra pedir de novo.
+    const live = lobby.getRoomBySocket("s-host")!;
+    expect(live.rematchDeclined).toBe(false);
+    live.status = "finished";
+    live.gameState = { ...live.gameState!, winner: 1 };
+    expect(() => lobby.requestRematch("s-host")).not.toThrow();
+  });
 });
 
 describe("salas de bot (lobby-level)", () => {

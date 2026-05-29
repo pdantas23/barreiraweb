@@ -138,6 +138,10 @@ export type RpcError =
   | "game-not-over"
   | "rematch-already-pending"
   | "no-rematch-pending"
+  // Já houve uma recusa nesta sala finalizada — revanche encerrada, não dá
+  // pra pedir de novo (evita, entre outros, entregar que o bot está só
+  // esperando pra aceitar).
+  | "rematch-unavailable"
   | "self-match"
   | "invalid-payload"
   | "internal-error";

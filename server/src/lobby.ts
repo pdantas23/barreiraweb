@@ -65,6 +65,11 @@ export type ServerRoom = {
   players: ServerPlayer[];
   gameState: GameState | null;
   rematch: RematchState | null;
+  // Vira true quando uma revanche é recusada nesta sala finalizada. Trava
+  // qualquer novo pedido até começar uma partida nova. Sem isso, depois de
+  // recusar dava pra pedir de novo — e o bot aceitaria na hora, entregando
+  // que ele estava só esperando.
+  rematchDeclined: boolean;
   // Timer agendado pelo botManager pra injetar um bot guest se ninguém
   // entrar em 10-15s. null = sem rescue pendente (sala de bot, sala
   // privada, ou sala que já fechou).
@@ -248,6 +253,7 @@ export const createRoom = (input: CreateInput): ServerRoom => {
     ],
     gameState: null,
     rematch: null,
+    rematchDeclined: false,
     botRescueTimer: null,
     countdownEndsAt: null,
     timeUsedMs: { 1: 0, 2: 0 },
@@ -523,6 +529,9 @@ export const requestRematch = (socketId: string): {
   if (!room) throw new LobbyError("not-in-room");
   if (room.status !== "finished") throw new LobbyError("game-not-over");
   if (room.players.length < 2) throw new LobbyError("not-in-room", "oponente saiu");
+  // Já houve recusa nesta partida → revanche encerrada. Não dá pra pedir de
+  // novo (senão o bot aceitaria na hora e entregaria que estava esperando).
+  if (room.rematchDeclined) throw new LobbyError("rematch-unavailable");
 
   const me = room.players.find((p) => p.socketId === socketId);
   if (!me || !me.clientId) throw new LobbyError("internal-error");
@@ -570,6 +579,9 @@ export const respondRematch = (socketId: string, accept: boolean): ServerRoom =>
   if (accept) {
     startRematch(room);
     if (onRematchAcceptedCb) onRematchAcceptedCb(room);
+  } else {
+    // Recusou → trava qualquer novo pedido nesta sala finalizada.
+    room.rematchDeclined = true;
   }
 
   return room;
@@ -579,6 +591,7 @@ const startRematch = (room: ServerRoom) => {
   room.gameState = initialState(randomFirstTurn());
   room.status = "playing";
   room.rematch = null;
+  room.rematchDeclined = false; // partida nova → revanche volta a ser possível
 };
 
 // === Rematch — variantes pra bot ===
@@ -609,6 +622,7 @@ export const requestRematchAsBot = (
   if (room.status !== "finished") return null;
   if (room.players.length < 2) return null;
   if (room.rematch) return null; // alguém já pediu — não duplica
+  if (room.rematchDeclined) return null; // já recusaram nesta partida
 
   const now = Date.now();
   const expiresAt = now + REMATCH_TIMEOUT_MS;
@@ -718,6 +732,7 @@ export const createBotHostRoom = (input: BotHostInput): ServerRoom => {
     ],
     gameState: null,
     rematch: null,
+    rematchDeclined: false,
     botRescueTimer: null,
     countdownEndsAt: null,
     timeUsedMs: { 1: 0, 2: 0 },

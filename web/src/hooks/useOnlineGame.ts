@@ -399,7 +399,10 @@ export function useOnlineGame() {
   };
 
   const onDeclineRematch = async () => {
-    setRematchStatus("idle");
+    // Estado terminal: depois de recusar não dá pra pedir revanche de novo
+    // (o server também trava). Voltar pra "idle" reexibiria o botão e, contra
+    // bot, pedir de novo entregaria que ele só estava esperando pra aceitar.
+    setRematchStatus("declined");
     await respondRematchRpc(false);
   };
 
