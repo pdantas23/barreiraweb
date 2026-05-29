@@ -12,7 +12,7 @@ const ACCENT = {
   red: "#FF3D6F",
 } as const;
 
-type RematchStatus = "idle" | "requesting" | "requested" | "declined" | "expired";
+type RematchStatus = "idle" | "requesting" | "requested" | "declined" | "expired" | "unavailable";
 
 export type GameOverReason = "goal" | "timeout";
 
@@ -156,7 +156,7 @@ export const GameOverModal = ({
             <View style={[styles.btnDisabled]}>
               <Ionicons name="time-outline" size={18} color="#666" />
               <Text style={styles.btnDisabledText}>
-                Aguardando... {countdown}s
+                Aguardando resposta... {countdown}s
               </Text>
             </View>
           </View>
@@ -205,21 +205,29 @@ export const GameOverModal = ({
 
       case "declined":
       case "expired":
+      case "unavailable": {
+        const message =
+          rematchStatus === "declined"
+            ? "Revanche recusada"
+            : rematchStatus === "expired"
+              ? "Tempo esgotado"
+              : "Adversário saiu — revanche indisponível";
         return (
-          <View style={styles.actions}>
+          <View style={{ width: "100%", gap: 10 }}>
+            <View style={[styles.btnDisabled, { flex: 0, width: "100%" }]}>
+              <Ionicons name="close-circle-outline" size={18} color="#666" />
+              <Text style={styles.btnDisabledText}>{message}</Text>
+            </View>
             <Pressable
               onPress={onLeave}
-              style={({ pressed }) => [styles.btnSecondary, pressed && styles.pressed]}
+              style={({ pressed }) => [styles.btnSecondary, { flex: 0, width: "100%" }, pressed && styles.pressed]}
             >
               <Ionicons name="exit-outline" size={18} color="#1A2A4A" />
               <Text style={styles.btnSecondaryText}>Sair</Text>
             </Pressable>
-            <View style={styles.btnDisabled}>
-              <Ionicons name="close-circle-outline" size={18} color="#666" />
-              <Text style={styles.btnDisabledText}>Pedido recusado</Text>
-            </View>
           </View>
         );
+      }
     }
   };
 

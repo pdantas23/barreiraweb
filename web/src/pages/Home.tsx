@@ -386,7 +386,12 @@ export default function HomeScreen() {
               )}
             </div>
 
-            {/* Bottom bar com botoes do lobby */}
+            {/* Quick Play (mobile) — acima da barra de ações. No desktop fica
+                na sidebar direita (lg:hidden aqui). */}
+            <QuickPlayCard className="lg:hidden mx-3 mt-4 mb-2" onPlay={() => { playButtonSound(); setOfflineModal(true); }} />
+
+            {/* Bottom bar (Entrar com codigo / Criar sala). No mobile fica no
+                rodape, logo acima dos links; no desktop, pinada no fim da coluna. */}
             <div
               style={{
                 display: "flex", flexDirection: "row", gap: 10,
@@ -424,10 +429,6 @@ export default function HomeScreen() {
                 <span style={{ color: C.white, fontWeight: 900, fontSize: 14, letterSpacing: 0.5 }}>Criar sala</span>
               </button>
             </div>
-
-            {/* Quick Play (mobile) — último item antes do footer. No desktop fica
-                na sidebar direita (lg:hidden aqui). */}
-            <QuickPlayCard className="lg:hidden mx-3 mt-4 mb-4" onPlay={() => { playButtonSound(); setOfflineModal(true); }} />
           </main>
 
           {/* Sidebar direita: Quick Play (vs Computador) - so desktop */}

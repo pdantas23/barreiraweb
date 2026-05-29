@@ -4,6 +4,8 @@ import {
   getValidMoves,
   goalRow,
   hasPathToRow,
+  INITIAL_P1,
+  INITIAL_P2,
   registerWall,
   WALLS_PER_PLAYER,
   type GameOverPayload,
@@ -40,7 +42,13 @@ import { useAuth } from "../state/auth";
 
 const EMPTY_SET: Set<number> = new Set();
 
-export type RematchStatus = "idle" | "requesting" | "requested" | "declined" | "expired";
+export type RematchStatus =
+  | "idle"
+  | "requesting"
+  | "requested"
+  | "declined"
+  | "expired"
+  | "unavailable";
 
 export function useOnlineGame() {
   const [searchParams] = useSearchParams();
@@ -177,20 +185,31 @@ export function useOnlineGame() {
       const initial = deserializeState(payload.state);
       setMeta(payload);
       setState(initial);
-      setOpponentLeft(false);
-      setCountdownStartsAt(payload.countdownStartsAt);
-      setCountdownActive(true);
-      setRematchStatus("idle");
-      setRematchExpiresAt(0);
-      setRematchRequesterName("");
-      setGameOverReason("goal");
-      // Replay reinicia a cada gameStart (inclui revanche).
-      setReplayMoves([]);
-      setReplayFirstTurn(initial.turn);
-      // Zera os timers — sem isso, a revanche herda o tempo restante
-      // da partida anterior (e o timedOutPlayer ficaria fixo se o jogo
-      // tivesse terminado por estouro).
-      resetTimersRef.current();
+      // Distingue um JOGO NOVO (1ª partida / revanche → estado inicial) de uma
+      // REANEXAÇÃO (reconexão no meio/fim da partida, que reenvia o gameStart
+      // com o estado ATUAL). Só num jogo novo resetamos replay/rematch/timers.
+      // Sem isso, uma reconexão (até depois do fim) apagava os movimentos do
+      // replay e o estado do modal antes do usuário fechar — replay vazio.
+      const isNewGame =
+        initial.winner === null &&
+        initial.walls.placements.length === 0 &&
+        initial.p1 === INITIAL_P1 &&
+        initial.p2 === INITIAL_P2;
+      if (isNewGame) {
+        setOpponentLeft(false);
+        setCountdownStartsAt(payload.countdownStartsAt);
+        setCountdownActive(true);
+        setRematchStatus("idle");
+        setRematchExpiresAt(0);
+        setRematchRequesterName("");
+        setGameOverReason("goal");
+        // Replay reinicia só num jogo novo (inclui revanche).
+        setReplayMoves([]);
+        setReplayFirstTurn(initial.turn);
+        // Zera os timers — sem isso a revanche herda o tempo restante da
+        // partida anterior (e o timedOutPlayer ficaria fixo se tivesse estourado).
+        resetTimersRef.current();
+      }
     };
     const onStateUpdate = (payload: StateUpdatePayload) => {
       setState(deserializeState(payload.state));
@@ -210,7 +229,14 @@ export function useOnlineGame() {
         void refreshTrofeusRef.current();
       }
     };
-    const onOpponentLeft = () => setOpponentLeft(true);
+    const onOpponentLeft = () => {
+      setOpponentLeft(true);
+      // Se havia revanche em aberto (ou ainda no botão), o oponente saiu →
+      // não dá mais pra revanchar. Mostra "indisponível" em vez do botão.
+      setRematchStatus((s) =>
+        s === "idle" || s === "requesting" || s === "requested" ? "unavailable" : s,
+      );
+    };
 
     const onRematchRequested = (payload: RematchRequestedPayload) => {
       setRematchStatus("requested");
@@ -360,7 +386,9 @@ export function useOnlineGame() {
     setRematchExpiresAt(Date.now() + 15_000);
     const res = await requestRematchRpc();
     if (!res.ok && res.error !== "rematch-already-pending") {
-      setRematchStatus("idle");
+      // Falhou (ex: oponente já saiu → not-in-room). Em vez de voltar pro
+      // botão silenciosamente, mostra feedback claro de indisponível.
+      setRematchStatus("unavailable");
       setRematchExpiresAt(0);
     }
   };

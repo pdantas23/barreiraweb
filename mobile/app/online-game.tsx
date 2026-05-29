@@ -21,6 +21,8 @@ import {
   getValidMoves,
   goalRow,
   hasPathToRow,
+  INITIAL_P1,
+  INITIAL_P2,
   registerWall,
   WALLS_PER_PLAYER,
   type Color,
@@ -101,7 +103,7 @@ export default function OnlineGameScreen() {
   const [countdownActive, setCountdownActive] = useState(false);
 
   // Rematch state
-  type RematchStatus = "idle" | "requesting" | "requested" | "declined" | "expired";
+  type RematchStatus = "idle" | "requesting" | "requested" | "declined" | "expired" | "unavailable";
   const [rematchStatus, setRematchStatus] = useState<RematchStatus>("idle");
   const [rematchExpiresAt, setRematchExpiresAt] = useState(0);
   const [rematchRequesterName, setRematchRequesterName] = useState("");
@@ -184,19 +186,30 @@ export default function OnlineGameScreen() {
     const socket = getSocket();
 
     const onGameStart = (payload: GameStartPayload) => {
+      const incoming = deserializeState(payload.state);
       setMeta(payload);
-      setState(deserializeState(payload.state));
-      setOpponentLeft(false);
-      setCountdownStartsAt(payload.countdownStartsAt);
-      setCountdownActive(true);
-      // Reset rematch state for new game
-      setRematchStatus("idle");
-      setRematchExpiresAt(0);
-      setRematchRequesterName("");
-      setGameOverReason("goal");
-      // Zera os relógios — sem isso a revanche herda o tempo restante da
-      // partida anterior (e o timedOutPlayer ficaria fixo se tivesse estourado).
-      resetTimersRef.current();
+      setState(incoming);
+      // Distingue JOGO NOVO (1ª partida / revanche → estado inicial) de
+      // REANEXAÇÃO (reconexão no meio/fim, que reenvia o gameStart com o
+      // estado atual). Só num jogo novo resetamos rematch/timers — senão uma
+      // reconexão apagaria o feedback de revanche antes do usuário ver.
+      const isNewGame =
+        incoming.winner === null &&
+        incoming.walls.placements.length === 0 &&
+        incoming.p1 === INITIAL_P1 &&
+        incoming.p2 === INITIAL_P2;
+      if (isNewGame) {
+        setOpponentLeft(false);
+        setCountdownStartsAt(payload.countdownStartsAt);
+        setCountdownActive(true);
+        setRematchStatus("idle");
+        setRematchExpiresAt(0);
+        setRematchRequesterName("");
+        setGameOverReason("goal");
+        // Zera os relógios — sem isso a revanche herda o tempo restante da
+        // partida anterior (e o timedOutPlayer ficaria fixo se tivesse estourado).
+        resetTimersRef.current();
+      }
     };
     const onStateUpdate = (payload: StateUpdatePayload) => {
       setState(deserializeState(payload.state));
@@ -206,6 +219,10 @@ export default function OnlineGameScreen() {
     };
     const onOpponentLeft = () => {
       setOpponentLeft(true);
+      // Oponente saiu → revanche indisponível (em vez de manter o botão).
+      setRematchStatus((s) =>
+        s === "idle" || s === "requesting" || s === "requested" ? "unavailable" : s,
+      );
     };
 
     // Rematch events
@@ -410,13 +427,14 @@ export default function OnlineGameScreen() {
   // === Rematch callbacks ===
   const onRequestRematch = async () => {
     setRematchStatus("requesting");
+    setRematchExpiresAt(Date.now() + 15_000);
     const res = await requestRematchRpc();
-    if (!res.ok) {
-      // Se o servidor detectou mutual, a nova partida já vai chegar via gameStart.
-      // Se deu outro erro, reseta.
-      if (res.error !== "rematch-already-pending") {
-        setRematchStatus("idle");
-      }
+    if (!res.ok && res.error !== "rematch-already-pending") {
+      // Se o servidor detectou mutual, a nova partida chega via gameStart.
+      // Se falhou (ex: oponente já saiu), mostra feedback claro em vez de
+      // voltar pro botão silenciosamente.
+      setRematchStatus("unavailable");
+      setRematchExpiresAt(0);
     }
   };
 

@@ -9,7 +9,7 @@ const ACCENT = {
   red: "#FF3D6F",
 } as const;
 
-type RematchStatus = "idle" | "requesting" | "requested" | "declined" | "expired";
+type RematchStatus = "idle" | "requesting" | "requested" | "declined" | "expired" | "unavailable";
 
 export type GameOverReason = "goal" | "timeout" | "abandon";
 
@@ -176,7 +176,7 @@ export const GameOverModal = ({
               style={{ ...btnBase, flex: 1.4, backgroundColor: L.cellBg, border: `1px solid ${L.border}`, color: L.muted }}
             >
               <IoTimeOutline size={18} color="#666" />
-              Aguardando... {countdown}s
+              Aguardando resposta... {countdown}s
             </div>
           </div>
         );
@@ -230,22 +230,44 @@ export const GameOverModal = ({
 
       case "declined":
       case "expired":
+      case "unavailable": {
+        const message =
+          rematchStatus === "declined"
+            ? "Revanche recusada"
+            : rematchStatus === "expired"
+              ? "Tempo esgotado"
+              : "Adversario saiu — revanche indisponivel";
         return (
-          <div style={{ display: "flex", flexDirection: "row", gap: 10, width: "100%" }}>
+          <div style={{ width: "100%", display: "flex", flexDirection: "column", gap: 10 }}>
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: 8,
+                width: "100%",
+                padding: "11px 14px",
+                borderRadius: 12,
+                backgroundColor: L.cellBg,
+                border: `1px solid ${L.border}`,
+                color: L.muted,
+                fontSize: 13,
+                fontWeight: 700,
+                textAlign: "center",
+              }}
+            >
+              <IoCloseCircleOutline size={18} color="#666" />
+              {message}
+            </div>
             <button
               onClick={onLeave}
-              style={{ ...btnBase, flex: 1, backgroundColor: L.white, border: `1px solid ${L.border}`, color: L.navy }}
+              style={{ ...btnBase, width: "100%", backgroundColor: L.white, border: `1px solid ${L.border}`, color: L.navy }}
             >
               <IoExitOutline size={18} /> Sair
             </button>
-            <div
-              style={{ ...btnBase, flex: 1.4, backgroundColor: L.cellBg, border: `1px solid ${L.border}`, color: L.muted }}
-            >
-              <IoCloseCircleOutline size={18} color="#666" />
-              Pedido recusado
-            </div>
           </div>
         );
+      }
     }
   };
 

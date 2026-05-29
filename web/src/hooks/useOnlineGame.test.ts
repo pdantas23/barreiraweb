@@ -157,4 +157,39 @@ describe("useOnlineGame", () => {
     expect(apiH.reportTimeout).toHaveBeenCalledTimes(1);
     expect(result.current.state.winner).toBe(2);
   });
+
+  // BUG 1: reanexação (gameStart com estado em andamento) não pode apagar o replay.
+  it("reanexação NÃO apaga os movimentos do replay", () => {
+    const { result } = renderHook(() => useOnlineGame());
+    act(() => sockH.emit("gameStart", gameStartPayload(1)));
+
+    const moved = applyMove(initialState(1), 1, { kind: "piece", to: 67 });
+    expect(moved.ok).toBe(true);
+    if (!moved.ok) return;
+    act(() => sockH.emit("stateUpdate", { state: serializeState(moved.state), move: { kind: "piece", to: 67 } }));
+    expect(result.current.replayMoves).toHaveLength(1);
+
+    // gameStart de REANEXAÇÃO: estado atual (não-inicial, p1 já em 67).
+    act(() => sockH.emit("gameStart", { ...gameStartPayload(1), state: serializeState(moved.state) }));
+    expect(result.current.replayMoves).toHaveLength(1); // preservado, não zerado
+  });
+
+  // BUG 2: feedback claro de revanche.
+  it("oponente saiu → rematchStatus 'unavailable' (não fica no botão)", () => {
+    const { result } = renderHook(() => useOnlineGame());
+    act(() => sockH.emit("gameStart", gameStartPayload(1)));
+    act(() => sockH.emit("gameOver", { winner: 1, reason: "goal" }));
+    act(() => sockH.emit("opponentLeft", undefined));
+    expect(result.current.rematchStatus).toBe("unavailable");
+  });
+
+  it("pedido de revanche que falha (oponente saiu) vira 'unavailable', não volta pro botão", async () => {
+    apiH.requestRematch.mockResolvedValueOnce({ ok: false, error: "not-in-room" });
+    const { result } = renderHook(() => useOnlineGame());
+    act(() => sockH.emit("gameStart", gameStartPayload(1)));
+    await act(async () => {
+      await result.current.onRequestRematch();
+    });
+    expect(result.current.rematchStatus).toBe("unavailable");
+  });
 });
