@@ -264,7 +264,9 @@ export default function HomeScreen() {
 
   return (
     <PageGate ready={firstLoadDone}>
-      <div className="h-full flex flex-col bg-gradient-to-b from-[#F0F4FF] to-[#E8EEF8]">
+      {/* Mobile: a página inteira scrolla como bloco único (overflow-y-auto no
+          container). Desktop: overflow-hidden + colunas com scroll próprio. */}
+      <div className="h-full overflow-y-auto lg:overflow-hidden flex flex-col bg-gradient-to-b from-[#F0F4FF] to-[#E8EEF8]">
         {/* === Header === */}
         <header className="flex items-center px-4 py-3 z-10 border-b border-brand/8 bg-white">
           <div className="flex-1 flex items-center">
@@ -284,15 +286,18 @@ export default function HomeScreen() {
           </div>
         </header>
 
-        {/* === Body responsivo: 3 colunas no desktop, 1 no mobile === */}
-        <div className="flex-1 flex flex-col lg:flex-row lg:overflow-hidden min-h-0">
+        {/* === Body responsivo: 3 colunas no desktop, 1 fluindo no mobile ===
+            No mobile não há flex-1/min-h-0 (sem altura travada) → o conteúdo
+            cresce e o container externo scrolla tudo junto. */}
+        <div className="flex flex-col lg:flex-1 lg:flex-row lg:overflow-hidden lg:min-h-0">
           {/* Sidebar esquerda: leaderboard (desktop). No mobile vai no topo do main. */}
           <aside className="hidden lg:flex lg:flex-col lg:w-72 lg:flex-shrink-0 lg:border-r lg:border-[#DDEAFF] lg:overflow-auto lg:p-3 lg:bg-white/40">
             <Leaderboard />
           </aside>
 
-          {/* Coluna central: lobby */}
-          <main className="flex-1 flex flex-col min-h-0">
+          {/* Coluna central: lobby. Mobile flui (sem altura travada); desktop
+              é flex-1 com scroll interno na lista de salas. */}
+          <main className="flex flex-col lg:flex-1 lg:min-h-0">
             {/* Leaderboard no topo (mobile) — ordem: leaderboard → salas → quick play.
                 No desktop fica na sidebar esquerda (lg:hidden aqui). */}
             <Leaderboard className="lg:hidden mx-3 mt-3" />
@@ -320,8 +325,9 @@ export default function HomeScreen() {
               </button>
             </div>
 
-            {/* Lista de salas + (no mobile) QuickPlay + Leaderboard abaixo */}
-            <div style={{ flex: 1, overflow: "auto", padding: "0 20px 8px" }}>
+            {/* Lista de salas. No mobile flui (sem scroll próprio); no desktop
+                é a área rolável da coluna central (lg:overflow-auto). */}
+            <div className="px-5 pb-2 lg:flex-1 lg:min-h-0 lg:overflow-auto">
               {rooms.length === 0 && !loading ? (
                 <div style={{ display: "flex", flexDirection: "column", alignItems: "center", padding: "32px 24px", justifyContent: "center" }}>
                   <IoPeopleOutline size={48} color={C.border} />
@@ -378,10 +384,6 @@ export default function HomeScreen() {
                   })}
                 </div>
               )}
-
-              {/* Quick Play (mobile, lg:hidden) por último. No desktop, sidebar direita.
-                  O Leaderboard mobile foi pro topo do main (ordem leaderboard → salas → quick play). */}
-              <QuickPlayCard className="lg:hidden mt-4 mb-2" onPlay={() => { playButtonSound(); setOfflineModal(true); }} />
             </div>
 
             {/* Bottom bar com botoes do lobby */}
@@ -422,6 +424,10 @@ export default function HomeScreen() {
                 <span style={{ color: C.white, fontWeight: 900, fontSize: 14, letterSpacing: 0.5 }}>Criar sala</span>
               </button>
             </div>
+
+            {/* Quick Play (mobile) — último item antes do footer. No desktop fica
+                na sidebar direita (lg:hidden aqui). */}
+            <QuickPlayCard className="lg:hidden mx-3 mt-4 mb-4" onPlay={() => { playButtonSound(); setOfflineModal(true); }} />
           </main>
 
           {/* Sidebar direita: Quick Play (vs Computador) - so desktop */}
