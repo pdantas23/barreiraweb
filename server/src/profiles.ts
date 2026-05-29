@@ -5,14 +5,18 @@
 // clientId conecta, ele recebe o mesmo nome.
 
 import { getSupabase } from "./db.js";
+import { createLruCache } from "./lruCache.js";
 
 const NAME_PREFIX = "anonimo";
 
+// Teto de entradas dos caches em memória — sem isso cresceriam sem limite
+// (um por clientId / authUserId). LRU descarta os mais antigos.
+const MAX_CACHE_ENTRIES = 5000;
+
 // Cache em memória pra evitar hit no DB a cada handshake/reanchor.
-// Map<clientId, displayName>. Não tem invalidação — display_name é
-// imutável (não temos rename hoje). Se adicionar rename no futuro,
-// precisa invalidar via signal/event.
-const profileCache = new Map<string, string>();
+// clientId → displayName. Não tem invalidação — display_name é imutável
+// (não temos rename hoje). Se adicionar rename no futuro, invalidar via signal.
+const profileCache = createLruCache<string>(MAX_CACHE_ENTRIES);
 
 export type Profile = {
   clientId: string;
@@ -126,7 +130,7 @@ export const getOrCreateProfile = async (
 // Cache em memória idêntica à do display_name. Usernames mudam raramente
 // (não temos rename na UI hoje), então invalidação não é prioridade.
 
-const usernameCache = new Map<string, string | null>(); // authUserId → username (null = sem profile)
+const usernameCache = createLruCache<string | null>(MAX_CACHE_ENTRIES); // authUserId → username (null = sem profile)
 
 export const getUsernameForAuthUser = async (
   authUserId: string,

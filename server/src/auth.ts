@@ -6,11 +6,15 @@
 // a cada socket connection — getUser() faz uma chamada HTTP pra Supabase.
 
 import { getSupabase } from "./db.js";
+import { createLruCache } from "./lruCache.js";
 
 type CacheEntry = { userId: string | null; expiresAt: number };
 
 const CACHE_TTL_MS = 5 * 60 * 1000; // 5min, bem abaixo da expiry do JWT (1h)
-const cache = new Map<string, CacheEntry>();
+// Teto de entradas: tokens rotacionam ~de hora em hora, então sem limite o
+// Map cresceria indefinidamente. LRU descarta os tokens mais antigos.
+const MAX_CACHE_ENTRIES = 1000;
+const cache = createLruCache<CacheEntry>(MAX_CACHE_ENTRIES);
 
 export const resolveAuthUser = async (
   accessToken: string | null | undefined,
