@@ -1,16 +1,15 @@
 import {
   applyMove,
+  botMove,
   canPlaceWall,
-  easyOpponentMove,
   getValidMoves,
   goalRow,
   hasPathToRow,
   initialState,
-  minimaxOpponentMove,
   randomFirstTurn,
   registerWall,
-  smartOpponentMove,
   WALLS_PER_PLAYER,
+  type BotDifficulty,
   type GameState,
   type Move,
   type PlayerId,
@@ -32,17 +31,12 @@ const OPPONENT: PlayerId = 2;
 const OPPONENT_THINK_MS = 700;
 const EMPTY_SET: Set<number> = new Set();
 
-type Difficulty = "easy" | "medium" | "hard";
+type Difficulty = BotDifficulty;
 
 const pickBot = (
   difficulty: Difficulty,
-): ((state: GameState, botId: PlayerId) => Move | null) => {
-  switch (difficulty) {
-    case "easy": return easyOpponentMove;
-    case "hard": return minimaxOpponentMove;
-    case "medium": default: return smartOpponentMove;
-  }
-};
+): ((state: GameState, botId: PlayerId) => Move | null) =>
+  (state, botId) => botMove(state, botId, difficulty);
 
 const parseDifficulty = (raw: unknown): Difficulty => {
   if (raw === "easy" || raw === "medium" || raw === "hard") return raw;

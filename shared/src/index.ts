@@ -9,12 +9,9 @@ export * from "./walls";
 export * from "./moves";
 export * from "./engine";
 
-// --- Bots ---
-export { easyOpponentMove } from "./easyOpponent";
-export { smartOpponentMove, randomPersonality, PERSONALITIES } from "./smartOpponent";
-export type { BotPersonality } from "./smartOpponent";
-export { minimaxOpponentMove } from "./minimaxOpponent";
-export { randomOpponentMove } from "./randomOpponent";
+// --- Bot (3 dificuldades: easy | medium | hard) ---
+export { botMove } from "./bot";
+export type { BotDifficulty } from "./bot";
 
 // --- Serialização (wire format) ---
 export * from "./serialization";

@@ -16,10 +16,9 @@
 
 import { io, type Socket } from "socket.io-client";
 import {
+  botMove,
   deserializeState,
-  easyOpponentMove,
-  minimaxOpponentMove,
-  smartOpponentMove,
+  type BotDifficulty,
   type ClientToServerEvents,
   type GameState,
   type Move,
@@ -42,13 +41,15 @@ if (!CODE) {
   process.exit(1);
 }
 
-const pickBot = (level: string) => {
-  if (level === "easy") return { fn: easyOpponentMove, label: "Fácil" };
-  if (level === "hard") return { fn: minimaxOpponentMove, label: "Difícil" };
-  return { fn: smartOpponentMove, label: "Médio" };
+const pickBot = (level: string): { difficulty: BotDifficulty; label: string } => {
+  if (level === "easy") return { difficulty: "easy", label: "Fácil" };
+  if (level === "hard") return { difficulty: "hard", label: "Difícil" };
+  return { difficulty: "medium", label: "Médio" };
 };
 
-const { fn: bot, label: levelLabel } = pickBot(LEVEL);
+const { difficulty: botDifficulty, label: levelLabel } = pickBot(LEVEL);
+const bot = (state: GameState, id: PlayerId): Move | null =>
+  botMove(state, id, botDifficulty);
 
 type TClient = Socket<ServerToClientEvents, ClientToServerEvents>;
 

@@ -4,18 +4,16 @@ import Animated, { useAnimatedRef } from "react-native-reanimated";
 import { LinearGradient } from "expo-linear-gradient";
 import {
   applyMove,
+  botMove,
   canPlaceWall,
-  easyOpponentMove,
   getValidMoves,
   goalRow,
   hasPathToRow,
   initialState,
-  minimaxOpponentMove,
   randomFirstTurn,
-  randomPersonality,
   registerWall,
-  smartOpponentMove,
   WALLS_PER_PLAYER,
+  type BotDifficulty,
   type GameState,
   type Move,
   type PlayerId,
@@ -43,25 +41,14 @@ const OPPONENT = 2 as const;
 const OPPONENT_THINK_MS = 700;
 const EMPTY_SET: Set<number> = new Set();
 
-type Difficulty = "easy" | "medium" | "hard";
+type Difficulty = BotDifficulty;
 
 const pickBot = (
   difficulty: Difficulty,
-): ((state: GameState, botId: PlayerId) => Move | null) => {
-  // Personalidade sorteada UMA vez por partida via closure.
-  // O bot mantém o mesmo estilo do início ao fim (corredor/bloqueador/etc.)
-  // mas varia entre partidas diferentes.
-  const personality = randomPersonality();
-  switch (difficulty) {
-    case "easy":
-      return easyOpponentMove;
-    case "hard":
-      return (state, botId) => minimaxOpponentMove(state, botId, personality);
-    case "medium":
-    default:
-      return (state, botId) => smartOpponentMove(state, botId, personality);
-  }
-};
+): ((state: GameState, botId: PlayerId) => Move | null) =>
+  // A variação vem POR JOGADA dentro do botMove (sorteios a cada decisão),
+  // não de um estilo fixo — então não precisa de personalidade em closure.
+  (state, botId) => botMove(state, botId, difficulty);
 
 const parseDifficulty = (raw: unknown): Difficulty => {
   if (raw === "easy" || raw === "medium" || raw === "hard") return raw;

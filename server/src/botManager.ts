@@ -2,7 +2,8 @@
 //
 // Mantém sempre N salas em "waiting" disponíveis no lobby. Quando um humano
 // entra numa sala de bot, o bot joga a partida como se fosse um humano
-// (delay variável, decisões de jogo via `smartOpponentMove`).
+// (delay variável, decisões de jogo via `botMove` conforme a dificuldade
+// sorteada pra aquele bot — fácil/médio/difícil).
 //
 // Pré-requisitos:
 // - `getAllRooms()` exportado do lobby
@@ -14,7 +15,7 @@
 //    spawn com delay aleatório
 // 2. Quando humano entra → joinRoom normal funciona → broadcastGameStart
 //    pros sockets reais → botManager nota que é vez do bot, agenda move
-// 3. Bot escolhe move via smartOpponentMove + applyMove + broadcast
+// 3. Bot escolhe move via botMove(dificuldade) + applyMove + broadcast
 // 4. Repete enquanto for vez do bot
 // 5. Partida acaba → bot manager schedule "bot leave" em alguns segundos
 //    → próximo scan repõe a sala
@@ -22,10 +23,9 @@
 import type { Server } from "socket.io";
 import {
   applyMove,
+  botMove,
   serializeState,
-  smartOpponentMove,
-  randomPersonality,
-  type BotPersonality,
+  type BotDifficulty,
   type ClientToServerEvents,
   type GameOverPayload,
   type ServerToClientEvents,
@@ -79,10 +79,18 @@ const generateBotName = (): string => `anonimo${randInt(1000, 9999)}`;
 const pickRandomColor = (): "cyan" | "random" | "red" =>
   BOT_COLORS[Math.floor(Math.random() * BOT_COLORS.length)];
 
-// Personalidade de cada bot: socketId → BotPersonality.
-// Atribuída no spawn/rescue e consultada a cada jogada.
-// Garantia de variedade: cada bot joga diferente, mesmo na mesma partida.
-const botPersonalities = new Map<string, BotPersonality>();
+// Dificuldade de cada bot: socketId → BotDifficulty. Atribuída no spawn/rescue
+// e consultada a cada jogada. Assim o lobby tem uma mistura de bots fácil,
+// médio e difícil (a variação de jogada dentro de cada nível vem do próprio
+// botMove). Distribuição enviesada pra casual: mais fácil/médio que difícil.
+const botDifficulties = new Map<string, BotDifficulty>();
+
+const randomDifficulty = (): BotDifficulty => {
+  const r = Math.random();
+  if (r < 0.4) return "easy";   // 40%
+  if (r < 0.8) return "medium"; // 40%
+  return "hard";                // 20%
+};
 
 // Pra evitar spawns concorrentes na mesma "janela" (race do setInterval +
 // múltiplos setTimeouts agendados). Conta spawns em voo.
@@ -137,9 +145,9 @@ export const scheduleBotRescue = (room: ServerRoom): void => {
       console.warn(`[botManager] rescue falhou pra sala ${code}`);
       return;
     }
-    // Atribui personalidade ao bot guest do rescue.
+    // Atribui dificuldade ao bot guest do rescue.
     const botPlayer = updated.players.find((p) => p.isBot);
-    if (botPlayer) botPersonalities.set(botPlayer.socketId, randomPersonality());
+    if (botPlayer) botDifficulties.set(botPlayer.socketId, randomDifficulty());
     console.log(`[botManager] rescue: ${botName} entrou em ${code}`);
     if (onBotRescueStarted) onBotRescueStarted(updated);
   }, delay);
@@ -241,12 +249,12 @@ const spawnBotHostRoom = (): void => {
   const name = generateBotName();
   const color = pickRandomColor();
   const room = createBotHostRoom({ hostName: name, color });
-  // Atribui personalidade ao bot host (socketId interno).
+  // Atribui dificuldade ao bot host (socketId interno).
   const botPlayer = room.players[0];
   if (botPlayer) {
-    const personality = randomPersonality();
-    botPersonalities.set(botPlayer.socketId, personality);
-    console.log(`[botManager] sala bot ${room.code} criada por ${name} (cor ${color}, aggr ${personality.aggression.toFixed(1)})`);
+    const difficulty = randomDifficulty();
+    botDifficulties.set(botPlayer.socketId, difficulty);
+    console.log(`[botManager] sala bot ${room.code} criada por ${name} (cor ${color}, dificuldade ${difficulty})`);
   }
 };
 
@@ -260,8 +268,8 @@ const playBotMove = (room: ServerRoom, bot: ServerPlayer): void => {
   }
   if (room.gameState.turn !== bot.enginePlayer) return; // não é mais a vez
 
-  const personality = botPersonalities.get(bot.socketId) ?? randomPersonality();
-  const move = smartOpponentMove(room.gameState, bot.enginePlayer, personality);
+  const difficulty = botDifficulties.get(bot.socketId) ?? "medium";
+  const move = botMove(room.gameState, bot.enginePlayer, difficulty);
   if (!move) {
     console.warn(`[botManager] sala ${room.code}: bot não gerou move`);
     return;
@@ -317,9 +325,9 @@ const scheduleBotLeave = (room: ServerRoom): void => {
       if (current.rematch) return;
       if (current.status === "playing") return;
     }
-    // Limpa personalidades dos bots dessa sala pra não vazar memória.
+    // Limpa as dificuldades dos bots dessa sala pra não vazar memória.
     for (const p of room.players.filter((pl) => pl.isBot)) {
-      botPersonalities.delete(p.socketId);
+      botDifficulties.delete(p.socketId);
     }
     removeBotFromRoom(room.code);
     console.log(`[botManager] bot saiu da sala ${room.code}`);

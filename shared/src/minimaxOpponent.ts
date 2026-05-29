@@ -3,9 +3,6 @@ import { applyMove } from "./engine";
 import { getValidMoves } from "./moves";
 import type { GameState, Move, PlayerId } from "./types";
 import { allPossiblePlacements, canPlaceWall, neighbors, registerWall } from "./walls";
-import { type BotPersonality, PERSONALITIES, randomPersonality } from "./smartOpponent";
-export type { BotPersonality };
-export { randomPersonality };
 
 // Bot Difícil: minimax com alfa-beta, profundidade 2 (bot → humano).
 // - Função de avaliação considera distância via BFS + saldo de paredes.
@@ -16,6 +13,10 @@ export { randomPersonality };
 //   do goal, pula minimax e joga gananciosamente (só peça). Em Quoridor
 //   early-game peças apenas correm, então não perde qualidade e elimina o
 //   gargalo de 128 placements × 2 BFS por nó.
+// - Variação: em vez de pegar SÓ a melhor jogada (robótico/repetitivo),
+//   sorteia entre as jogadas dentro de SCORE_EPS do melhor score — ou seja,
+//   entre lances igualmente bons. Mantém competência, evita repetir sempre a
+//   mesma sequência.
 
 const MAX_DEPTH = 2;
 const WALL_RADIUS = 2; // intersecções a até N células das peças
@@ -23,6 +24,13 @@ const WIN_SCORE = 10000;
 // Atalho early-game: enquanto bot está a >= N linhas do goal e ninguém colocou
 // parede, pula o minimax. Cobre os ~3 primeiros turnos do bot.
 const EARLY_GAME_ROW_DIST = 6;
+// Peso bloqueio-vs-avanço. 1 = equilibrado (avança e bloqueia na mesma medida).
+const AGGRESSION = 1.0;
+// Margem (em pontos de score) pra considerar duas jogadas "equivalentes" e
+// sortear entre elas. distScore anda de 10 em 10 (1 unidade de distância);
+// 5 cobre só diferenças de saldo de parede, então só empata lances de mesma
+// distância — variação sem perder qualidade.
+const SCORE_EPS = 5;
 
 const rowOf = (idx: number) => Math.floor(idx / BOARD_SIZE);
 const colOf = (idx: number) => idx % BOARD_SIZE;
@@ -48,7 +56,6 @@ const evaluate = (
   state: GameState,
   botId: PlayerId,
   humanId: PlayerId,
-  p: BotPersonality,
 ): number => {
   if (state.winner === botId) return WIN_SCORE;
   if (state.winner === humanId) return -WIN_SCORE;
@@ -58,8 +65,8 @@ const evaluate = (
   const humanDist = shortestPathDistance(state, humanPos, goalRow(humanId));
   if (botDist === 999) return -WIN_SCORE;
   if (humanDist === 999) return WIN_SCORE;
-  // aggression controla peso bloqueio vs avanço.
-  const distScore = (p.aggression * humanDist - (2 - p.aggression) * botDist) * 10;
+  // AGGRESSION controla peso bloqueio vs avanço (1 = equilibrado).
+  const distScore = (AGGRESSION * humanDist - (2 - AGGRESSION) * botDist) * 10;
   // Pequeno bônus por ter mais paredes na mão (reserva pra moments críticos).
   const wallScore = (state.wallsLeft[botId] - state.wallsLeft[humanId]) * 0.5;
   return distScore + wallScore;
@@ -115,22 +122,21 @@ const minimax = (
   isMax: boolean,
   botId: PlayerId,
   humanId: PlayerId,
-  p: BotPersonality,
 ): number => {
   if (depth === 0 || state.winner !== null) {
-    return evaluate(state, botId, humanId, p);
+    return evaluate(state, botId, humanId);
   }
   const player: PlayerId = isMax ? botId : humanId;
   const turnedState: GameState = { ...state, turn: player };
   const moves = generateMoves(turnedState, player);
-  if (moves.length === 0) return evaluate(state, botId, humanId, p);
+  if (moves.length === 0) return evaluate(state, botId, humanId);
 
   if (isMax) {
     let best = -Infinity;
     for (const move of moves) {
       const res = applyMove(turnedState, player, move);
       if (!res.ok) continue;
-      const score = minimax(res.state, depth - 1, alpha, beta, false, botId, humanId, p);
+      const score = minimax(res.state, depth - 1, alpha, beta, false, botId, humanId);
       if (score > best) best = score;
       if (best > alpha) alpha = best;
       if (alpha >= beta) break;
@@ -141,7 +147,7 @@ const minimax = (
     for (const move of moves) {
       const res = applyMove(turnedState, player, move);
       if (!res.ok) continue;
-      const score = minimax(res.state, depth - 1, alpha, beta, true, botId, humanId, p);
+      const score = minimax(res.state, depth - 1, alpha, beta, true, botId, humanId);
       if (score < best) best = score;
       if (best < beta) beta = best;
       if (alpha >= beta) break;
@@ -150,54 +156,58 @@ const minimax = (
   }
 };
 
+// Sorteia entre as jogadas dentro de SCORE_EPS do melhor score (lances
+// igualmente bons) — competente, mas sem repetir sempre a mesma sequência.
+const pickAmongBest = (
+  scored: Array<{ move: Move; score: number }>,
+): Move | null => {
+  if (scored.length === 0) return null;
+  const best = Math.max(...scored.map((s) => s.score));
+  const pool = scored.filter((s) => s.score >= best - SCORE_EPS);
+  return pool[Math.floor(Math.random() * pool.length)].move;
+};
+
 // Greedy 1-ply só com peças — usado no atalho early-game.
 const greedyPieceMove = (
   state: GameState,
   botId: PlayerId,
   humanId: PlayerId,
-  p: BotPersonality,
 ): Move | null => {
   const turnedState: GameState = { ...state, turn: botId };
-  let bestScore = -Infinity;
-  let bestMove: Move | null = null;
+  const scored: Array<{ move: Move; score: number }> = [];
   for (const to of getValidMoves(turnedState, botId)) {
     const res = applyMove(turnedState, botId, { kind: "piece", to });
     if (!res.ok) continue;
-    const score = evaluate(res.state, botId, humanId, p);
-    if (score > bestScore) { bestScore = score; bestMove = { kind: "piece", to }; }
+    scored.push({ move: { kind: "piece", to }, score: evaluate(res.state, botId, humanId) });
   }
-  return bestMove;
+  return pickAmongBest(scored);
 };
 
 export const minimaxOpponentMove = (
   state: GameState,
   botId: PlayerId,
-  personality: BotPersonality = PERSONALITIES[1], // equilibrado por padrão
 ): Move | null => {
   const humanId = opponentOf(botId);
-  const p = personality;
 
   // Atalho early-game: ninguém colocou parede E bot ainda longe do goal →
   // greedy de peça, sem rodar minimax. Mata a lentidão dos primeiros turnos.
   const botPos = botId === 1 ? state.p1 : state.p2;
   const botRowDist = Math.abs(rowOf(botPos) - goalRow(botId));
   if (state.walls.placements.length === 0 && botRowDist >= EARLY_GAME_ROW_DIST) {
-    return greedyPieceMove(state, botId, humanId, p);
+    return greedyPieceMove(state, botId, humanId);
   }
 
   const turnedState: GameState = { ...state, turn: botId };
   const moves = generateMoves(turnedState, botId);
   if (moves.length === 0) return null;
 
-  let bestScore = -Infinity;
-  let bestMove: Move | null = null;
-
+  const scored: Array<{ move: Move; score: number }> = [];
   for (const move of moves) {
     const res = applyMove(turnedState, botId, move);
     if (!res.ok) continue;
-    const score = minimax(res.state, MAX_DEPTH - 1, -Infinity, Infinity, false, botId, humanId, p);
-    if (score > bestScore) { bestScore = score; bestMove = move; }
+    const score = minimax(res.state, MAX_DEPTH - 1, -Infinity, Infinity, false, botId, humanId);
+    scored.push({ move, score });
   }
 
-  return bestMove;
+  return pickAmongBest(scored);
 };
