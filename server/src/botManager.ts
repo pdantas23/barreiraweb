@@ -33,6 +33,7 @@ import {
 import {
   addBotGuest,
   cancelBotRescue,
+  chargeTurnTime,
   createBotHostRoom,
   getAllRooms,
   removeBotFromRoom,
@@ -273,6 +274,9 @@ const playBotMove = (room: ServerRoom, bot: ServerPlayer): void => {
   }
 
   room.gameState = result.state;
+  // Mantém o relógio autoritativo coerente — debita o turno do bot e
+  // reinicia pro humano (senão o reportTimeout do humano calcula errado).
+  chargeTurnTime(room, bot.enginePlayer, Date.now());
   const wireState = serializeState(result.state);
   // Inclui o `move` pro client empilhar no replay (sem isso o oponente
   // humano não vê o lance do bot, só o state resultante).
@@ -280,7 +284,7 @@ const playBotMove = (room: ServerRoom, bot: ServerPlayer): void => {
 
   if (result.state.winner !== null) {
     room.status = "finished";
-    const payload: GameOverPayload = { winner: result.state.winner };
+    const payload: GameOverPayload = { winner: result.state.winner, reason: "goal" };
     io.to(room.code).emit("gameOver", payload);
     // Bot pode pedir revanche (chance pequena, delay 1.5-3.5s).
     maybeBotRequestRematch(room);

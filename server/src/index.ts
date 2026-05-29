@@ -20,6 +20,7 @@ import {
   serializeState,
   type ClientToServerEvents,
   type GameStartPayload,
+  type PlayerId,
   type RpcError,
   type RpcResult,
   type ServerToClientEvents,
@@ -28,9 +29,11 @@ import {
   LobbyError,
   acceptRematchAsBot,
   attemptReanchor,
+  chargeTurnTime,
   clearRematch,
   createRoom,
   getRoomBySocket,
+  initGameClock,
   joinRoom,
   leaveRoom,
   listPublicRooms,
@@ -43,6 +46,7 @@ import {
   setOnRematchAccepted,
   setOnRematchExpired,
   toRoomDetail,
+  turnTimeUsedMs,
   type ServerPlayer,
   type ServerRoom,
 } from "./lobby.js";
@@ -114,6 +118,9 @@ const broadcastGameStart = (room: ServerRoom) => {
   const wireState = serializeState(room.gameState);
   const countdownStartsAt = Date.now();
   room.countdownEndsAt = countdownStartsAt + COUNTDOWN_DURATION_MS;
+  // Zera o relógio autoritativo — começa a contar quando o countdown acabar.
+  // Cobre tanto a 1ª partida quanto a revanche (ambas passam por aqui).
+  initGameClock(room);
 
   for (const me of room.players) {
     const opponent = room.players.find((p) => p.socketId !== me.socketId);
@@ -164,7 +171,7 @@ setOnPlayerTimeout(async (_clientId, room, remaining) => {
     if (remaining[0].authUserId) {
       await awardCasualTrophy(remaining[0].authUserId, 1);
     }
-    io.to(room.code).emit("gameOver", { winner });
+    io.to(room.code).emit("gameOver", { winner, reason: "abandon" });
     io.to(room.code).emit("opponentLeft");
     // Sala vs bot: bot pode pedir revanche.
     maybeBotRequestRematch(room);
@@ -257,15 +264,22 @@ io.on("connection", (socket: TypedSocket) => {
 
   // Reanchor: cliente conhecido voltou a uma sala em andamento.
   if (clientId) {
-    const anchor = attemptReanchor(clientId, socket.id);
-    if (anchor) {
-      socket.join(anchor.room.code);
-      console.log(`[reanchor] ${clientId.slice(0, 8)}… voltou pra ${anchor.room.code}`);
-      // Reentrega identidade + state atual.
-      if (anchor.room.gameState) {
-        sendGameStartTo(anchor.room, anchor.player);
+    // Resolve a identidade do JWT ANTES de reanexar pra recuperar o
+    // authUserId caso o player tenha entrado anônimo (race do cold start).
+    // ensureAuthUserId é cache-hit (token já resolvido no 1º connect), então
+    // o atraso até o socket.join é desprezível.
+    void (async () => {
+      const reanchorUid = await ensureAuthUserId(socket);
+      const anchor = attemptReanchor(clientId, socket.id, reanchorUid);
+      if (anchor) {
+        socket.join(anchor.room.code);
+        console.log(`[reanchor] ${clientId.slice(0, 8)}… voltou pra ${anchor.room.code}`);
+        // Reentrega identidade + state atual.
+        if (anchor.room.gameState) {
+          sendGameStartTo(anchor.room, anchor.player);
+        }
       }
-    }
+    })();
   }
 
   socket.on("createRoom", (payload, ack) =>
@@ -329,13 +343,30 @@ io.on("connection", (socket: TypedSocket) => {
   );
 
   socket.on("leaveRoom", (payload, ack) =>
-    rpc(() => {
+    rpc(async () => {
       const roomBefore = getRoomBySocket(socket.id);
       if (roomBefore) clearRematch(roomBefore);
+      // A partida estava rolando? Só nesse caso a saída vira W.O. pro
+      // jogador que ficou (abandono = derrota). Se já tinha acabado
+      // (alguém chegou na linha / W.O.), não premia de novo.
+      const wasPlaying = roomBefore?.status === "playing";
       const room = leaveRoom(socket.id);
       if (room) {
-        socket.to(room.code).emit("opponentLeft");
         socket.leave(room.code);
+        // Abandono no meio da partida: quem ficou vence por W.O.
+        const winner = room.players[0];
+        if (wasPlaying && winner && room.gameState) {
+          // Premia ANTES do emit pra o refreshTrofeus do cliente não ler
+          // valor stale (mesmo motivo da vitória normal).
+          if (winner.authUserId) {
+            await awardCasualTrophy(winner.authUserId, 1);
+          }
+          io.to(room.code).emit("gameOver", {
+            winner: winner.enginePlayer,
+            reason: "abandon",
+          });
+        }
+        socket.to(room.code).emit("opponentLeft");
       }
       return null;
     })(payload, socket, ack),
@@ -353,7 +384,8 @@ io.on("connection", (socket: TypedSocket) => {
       if (room.status !== "playing" || !room.gameState) {
         throw new LobbyError("internal-error", "sala não está em partida");
       }
-      if (room.countdownEndsAt && Date.now() < room.countdownEndsAt) {
+      const now = Date.now();
+      if (room.countdownEndsAt && now < room.countdownEndsAt) {
         throw new LobbyError("not-your-turn", "countdown ativo");
       }
 
@@ -376,6 +408,8 @@ io.on("connection", (socket: TypedSocket) => {
       // Inclui o `move` no payload pra o replay client-side empilhar o lance
       // do oponente (que o client não vê de outra forma, só vê state final).
       room.gameState = result.state;
+      // Debita o tempo gasto neste turno e reinicia o cronômetro pro próximo.
+      chargeTurnTime(room, me.enginePlayer, now);
       const wireState = serializeState(result.state);
       io.to(room.code).emit("stateUpdate", { state: wireState, move: p.move });
 
@@ -392,7 +426,7 @@ io.on("connection", (socket: TypedSocket) => {
         if (winnerPlayer?.authUserId) {
           await awardCasualTrophy(winnerPlayer.authUserId, 1);
         }
-        io.to(room.code).emit("gameOver", { winner: result.state.winner });
+        io.to(room.code).emit("gameOver", { winner: result.state.winner, reason: "goal" });
         // Sala vs bot: bot pode pedir revanche.
         maybeBotRequestRematch(room);
       }
@@ -400,6 +434,52 @@ io.on("connection", (socket: TypedSocket) => {
       // Se o oponente é um bot e agora é a vez dele, agenda jogada.
       maybeScheduleBotMove(room);
 
+      return null;
+    })(payload, socket, ack),
+  );
+
+  // === Vitória por tempo (relógio estourou) ===
+  // O cliente roda o relógio e avisa aqui quando zera. O SERVER é a fonte da
+  // verdade: consulta o próprio relógio e só encerra/premia se confirmar o
+  // estouro. Sem payload de vencedor — quem está com o relógio correndo é o
+  // jogador da vez, então é ele quem perde por tempo.
+  socket.on("reportTimeout", (payload, ack) =>
+    rpc(async () => {
+      const room = getRoomBySocket(socket.id);
+      if (!room) throw new LobbyError("not-in-room");
+      // Já acabou (chegada, W.O. ou outro report) — idempotente, ignora.
+      if (room.status === "finished") return null;
+      if (room.status !== "playing" || !room.gameState) {
+        throw new LobbyError("internal-error", "sala não está em partida");
+      }
+      if (room.gameState.winner !== null) return null;
+
+      const now = Date.now();
+      const loser = room.gameState.turn; // quem está com o relógio correndo
+      const used = turnTimeUsedMs(room, loser, now);
+      // Tolerância pequena: o cliente pode reportar uns ms antes pela
+      // granularidade do tick. Acima dela, ignora — protege contra report
+      // forjado (relógio do server não confirma o estouro).
+      const TIMEOUT_TOLERANCE_MS = 2_000;
+      if (used < GAME_TIME_TOTAL_MS - TIMEOUT_TOLERANCE_MS) {
+        console.log(
+          `[timeout] report ignorado em ${room.code}: jogador ${loser} usou ${Math.round(used / 1000)}s (< ${GAME_TIME_TOTAL_MS / 1000}s)`,
+        );
+        return null;
+      }
+
+      const winner: PlayerId = loser === 1 ? 2 : 1;
+      console.log(`[timeout] sala ${room.code}: ${winner} venceu (relógio do ${loser} estourou)`);
+      room.gameState = { ...room.gameState, winner };
+      room.status = "finished";
+      io.to(room.code).emit("stateUpdate", { state: serializeState(room.gameState) });
+      const winnerPlayer = room.players.find((pl) => pl.enginePlayer === winner);
+      if (winnerPlayer?.authUserId) {
+        await awardCasualTrophy(winnerPlayer.authUserId, 1);
+      }
+      io.to(room.code).emit("gameOver", { winner, reason: "timeout" });
+      // Sala vs bot: bot pode pedir revanche.
+      maybeBotRequestRematch(room);
       return null;
     })(payload, socket, ack),
   );

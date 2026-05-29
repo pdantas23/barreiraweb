@@ -72,6 +72,13 @@ export type ServerRoom = {
   // Timestamp (ms) de quando o countdown termina e moves são aceitos.
   // null = sem countdown ativo (moves liberados).
   countdownEndsAt: number | null;
+  // Relógio autoritativo da partida (estilo xadrez, por jogador). Acumula
+  // só o tempo gasto nos turnos de cada jogador. Usado pra validar o
+  // reportTimeout do cliente — o server só encerra por tempo se o próprio
+  // relógio confirmar o estouro.
+  timeUsedMs: { 1: number; 2: number };
+  // Quando o turno atual começou a contar (ms). null = relógio parado.
+  turnStartedAt: number | null;
 };
 
 // === Estado global ===
@@ -243,6 +250,8 @@ export const createRoom = (input: CreateInput): ServerRoom => {
     rematch: null,
     botRescueTimer: null,
     countdownEndsAt: null,
+    timeUsedMs: { 1: 0, 2: 0 },
+    turnStartedAt: null,
   };
   rooms.set(code, room);
   socketToRoom.set(input.hostSocketId, code);
@@ -427,9 +436,16 @@ const finalizeTimeout = (clientId: string): void => {
 
 // Tenta reanexar um socket novo a uma sala existente via clientId.
 // Devolve o par {room, player} já atualizado, ou null se não existe sala.
+//
+// `authUserId` é o user resolvido do JWT do socket NOVO. Se o player tinha
+// entrado anônimo (authUserId=null por causa da race de cold start, em que
+// o handshake saiu sem token) e agora o token resolveu, atualizamos aqui —
+// sem isso o jogador ficaria permanentemente sem identidade e nunca ganharia
+// troféu, mesmo logado.
 export const attemptReanchor = (
   clientId: string,
   newSocketId: string,
+  authUserId: string | null = null,
 ): { room: ServerRoom; player: ServerPlayer } | null => {
   const code = clientToRoom.get(clientId);
   if (!code) return null;
@@ -451,6 +467,14 @@ export const attemptReanchor = (
   player.socketId = newSocketId;
   player.disconnectedAt = null;
   socketToRoom.set(newSocketId, code);
+
+  // Recupera identidade autenticada se o player tinha entrado anônimo.
+  if (authUserId && !player.authUserId) {
+    player.authUserId = authUserId;
+    console.log(
+      `[reanchor] authUserId recuperado pra ${clientId.slice(0, 8)}… = ${authUserId.slice(0, 8)}…`,
+    );
+  }
 
   return { room, player };
 };
@@ -592,6 +616,48 @@ export const requestRematchAsBot = (
 
 export const getRematchTimeoutMs = () => REMATCH_TIMEOUT_MS;
 
+// === Relógio de partida (autoritativo) ===
+//
+// Cada jogador tem seu próprio relógio que só corre nos seus turnos (igual
+// xadrez). `timeUsedMs[p]` acumula o tempo já gasto por p; `turnStartedAt`
+// marca quando o turno atual começou. O relógio só começa a contar quando
+// o countdown termina.
+
+// (Re)inicia o relógio no começo de uma partida (inclui revanche).
+export const initGameClock = (room: ServerRoom): void => {
+  room.timeUsedMs = { 1: 0, 2: 0 };
+  // Relógio só corre depois do countdown — se ainda não terminou, conta a
+  // partir do fim dele; senão, de agora.
+  room.turnStartedAt = room.countdownEndsAt ?? Date.now();
+};
+
+// Debita do jogador que acabou de jogar o tempo gasto no turno e reinicia o
+// cronômetro pro próximo. Chamar logo após cada move aceito (humano ou bot).
+export const chargeTurnTime = (
+  room: ServerRoom,
+  mover: PlayerId,
+  now: number,
+): void => {
+  if (room.turnStartedAt !== null) {
+    room.timeUsedMs[mover] += Math.max(0, now - room.turnStartedAt);
+  }
+  room.turnStartedAt = now;
+};
+
+// Quanto tempo o jogador já consumiu, incluindo o turno em andamento se for
+// a vez dele. Usado pra validar o reportTimeout.
+export const turnTimeUsedMs = (
+  room: ServerRoom,
+  player: PlayerId,
+  now: number,
+): number => {
+  const runningThisTurn =
+    room.turnStartedAt !== null && room.gameState?.turn === player
+      ? Math.max(0, now - room.turnStartedAt)
+      : 0;
+  return room.timeUsedMs[player] + runningThisTurn;
+};
+
 // === Erro tipado ===
 
 export class LobbyError extends Error {
@@ -642,6 +708,8 @@ export const createBotHostRoom = (input: BotHostInput): ServerRoom => {
     rematch: null,
     botRescueTimer: null,
     countdownEndsAt: null,
+    timeUsedMs: { 1: 0, 2: 0 },
+    turnStartedAt: null,
   };
   rooms.set(code, room);
   // NÃO seta socketToRoom — o socketId é fake, não tem socket.io listener.

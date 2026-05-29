@@ -54,6 +54,12 @@ export type MovePayload = {
   move: Move;
 };
 
+// Cliente avisa que o relógio de um jogador estourou. Sem payload: o server
+// é a fonte da verdade — ele consulta o próprio relógio e só encerra (e
+// premia) se confirmar o estouro. Assim um cliente não consegue forjar
+// vitória por tempo.
+export type ReportTimeoutPayload = Record<string, never>;
+
 // === Push: server → cliente ===
 
 export type GameStartPayload = {
@@ -85,6 +91,10 @@ export type StateUpdatePayload = {
 
 export type GameOverPayload = {
   winner: PlayerId;
+  // Por que a partida acabou. Opcional pra retrocompat com client antigo
+  // (que cai pro motivo local). "goal" = chegou na linha; "timeout" = relógio
+  // estourou; "abandon" = oponente saiu/caiu (W.O.).
+  reason?: "goal" | "timeout" | "abandon";
 };
 
 export type MoveRejectedPayload = {
@@ -158,6 +168,10 @@ export type ClientToServerEvents = {
   ) => void;
   move: (
     payload: MovePayload,
+    ack: (res: RpcResult<null>) => void,
+  ) => void;
+  reportTimeout: (
+    payload: ReportTimeoutPayload,
     ack: (res: RpcResult<null>) => void,
   ) => void;
   requestRematch: (

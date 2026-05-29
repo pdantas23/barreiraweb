@@ -16,6 +16,12 @@ let socket: AppSocket | null = null;
 
 let lastGameStart: GameStartPayload | null = null;
 
+// Token (JWT) que foi enviado no handshake atual do socket. `undefined` =
+// socket ainda não fez nenhum handshake. O AuthProvider compara este valor
+// com o token do evento de auth pra decidir se precisa mesmo reconectar —
+// sem isso, reconectava à toa no INITIAL_SESSION e derrubava a 1ª RPC.
+let currentHandshakeToken: string | null | undefined = undefined;
+
 const wireGlobalListeners = (s: AppSocket) => {
   s.on("gameStart", (payload) => {
     lastGameStart = payload;
@@ -89,6 +95,10 @@ export const getSocket = (): AppSocket => {
             sbStorageKeys: lsKeys,
             ms: Date.now() - t0,
           });
+          // Registra o token deste handshake pra o AuthProvider saber se um
+          // futuro auth-state-change realmente muda o token (e só então
+          // reconectar).
+          currentHandshakeToken = accessToken;
           cb({ clientId, accessToken });
         })();
       },
@@ -154,3 +164,8 @@ export const reconnectSocket = () => {
 };
 
 export const getServerUrl = () => SERVER_URL;
+
+// Token (JWT) usado no handshake atual. `undefined` = ainda não conectou
+// (vai pegar o token certo sozinho no primeiro handshake, sem reconnect).
+export const getHandshakeToken = (): string | null | undefined =>
+  currentHandshakeToken;

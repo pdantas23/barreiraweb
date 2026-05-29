@@ -20,7 +20,7 @@ import {
 } from "react";
 import type { Session, User } from "@supabase/supabase-js";
 import { supabase } from "../net/supabase";
-import { reconnectSocket } from "../net/socket";
+import { getHandshakeToken, reconnectSocket } from "../net/socket";
 
 type AuthState = {
   /** Sessao ativa do Supabase (com access_token JWT) ou null se anonimo */
@@ -78,19 +78,22 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       });
       setSession(sess);
       // Login/logout/refresh muda o JWT que o socket usa pra premiar
-      // trofeus. Re-conecta pra o server receber o token atualizado.
+      // trofeus. Reconecta pra o server receber o token atualizado — MAS só
+      // se o token realmente mudou em relação ao do handshake atual.
       //
-      // INITIAL_SESSION é crítico: dispara quando o SDK termina de carregar
-      // a sessão persistida no localStorage. Se o socket já tinha conectado
-      // antes disso (race comum em cold start), o handshake foi feito como
-      // anônimo — sem reconnect aqui, o user fica "anônimo" pro server até
-      // o próximo SIGNED_IN/TOKEN_REFRESHED, e a guarda de self-match falha.
-      if (
-        event === "SIGNED_IN" ||
-        event === "SIGNED_OUT" ||
-        event === "TOKEN_REFRESHED" ||
-        event === "INITIAL_SESSION"
-      ) {
+      // INITIAL_SESSION e TOKEN_REFRESHED disparam em todo cold start. O
+      // auth callback do socket.ts já lê a sessão (getSession + refreshSession)
+      // ANTES de fazer o handshake, então o socket normalmente já conecta com
+      // o token certo. Reconectar aqui à toa derrubava a 1ª RPC do lobby
+      // (toast falso de "Sem conexão") e podia resetar uma partida em
+      // andamento via reanchor. Comparar com o token do handshake evita isso.
+      //
+      // handshakeToken === undefined → socket ainda não conectou; ele vai
+      // pegar o token correto sozinho no primeiro handshake, sem reconnect.
+      const newToken = sess?.access_token ?? null;
+      const handshakeToken = getHandshakeToken();
+      if (handshakeToken !== undefined && handshakeToken !== newToken) {
+        console.log("[auth-state-change] token mudou — reconectando socket");
         reconnectSocket();
       }
     });

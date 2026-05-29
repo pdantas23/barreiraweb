@@ -28,6 +28,7 @@ import { useResponsiveBoard } from "./useResponsiveBoard";
 import { useWallPlaceSound } from "./useWallSound";
 import {
   leaveRoom,
+  reportTimeout,
   requestRematch as requestRematchRpc,
   respondRematch as respondRematchRpc,
   sendMove,
@@ -128,6 +129,10 @@ export function useOnlineGame() {
       const winner = timedOutPlayer === 1 ? 2 : 1;
       setGameOverReason("timeout");
       setState((prev) => prev ? { ...prev, winner } : prev);
+      // Avisa o server pra ele encerrar/premiar (o relógio é client-side; sem
+      // isso o awardCasualTrophy nunca rodava em vitória por tempo). O server
+      // valida com o próprio relógio e emite gameOver/stateUpdate pros dois.
+      void reportTimeout();
     }
   }, [timedOutPlayer, state?.winner]);
 
@@ -197,6 +202,8 @@ export function useOnlineGame() {
       }
     };
     const onGameOver = (payload: GameOverPayload) => {
+      // Server manda o motivo (goal/timeout/abandon) — fonte da verdade.
+      if (payload.reason) setGameOverReason(payload.reason);
       // Eu venci? Re-busca trofeus_casual pra UI refletir o +1.
       // Se eu nao estou logado, refreshTrofeus eh no-op.
       if (payload.winner === myPlayerRef.current) {
