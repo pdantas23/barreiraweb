@@ -286,13 +286,17 @@ export default function HomeScreen() {
 
         {/* === Body responsivo: 3 colunas no desktop, 1 no mobile === */}
         <div className="flex-1 flex flex-col lg:flex-row lg:overflow-hidden min-h-0">
-          {/* Sidebar esquerda: leaderboard (desktop). No mobile vai no centro abaixo das salas. */}
+          {/* Sidebar esquerda: leaderboard (desktop). No mobile vai no topo do main. */}
           <aside className="hidden lg:flex lg:flex-col lg:w-72 lg:flex-shrink-0 lg:border-r lg:border-[#DDEAFF] lg:overflow-auto lg:p-3 lg:bg-white/40">
             <Leaderboard />
           </aside>
 
           {/* Coluna central: lobby */}
           <main className="flex-1 flex flex-col min-h-0">
+            {/* Leaderboard no topo (mobile) — ordem: leaderboard → salas → quick play.
+                No desktop fica na sidebar esquerda (lg:hidden aqui). */}
+            <Leaderboard className="lg:hidden mx-3 mt-3" />
+
             {/* Barra de status */}
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 20px 12px" }}>
               <span style={{ color: C.muted, fontSize: 12, fontWeight: 700, letterSpacing: 0.5, textTransform: "uppercase" }}>
@@ -375,9 +379,9 @@ export default function HomeScreen() {
                 </div>
               )}
 
-              {/* Quick Play e Leaderboard mobile (lg:hidden). No desktop ficam nas sidebars. */}
-              <QuickPlayCard className="lg:hidden mt-4" onPlay={() => { playButtonSound(); setOfflineModal(true); }} />
-              <Leaderboard className="lg:hidden mt-4 mb-2" />
+              {/* Quick Play (mobile, lg:hidden) por último. No desktop, sidebar direita.
+                  O Leaderboard mobile foi pro topo do main (ordem leaderboard → salas → quick play). */}
+              <QuickPlayCard className="lg:hidden mt-4 mb-2" onPlay={() => { playButtonSound(); setOfflineModal(true); }} />
             </div>
 
             {/* Bottom bar com botoes do lobby */}
