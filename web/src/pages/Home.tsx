@@ -28,6 +28,7 @@ import {
 import { useNavigate, useSearchParams } from "react-router-dom";
 import type { ColorChoice, PublicRoom } from "@barreira/shared";
 import { CreateRoomModal, type CreateRoomConfig } from "../components/CreateRoomModal";
+import { IosAppPromo } from "../components/IosAppPromo";
 import { JoinByCodeModal } from "../components/JoinByCodeModal";
 import { MessageModal } from "../components/MessageModal";
 import { PageGate } from "../components/PageGate";
@@ -575,6 +576,10 @@ export default function HomeScreen() {
           message={errorPopup?.message ?? ""}
           onClose={() => setErrorPopup(null)}
         />
+
+        {/* Popup de download do app iOS — auto-gated (só iPhone/iPad, 1x por
+            sessão, delay de 1.5s). Em Android/desktop não renderiza nada. */}
+        <IosAppPromo />
       </div>
     </PageGate>
   );
