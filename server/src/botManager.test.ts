@@ -40,8 +40,10 @@ describe("botManager — reaper de salas órfãs (IMPORTANTE 1)", () => {
     const code = room.code;
     expect(lobby.getAllRooms().get(code)?.players.every((p) => p.isBot)).toBe(true);
 
-    // scan (4s) detecta a órfã e agenda a saída do bot (≤6s) → removida.
-    vi.advanceTimersByTime(4000 + 6000 + 100);
+    // scan (4s) detecta a órfã e agenda a saída do bot. O delay agora cobre a
+    // janela de revanche (REMATCH_TIMEOUT_MS + 3-6s) pra o humano poder pedir
+    // revanche — então avançamos o suficiente pra o leave disparar.
+    vi.advanceTimersByTime(4000 + 15000 + 6000 + 1000);
 
     expect(lobby.getAllRooms().has(code)).toBe(false);
   });
@@ -56,5 +58,34 @@ describe("botManager — reaper de salas órfãs (IMPORTANTE 1)", () => {
     vi.advanceTimersByTime(20000); // vários scans
 
     expect(lobby.getAllRooms().has(room.code)).toBe(true);
+  });
+
+  it("após o fim da partida, o bot FICA durante a janela de revanche (não sai em 3-6s)", () => {
+    vi.useFakeTimers();
+    botManager.startBotManager(fakeIo);
+
+    const room = lobby.createBotHostRoom({ hostName: "anonimo3333", color: "cyan" });
+    lobby.joinRoom({
+      socketId: "s-h",
+      clientId: "c-h",
+      authUserId: null,
+      playerName: "Humano",
+      code: room.code,
+    });
+    // Simula o fim por vitória: maybeScheduleBotMove agenda a saída do bot
+    // quando há vencedor (precisa de status "playing" pra não retornar cedo);
+    // depois o status vira "finished", como no fluxo real pós-vitória.
+    const live = lobby.getRoomBySocket("s-h")!;
+    live.gameState = { ...live.gameState!, winner: 2 };
+    botManager.maybeScheduleBotMove(live);
+    live.status = "finished";
+
+    // Dentro da janela de revanche o bot continua na sala (antes saía em 3-6s).
+    vi.advanceTimersByTime(8000);
+    expect(lobby.getRoomBySocket("s-h")?.players.some((p) => p.isBot)).toBe(true);
+
+    // Passada a janela de revanche, o bot sai (o humano permanece na sala).
+    vi.advanceTimersByTime(15000 + 6000 + 1000);
+    expect(lobby.getRoomBySocket("s-h")?.players.some((p) => p.isBot)).toBe(false);
   });
 });

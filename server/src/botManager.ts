@@ -36,6 +36,7 @@ import {
   chargeTurnTime,
   createBotHostRoom,
   getAllRooms,
+  getRematchTimeoutMs,
   removeBotFromRoom,
   requestRematchAsBot,
   type ServerPlayer,
@@ -319,13 +320,17 @@ const playBotMove = (room: ServerRoom, bot: ServerPlayer): void => {
   }
 };
 
-// Quando partida termina, agenda saída do bot pra a sala morrer e abrir
-// espaço pro próximo spawn. Delay aleatório pra não parecer automatizado.
+// Quando a partida termina, agenda a saída do bot pra a sala morrer e abrir
+// espaço pro próximo spawn. O delay precisa cobrir TODA a janela de revanche
+// (REMATCH_TIMEOUT_MS) — senão o bot sairia em 3-6s e o pedido de revanche do
+// humano falharia ("revanche indisponível") na maioria das partidas. Ao fim do
+// delay, se houver revanche pendente ou nova partida, o bot fica; senão sai.
 const scheduledLeaves = new Set<string>();
 const scheduleBotLeave = (room: ServerRoom): void => {
   if (scheduledLeaves.has(room.code)) return;
   scheduledLeaves.add(room.code);
-  const delay = randomBetween(LEAVE_DELAY_MIN_MS, LEAVE_DELAY_MAX_MS);
+  const delay =
+    getRematchTimeoutMs() + randomBetween(LEAVE_DELAY_MIN_MS, LEAVE_DELAY_MAX_MS);
   setTimeout(() => {
     scheduledLeaves.delete(room.code);
     // Re-checa: se uma revanche está pendente ou já começou nova partida,
