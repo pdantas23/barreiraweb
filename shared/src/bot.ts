@@ -45,10 +45,44 @@ const WIN_SCORE = 100_000;
 // a busca profunda do "hard" rodar rápido sem travar o event loop do server.
 const WALL_RADIUS = 1;
 
+// === Anti-loop (correção do ciclo infinito) ===
+// O minimax era puramente posicional e sem memória: posições "neutras" formavam
+// platôs onde andar não melhorava o score, e ao reencontrar a MESMA posição o
+// bot (função determinística) repetia o mesmo lance — ciclo infinito. Três
+// peças quebram isso SEM aleatoriedade: (1) detecção de repetição no caminho de
+// busca, (2) termo de progresso absoluto, (3) escolha entre os top-3 no root.
+
+// Distância BFS de referência pro termo de progresso absoluto. Num 9x9 o
+// caminho razoável fica abaixo disso; serve só de base fixa pra recompensar
+// avançar rumo ao objetivo (quanto menor a distância, maior o bônus).
+const MAX_DIST = 16;
+// Penalidade forte aplicada a um lance que recria uma posição já vista no
+// caminho de busca. Maior que qualquer score posicional comum (~±200) e que a
+// repetição perca pra qualquer linha que progrida, mas menor que uma derrota
+// (−WIN_SCORE) — repetir ainda é "melhor" que perder.
+const REPEAT_PENALTY = 500;
+// Janela máxima de posições anteriores consideradas na detecção de repetição.
+// Como a profundidade de busca é ≤ 4, o caminho nunca passa de 8 posições.
+const HISTORY_LIMIT = 8;
+// Quantos lances do root coletar pra a regra anti-repetição (#3).
+const ROOT_TOP_K = 3;
+
 const rowOf = (idx: number): number => Math.floor(idx / BOARD_SIZE);
 const colOf = (idx: number): number => idx % BOARD_SIZE;
 const pieceOf = (state: GameState, id: PlayerId): number =>
   id === 1 ? state.p1 : state.p2;
+
+// Hash de uma posição pra detecção de repetição: peões + vez + paredes.
+// Paredes só são ADICIONADAS ao longo do jogo, então a ordem dos placements é
+// estável dentro de uma mesma busca (todo descendente herda o prefixo do nó
+// raiz) — basta concatenar, sem ordenar.
+const positionHash = (state: GameState): string => {
+  let walls = "";
+  for (const p of state.walls.placements) {
+    walls += `${p.type}${p.interRow},${p.interCol};`;
+  }
+  return `${state.p1}.${state.p2}.${state.turn}.${walls}`;
+};
 
 // BFS por níveis: menor número de passos de `from` até a linha-objetivo.
 // Hot path do minimax (chamado em cada folha + na avaliação), então é
@@ -124,8 +158,13 @@ const evaluate = (state: GameState, botId: PlayerId, humanId: PlayerId): number 
   if (botDist === UNREACHABLE) return -WIN_SCORE;
   if (humanDist === UNREACHABLE) return WIN_SCORE;
   const distScore = (humanDist - botDist) * 10;
+  // Termo de PROGRESSO absoluto: recompensa estar perto do próprio objetivo,
+  // independentemente do adversário. Sem ele, posições de saldo relativo igual
+  // viram platôs (andar não muda o score) — a origem dos ciclos. Com ele, o bot
+  // sempre prefere avançar mesmo quando a posição relativa é neutra.
+  const progressScore = (MAX_DIST - botDist) * 3;
   const wallScore = (state.wallsLeft[botId] - state.wallsLeft[humanId]) * 1;
-  return distScore + wallScore;
+  return distScore + progressScore + wallScore;
 };
 
 // Paredes candidatas: só as a até WALL_RADIUS de alguma peça.
@@ -154,6 +193,43 @@ const generateMoves = (state: GameState, player: PlayerId): Move[] => {
   return moves;
 };
 
+// Avalia o estado-filho recursando no minimax — mas se `child` recria uma
+// posição já presente no caminho de busca (`history`), corta a linha como um
+// EMPATE por repetição em vez de recursar (#1).
+//
+// Valor de repetição = −REPEAT_PENALTY na ótica do BOT, SEMPRE (independe de
+// quem moveu). É "contempt": repetir é ruim pro bot. Num nó MAX (bot decidindo)
+// o maximizador foge da repetição se houver QUALQUER linha que progrida; num nó
+// MIN (adversário) o minimizador busca a repetição — modela certo um oponente
+// que força empate quando está perdendo. Assim NENHUM dos bots fecha o ciclo
+// voluntariamente quando existe alternativa que avança.
+//
+// (O bug original assinava o valor por quem moveu: numa repetição de período 4
+// quem fecha o ciclo é o adversário, então o bot pontuava +REPEAT_PENALTY e
+// AMAVA o ciclo — exatamente o que perpetuava o loop.)
+const scoreChild = (
+  child: GameState,
+  depth: number,
+  alpha: number,
+  beta: number,
+  childIsMax: boolean,
+  botId: PlayerId,
+  humanId: PlayerId,
+  history: Set<string>,
+): number => {
+  const hash = positionHash(child);
+  if (history.has(hash)) {
+    return -REPEAT_PENALTY;
+  }
+  // Atualiza o histórico a cada nó (entra ao descer, sai ao subir) e respeita a
+  // janela de HISTORY_LIMIT posições.
+  const added = history.size < HISTORY_LIMIT;
+  if (added) history.add(hash);
+  const score = minimax(child, depth - 1, alpha, beta, childIsMax, botId, humanId, history);
+  if (added) history.delete(hash);
+  return score;
+};
+
 const minimax = (
   state: GameState,
   depth: number,
@@ -162,6 +238,7 @@ const minimax = (
   isMax: boolean,
   botId: PlayerId,
   humanId: PlayerId,
+  history: Set<string>,
 ): number => {
   if (depth === 0 || state.winner !== null) {
     return evaluate(state, botId, humanId);
@@ -177,7 +254,7 @@ const minimax = (
       const res = applyMove(turned, player, move);
       if (!res.ok) continue;
       explored = true;
-      const score = minimax(res.state, depth - 1, alpha, beta, false, botId, humanId);
+      const score = scoreChild(res.state, depth, alpha, beta, false, botId, humanId, history);
       if (score > best) best = score;
       if (best > alpha) alpha = best;
       if (alpha >= beta) break;
@@ -189,7 +266,7 @@ const minimax = (
     const res = applyMove(turned, player, move);
     if (!res.ok) continue;
     explored = true;
-    const score = minimax(res.state, depth - 1, alpha, beta, true, botId, humanId);
+    const score = scoreChild(res.state, depth, alpha, beta, true, botId, humanId, history);
     if (score < best) best = score;
     if (best < beta) beta = best;
     if (alpha >= beta) break;
@@ -227,21 +304,45 @@ export const botMove = (
   const turned: GameState = { ...state, turn: botId };
   const moves = generateMoves(turned, botId);
 
-  let bestMove: Move | null = null;
-  let bestScore = -Infinity;
+  // Histórico do CAMINHO de busca. NÃO persiste entre chamadas — botMove segue
+  // sendo função pura do estado (determinística e segura pra partidas
+  // concorrentes no server). Semeado com a posição-raiz pra que qualquer linha
+  // que volte à posição atual dentro do horizonte seja detectada como ciclo.
+  const history = new Set<string>([positionHash(turned)]);
+
+  // #3: coleta o score de TODOS os lances do root e escolhe entre os top-K.
+  // Mantém a poda α-β (alpha sobe com o melhor encontrado): num nó MAX o melhor
+  // lance sai exato — só o ranking de 2º/3º vira aproximado, o que não afeta a
+  // escolha (só pegamos o melhor não-repetido). Repetições recebem score exato
+  // (−REPEAT_PENALTY) sem recursão.
+  const scored: Array<{ move: Move; score: number }> = [];
   let alpha = -Infinity;
   for (const move of moves) {
     const res = applyMove(turned, botId, move);
     if (!res.ok) continue;
-    const score = minimax(res.state, depth - 1, alpha, Infinity, false, botId, humanId);
-    // ESTRITAMENTE maior → empate mantém o primeiro (peças antes de paredes).
-    if (score > bestScore) {
-      bestScore = score;
-      bestMove = move;
+    const hash = positionHash(res.state);
+    let score: number;
+    if (history.has(hash)) {
+      score = -REPEAT_PENALTY; // bot recriando a posição → fortemente evitado
+    } else {
+      history.add(hash);
+      score = minimax(res.state, depth - 1, alpha, Infinity, false, botId, humanId, history);
+      history.delete(hash);
     }
-    if (bestScore > alpha) alpha = bestScore;
+    scored.push({ move, score });
+    if (score > alpha) alpha = score;
   }
-  if (bestMove) return bestMove;
+
+  if (scored.length > 0) {
+    // Ordena por score desc. Array.sort é ESTÁVEL → em empate mantém a ordem de
+    // generateMoves (peças antes de paredes) = mesmo desempate determinístico
+    // de antes. Entre os top-K, força o melhor lance que NÃO seja repetição;
+    // se todos repetirem (bot encurralado), fica com o melhor mesmo assim.
+    scored.sort((a, b) => b.score - a.score);
+    const topK = scored.slice(0, ROOT_TOP_K);
+    const chosen = topK.find((c) => c.score > -REPEAT_PENALTY) ?? topK[0];
+    return chosen.move;
+  }
 
   // Fallback: o minimax não achou jogada (estado degenerado). Tenta o próximo
   // passo BFS; se nem peça houver, qualquer parede legal; senão null.
