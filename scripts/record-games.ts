@@ -181,9 +181,17 @@ const cellCenter = (index: number): { cx: number; cy: number } => {
 // (interpolada) em vez do centro da casa — usado nos frames de animação.
 type PawnAnim = { player: PlayerId; cx: number; cy: number };
 
+// Canvas ÚNICO reutilizado em TODOS os frames. Antes cada frame alocava uma
+// superfície Cairo de 1920×1920 nova; com centenas de frames num loop síncrono,
+// num ambiente com pouca memória (headless/CI) o GC pode não acompanhar e o
+// processo é morto por OOM (SIGKILL) silenciosamente, antes do FFmpeg. Reusar um
+// só canvas mantém a memória CONSTANTE — cada frame repinta tudo (o fillRect do
+// fundo cobre o frame anterior por inteiro).
+const sharedCanvas = createCanvas(CANVAS_SIZE, CANVAS_SIZE);
+const sharedCtx = sharedCanvas.getContext("2d");
+
 const renderState = (state: GameState, anim?: PawnAnim): Buffer => {
-  const canvas = createCanvas(CANVAS_SIZE, CANVAS_SIZE);
-  const ctx = canvas.getContext("2d");
+  const ctx = sharedCtx;
 
   // --- Fundo da página: gradiente bgTop → bgBottom (Game/GameLayout) ---
   const bg = ctx.createLinearGradient(0, 0, 0, CANVAS_SIZE);
@@ -240,7 +248,7 @@ const renderState = (state: GameState, anim?: PawnAnim): Buffer => {
   drawPieceAt(ctx, p1.cx, p1.cy, 1);
   drawPieceAt(ctx, p2.cx, p2.cy, 2);
 
-  return canvas.toBuffer("image/png");
+  return sharedCanvas.toBuffer("image/png");
 };
 
 const drawGoalZone = (
@@ -421,10 +429,23 @@ const encodeVideo = (frameDir: string, outPath: string): void => {
     String(VIDEO_FPS),
     outPath,
   ];
-  const res = spawnSync("ffmpeg", args, { stdio: ["ignore", "ignore", "pipe"] });
+  const res = spawnSync("ffmpeg", args, {
+    // stdin ignorado (/dev/null) → o ffmpeg não fica esperando entrada num
+    // ambiente sem TTY; `-y` já evita o prompt de sobrescrever.
+    stdio: ["ignore", "ignore", "pipe"],
+    // O ffmpeg pode emitir MUITO no stderr (progresso por frame). O default do
+    // spawnSync é 1MB — se estourar, o node MATA o ffmpeg e seta res.error
+    // (ENOBUFS), o que num headless parecia "morrer sem montar o vídeo".
+    maxBuffer: 1024 * 1024 * 100,
+  });
+  // Surfacing explícito: spawn falhou (ENOENT/ENOBUFS/SIGKILL etc.) — antes isso
+  // era ignorado (só checava status) e o erro sumia.
+  if (res.error) throw res.error;
   if (res.status !== 0) {
     const stderr = res.stderr ? res.stderr.toString() : "";
-    throw new Error(`FFmpeg falhou ao montar ${outPath}\n${stderr}`);
+    throw new Error(
+      `FFmpeg saiu com status ${res.status}${res.signal ? ` (sinal ${res.signal})` : ""}\n${stderr}`,
+    );
   }
 };
 
@@ -604,30 +625,41 @@ const main = async (): Promise<void> => {
       hold(renderState(cur), PAUSE_FRAMES + (isLast ? HOLD_FINAL_FRAMES : 0));
     }
 
-    process.stdout.write(" montando vídeo...");
-    const outPath = join(OUTPUT_DIR, `barreira_partida_${pad}.mp4`);
-    encodeVideo(frameDir, outPath);
+    const fileName = `barreira_partida_${pad}.mp4`;
+    const outPath = join(OUTPUT_DIR, fileName);
+    console.log(` frames gerados (${frameNo})`);
+
+    // (#1) try/catch explícito em torno do FFmpeg: qualquer falha é logada e o
+    // script segue pra próxima partida em vez de morrer sem explicação.
+    try {
+      console.log(`  iniciando ffmpeg...`);
+      encodeVideo(frameDir, outPath);
+      console.log(`  ffmpeg concluído → output/${fileName}`);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      console.error(`  ✖ ffmpeg falhou na partida ${g}: ${msg}`);
+      rmSync(frameDir, { recursive: true, force: true });
+      continue; // sem vídeo → não há o que enviar; vai pra próxima partida
+    }
 
     // Limpa os PNGs temporários desta partida.
     rmSync(frameDir, { recursive: true, force: true });
 
     // Upload pro Drive. Falha NÃO interrompe o script — os outros vídeos seguem.
-    let uploadNote = "";
     if (driveTarget) {
-      process.stdout.write(" upload para o Drive...");
+      console.log(`  iniciando upload...`);
       try {
-        await uploadToDrive(driveTarget, outPath, `barreira_partida_${pad}.mp4`);
+        await uploadToDrive(driveTarget, outPath, fileName);
+        console.log(`  upload concluído ✓`);
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
-        uploadNote = `  ⚠ upload falhou: ${msg}`;
+        console.error(`  ⚠ upload falhou: ${msg}`);
       }
     }
 
     const result =
       winner === null ? "sem vencedor (limite de lances)" : `vencedor: jogador ${winner}`;
-    console.log(
-      ` concluído ✓  (${plies} lances, ${result}) → output/barreira_partida_${pad}.mp4${uploadNote}`,
-    );
+    console.log(` ✓ partida ${g}/${count} concluída (${plies} lances, ${result})\n`);
   }
 
   console.log(`\n✓ ${count} vídeo(s) em scripts/output/\n`);
