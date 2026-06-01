@@ -51,11 +51,15 @@ const OUTPUT_DIR = join(__dirname, "output");
 const TMP_DIR = join(__dirname, "tmp");
 
 // === Parâmetros do vídeo ====================================================
+// O vídeo roda a VIDEO_FPS e o tempo é controlado por CONTAGEM de frames: cada
+// posição fica parada por PAUSE_FRAMES (frames idênticos duplicados) e o peão
+// DESLIZA entre as casas por ANIM_FRAMES intermediários (interpolação linear),
+// igual à transição suave da web. Paredes aparecem instantâneas (sem animação).
 const CANVAS_SIZE = 1920; // resolução final (quadrada)
-const FRAME_MS = 800; // cada jogada fica visível ~800ms
-const INPUT_FPS = 1000 / FRAME_MS; // 1.25 fps de entrada → 800ms por PNG
-const OUTPUT_FPS = 25; // fps de saída (players lidam melhor com 25)
-const HOLD_FINAL_FRAMES = 3; // segura o frame final por mais ~2.4s
+const VIDEO_FPS = 30; // fps do vídeo (cada PNG = 1 frame exibido)
+const ANIM_FRAMES = 10; // frames intermediários por lance de peça (glide ≈ 333ms)
+const PAUSE_FRAMES = 12; // hold estático em cada posição (≈ 400ms)
+const HOLD_FINAL_FRAMES = 60; // segura o frame final por mais ~2s
 
 // === Parâmetros da simulação ================================================
 const P1_DIFFICULTY: BotDifficulty = "medium"; // bot médio = jogador 1 (azul)
@@ -167,7 +171,11 @@ const cellCenter = (index: number): { cx: number; cy: number } => {
 // Renderização do tabuleiro (cópia fiel dos componentes web)
 // =============================================================================
 
-const renderState = (state: GameState): Buffer => {
+// `anim` (opcional) desenha o peão `player` numa posição em PIXELS arbitrária
+// (interpolada) em vez do centro da casa — usado nos frames de animação.
+type PawnAnim = { player: PlayerId; cx: number; cy: number };
+
+const renderState = (state: GameState, anim?: PawnAnim): Buffer => {
   const canvas = createCanvas(CANVAS_SIZE, CANVAS_SIZE);
   const ctx = canvas.getContext("2d");
 
@@ -219,8 +227,12 @@ const renderState = (state: GameState): Buffer => {
   }
 
   // --- Peões (Piece.tsx), z-index 15 (acima das paredes) ---
-  drawPiece(ctx, state.p1, 1);
-  drawPiece(ctx, state.p2, 2);
+  // Durante a animação, o peão que se move vai na posição interpolada `anim`;
+  // o outro (e o próprio, fora da animação) fica no centro da sua casa.
+  const p1 = anim?.player === 1 ? anim : cellCenter(state.p1);
+  const p2 = anim?.player === 2 ? anim : cellCenter(state.p2);
+  drawPieceAt(ctx, p1.cx, p1.cy, 1);
+  drawPieceAt(ctx, p2.cx, p2.cy, 2);
 
   return canvas.toBuffer("image/png");
 };
@@ -272,8 +284,7 @@ const drawWall = (
   ctx.restore();
 };
 
-const drawPiece = (ctx: Ctx, index: number, player: PlayerId): void => {
-  const { cx, cy } = cellCenter(index);
+const drawPieceAt = (ctx: Ctx, cx: number, cy: number, player: PlayerId): void => {
   const colors = player === 1 ? gc.pawnPlayer : gc.pawnOpponent;
   const d = SQUARE * 0.72; // Piece.tsx
   const reflectD = d * 0.28;
@@ -389,7 +400,7 @@ const encodeVideo = (frameDir: string, outPath: string): void => {
   const args = [
     "-y",
     "-framerate",
-    String(INPUT_FPS),
+    String(VIDEO_FPS),
     "-i",
     join(frameDir, "frame_%04d.png"),
     "-c:v",
@@ -401,7 +412,7 @@ const encodeVideo = (frameDir: string, outPath: string): void => {
     "-pix_fmt",
     "yuv420p",
     "-r",
-    String(OUTPUT_FPS),
+    String(VIDEO_FPS),
     outPath,
   ];
   const res = spawnSync("ffmpeg", args, { stdio: ["ignore", "ignore", "pipe"] });
@@ -467,11 +478,38 @@ const main = (): void => {
       writeFileSync(join(frameDir, name), buf);
       frameNo++;
     };
+    const hold = (buf: Buffer, n: number) => {
+      for (let k = 0; k < n; k++) writeFrame(buf);
+    };
 
-    for (const state of states) writeFrame(renderState(state));
-    // Segura o frame final por mais alguns frames p/ o desfecho respirar.
-    const finalBuf = renderState(states[states.length - 1]);
-    for (let i = 0; i < HOLD_FINAL_FRAMES; i++) writeFrame(finalBuf);
+    // Pausa inicial na posição de partida.
+    hold(renderState(states[0]), PAUSE_FRAMES);
+
+    for (let i = 1; i < states.length; i++) {
+      const prev = states[i - 1];
+      const cur = states[i];
+
+      // Qual peão se moveu? (lance de peça muda 1 peão; lance de parede, nenhum)
+      const movedPlayer: PlayerId | null =
+        prev.p1 !== cur.p1 ? 1 : prev.p2 !== cur.p2 ? 2 : null;
+
+      // Animação: desliza o peão da casa antiga até a nova (interpolação linear).
+      // Parede → sem animação: o estado novo (com a parede) já entra na pausa.
+      if (movedPlayer !== null) {
+        const from = cellCenter(movedPlayer === 1 ? prev.p1 : prev.p2);
+        const to = cellCenter(movedPlayer === 1 ? cur.p1 : cur.p2);
+        for (let t = 1; t <= ANIM_FRAMES; t++) {
+          const f = t / ANIM_FRAMES;
+          const cx = from.cx + (to.cx - from.cx) * f;
+          const cy = from.cy + (to.cy - from.cy) * f;
+          writeFrame(renderState(cur, { player: movedPlayer, cx, cy }));
+        }
+      }
+
+      // Pausa estática na posição assentada (mais longa no lance final).
+      const isLast = i === states.length - 1;
+      hold(renderState(cur), PAUSE_FRAMES + (isLast ? HOLD_FINAL_FRAMES : 0));
+    }
 
     process.stdout.write(" montando vídeo...");
     const outPath = join(OUTPUT_DIR, `barreira_partida_${pad}.mp4`);
