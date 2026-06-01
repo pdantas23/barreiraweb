@@ -25,7 +25,7 @@
 // =============================================================================
 
 import { spawnSync } from "node:child_process";
-import { createReadStream, existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { createReadStream, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -51,10 +51,13 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const OUTPUT_DIR = join(__dirname, "output");
 const TMP_DIR = join(__dirname, "tmp");
 
-// === Google Drive (upload automático) =======================================
+// === Google Drive (upload automático via OAuth2 do usuário) =================
 const DRIVE_FOLDER_ID = "109ilyuWNe78vVMhWHy-kUZqKV5bKPBeW"; // pasta-mãe no Drive
-const SERVICE_ACCOUNT = join(__dirname, "service-account.json");
-const DRIVE_SCOPE = "https://www.googleapis.com/auth/drive";
+// OAuth2 com a conta do PRÓPRIO usuário (service account não tem quota no Drive
+// pessoal). client_id/secret vêm do oauth-credentials.json; o refresh_token é
+// gerado uma vez por `npx tsx scripts/auth-drive.ts` e salvo no oauth-token.json.
+const OAUTH_CREDENTIALS = join(__dirname, "oauth-credentials.json");
+const OAUTH_TOKEN = join(__dirname, "oauth-token.json");
 
 // === Parâmetros do vídeo ====================================================
 // O vídeo roda a VIDEO_FPS e o tempo é controlado por CONTAGEM de frames: cada
@@ -493,25 +496,38 @@ const ensureDailyFolder = async (drive: Drive, name: string): Promise<string> =>
   return created.data.id;
 };
 
-// Autentica com a service account e resolve a subpasta do dia. Retorna null (com
-// aviso) se a credencial não existir ou a conexão falhar — nesse caso o script
-// segue gerando os vídeos localmente, só não envia pro Drive.
+// Autentica via OAuth2 (client_id/secret + refresh_token salvos) e resolve a
+// subpasta do dia. NÃO abre navegador — só usa o refresh token. Retorna null
+// (com aviso) se faltar credencial/token ou a conexão falhar; nesse caso o
+// script segue gerando os vídeos localmente, só não envia pro Drive.
 const initDriveUpload = async (): Promise<DriveTarget | null> => {
-  if (!existsSync(SERVICE_ACCOUNT)) {
+  if (!existsSync(OAUTH_CREDENTIALS) || !existsSync(OAUTH_TOKEN)) {
     console.warn(
-      `⚠ ${SERVICE_ACCOUNT} não encontrado — os vídeos NÃO serão enviados ao Drive.\n`,
+      "⚠ Credenciais OAuth ausentes — os vídeos NÃO serão enviados ao Drive.\n" +
+        "  Rode uma vez:  npx tsx scripts/auth-drive.ts\n",
     );
     return null;
   }
   try {
-    const auth = new google.auth.GoogleAuth({ keyFile: SERVICE_ACCOUNT, scopes: [DRIVE_SCOPE] });
-    const drive = google.drive({ version: "v3", auth });
+    const rawCreds = JSON.parse(readFileSync(OAUTH_CREDENTIALS, "utf8"));
+    const cred = rawCreds.installed ?? rawCreds.web ?? rawCreds;
+    const { refresh_token } = JSON.parse(readFileSync(OAUTH_TOKEN, "utf8"));
+    if (!cred.client_id || !cred.client_secret || !refresh_token) {
+      throw new Error("client_id, client_secret ou refresh_token ausente nos arquivos OAuth.");
+    }
+    const oauth2 = new google.auth.OAuth2(
+      cred.client_id,
+      cred.client_secret,
+      cred.redirect_uris?.[0] ?? "http://localhost",
+    );
+    oauth2.setCredentials({ refresh_token });
+    const drive = google.drive({ version: "v3", auth: oauth2 });
     const folderName = dailyFolderName();
     const folderId = await ensureDailyFolder(drive, folderName);
     return { drive, folderId, folderName };
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
-    console.warn(`⚠ Falha ao conectar no Google Drive (upload desativado): ${msg}\n`);
+    console.warn(`⚠ Falha ao autenticar no Google Drive (upload desativado): ${msg}\n`);
     return null;
   }
 };
