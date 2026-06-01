@@ -1,3 +1,6 @@
 node_modules/
 output/
 tmp/
+
+# Credenciais da service account do Google Drive — NUNCA versionar.
+service-account.json

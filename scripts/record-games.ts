@@ -25,11 +25,12 @@
 // =============================================================================
 
 import { spawnSync } from "node:child_process";
-import { existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { createReadStream, existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { createCanvas } from "canvas";
+import { google, type drive_v3 } from "googleapis";
 
 // Engine pura reusada via path relativo (NÃO via workspace).
 import {
@@ -49,6 +50,11 @@ import {
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const OUTPUT_DIR = join(__dirname, "output");
 const TMP_DIR = join(__dirname, "tmp");
+
+// === Google Drive (upload automático) =======================================
+const DRIVE_FOLDER_ID = "109ilyuWNe78vVMhWHy-kUZqKV5bKPBeW"; // pasta-mãe no Drive
+const SERVICE_ACCOUNT = join(__dirname, "service-account.json");
+const DRIVE_SCOPE = "https://www.googleapis.com/auth/drive";
 
 // === Parâmetros do vídeo ====================================================
 // O vídeo roda a VIDEO_FPS e o tempo é controlado por CONTAGEM de frames: cada
@@ -423,6 +429,87 @@ const encodeVideo = (frameDir: string, outPath: string): void => {
 };
 
 // =============================================================================
+// Google Drive — upload automático dos MP4 gerados
+// =============================================================================
+
+type Drive = drive_v3.Drive;
+type DriveTarget = { drive: Drive; folderId: string; folderName: string };
+
+// Nome da subpasta do dia: DD-MM-AA (ex.: 02-06-26). Usa a data ATUAL na hora
+// da execução.
+const dailyFolderName = (): string => {
+  const d = new Date();
+  const p = (n: number) => String(n).padStart(2, "0");
+  return `${p(d.getDate())}-${p(d.getMonth() + 1)}-${p(d.getFullYear() % 100)}`;
+};
+
+// Acha a subpasta do dia dentro da pasta-mãe; cria se não existir. Resolvida uma
+// única vez por execução — todos os vídeos da execução vão pra mesma subpasta.
+const ensureDailyFolder = async (drive: Drive, name: string): Promise<string> => {
+  const q =
+    `name = '${name}' and mimeType = 'application/vnd.google-apps.folder' ` +
+    `and '${DRIVE_FOLDER_ID}' in parents and trashed = false`;
+  const found = await drive.files.list({
+    q,
+    fields: "files(id, name)",
+    spaces: "drive",
+    supportsAllDrives: true,
+    includeItemsFromAllDrives: true,
+  });
+  const existing = found.data.files?.[0]?.id;
+  if (existing) return existing;
+
+  const created = await drive.files.create({
+    requestBody: {
+      name,
+      mimeType: "application/vnd.google-apps.folder",
+      parents: [DRIVE_FOLDER_ID],
+    },
+    fields: "id",
+    supportsAllDrives: true,
+  });
+  if (!created.data.id) throw new Error("Drive não retornou o id da subpasta criada.");
+  return created.data.id;
+};
+
+// Autentica com a service account e resolve a subpasta do dia. Retorna null (com
+// aviso) se a credencial não existir ou a conexão falhar — nesse caso o script
+// segue gerando os vídeos localmente, só não envia pro Drive.
+const initDriveUpload = async (): Promise<DriveTarget | null> => {
+  if (!existsSync(SERVICE_ACCOUNT)) {
+    console.warn(
+      `⚠ ${SERVICE_ACCOUNT} não encontrado — os vídeos NÃO serão enviados ao Drive.\n`,
+    );
+    return null;
+  }
+  try {
+    const auth = new google.auth.GoogleAuth({ keyFile: SERVICE_ACCOUNT, scopes: [DRIVE_SCOPE] });
+    const drive = google.drive({ version: "v3", auth });
+    const folderName = dailyFolderName();
+    const folderId = await ensureDailyFolder(drive, folderName);
+    return { drive, folderId, folderName };
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    console.warn(`⚠ Falha ao conectar no Google Drive (upload desativado): ${msg}\n`);
+    return null;
+  }
+};
+
+// Sobe um arquivo local pra subpasta resolvida, com o mesmo nome do arquivo.
+const uploadToDrive = async (
+  target: DriveTarget,
+  localPath: string,
+  name: string,
+): Promise<void> => {
+  await target.drive.files.create({
+    requestBody: { name, parents: [target.folderId] },
+    media: { mimeType: "video/mp4", body: createReadStream(localPath) },
+    fields: "id",
+    supportsAllDrives: true,
+  });
+};
+
+// =============================================================================
 // CLI
 // =============================================================================
 
@@ -448,7 +535,7 @@ const parseCount = (argv: string[]): number => {
   return count;
 };
 
-const main = (): void => {
+const main = async (): Promise<void> => {
   const count = parseCount(process.argv.slice(2));
 
   ensureFfmpeg();
@@ -459,6 +546,12 @@ const main = (): void => {
   console.log(
     `\nBarreira — gravando ${count} partida(s): bot ${P1_DIFFICULTY} (azul) vs bot ${P2_DIFFICULTY} (vermelho)\n`,
   );
+
+  // Resolve (uma vez) o destino no Drive: subpasta do dia dentro da pasta-mãe.
+  const driveTarget = await initDriveUpload();
+  if (driveTarget) {
+    console.log(`Upload pro Google Drive → subpasta "${driveTarget.folderName}"\n`);
+  }
 
   for (let g = 1; g <= count; g++) {
     const pad = String(g).padStart(2, "0");
@@ -518,14 +611,29 @@ const main = (): void => {
     // Limpa os PNGs temporários desta partida.
     rmSync(frameDir, { recursive: true, force: true });
 
+    // Upload pro Drive. Falha NÃO interrompe o script — os outros vídeos seguem.
+    let uploadNote = "";
+    if (driveTarget) {
+      process.stdout.write(" upload para o Drive...");
+      try {
+        await uploadToDrive(driveTarget, outPath, `barreira_partida_${pad}.mp4`);
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        uploadNote = `  ⚠ upload falhou: ${msg}`;
+      }
+    }
+
     const result =
       winner === null ? "sem vencedor (limite de lances)" : `vencedor: jogador ${winner}`;
     console.log(
-      ` concluído ✓  (${plies} lances, ${result}) → output/barreira_partida_${pad}.mp4`,
+      ` concluído ✓  (${plies} lances, ${result}) → output/barreira_partida_${pad}.mp4${uploadNote}`,
     );
   }
 
   console.log(`\n✓ ${count} vídeo(s) em scripts/output/\n`);
 };
 
-main();
+main().catch((err) => {
+  console.error(err);
+  process.exit(1);
+});
