@@ -67,6 +67,25 @@ const HISTORY_LIMIT = 8;
 // Quantos lances do root coletar pra a regra anti-repetição (#3).
 const ROOT_TOP_K = 3;
 
+// === Anti-pêndulo (recuos desnecessários do peão) ===
+// O conserto do loop fez as partidas terminarem, mas o bot ainda balançava o
+// peão (A→B→A) sem progredir quando estava vencendo: a busca adversária dá um
+// valor alto a recuar/manter flexibilidade, e nada distinguia um recuo TOLO de
+// um recuo FORÇADO. Penalidade direta sobre o recuo desnecessário resolve.
+//
+// Recuo = lance de peça que AUMENTA a distância BFS do peão ao próprio objetivo.
+//   • DESNECESSÁRIO (punido): existe outro lance de peça que NÃO aumenta a
+//     distância — havia saída pra frente e o bot escolheu voltar.
+//   • FORÇADO (não punido): TODOS os lances de peça aumentam — o peão está
+//     encurralado pelas paredes e recuar é o caminho mais curto disponível.
+// Voltar a uma casa que ENCURTA o BFS nunca é recuo (é progresso legítimo).
+//
+// A distinção é exatamente o teste por BFS: dist(destino) > dist(atual) define o
+// recuo; a existência de uma alternativa não-recuo define se foi desnecessário.
+// Valor moderado: filtra o vai-e-vem tolo sem sobrepor uma vantagem tática real
+// (que move o score em centenas/milhares).
+const RETREAT_PENALTY = 120;
+
 const rowOf = (idx: number): number => Math.floor(idx / BOARD_SIZE);
 const colOf = (idx: number): number => idx % BOARD_SIZE;
 const pieceOf = (state: GameState, id: PlayerId): number =>
@@ -193,6 +212,58 @@ const generateMoves = (state: GameState, player: PlayerId): Move[] => {
   return moves;
 };
 
+// Campo de distância BFS até a linha-objetivo pra TODAS as casas, numa única
+// varredura multi-source a partir da linha-alvo. Custa UM BFS por nó e devolve a
+// distância de qualquer casa por lookup — bem mais barato que um BFS por lance.
+// Casa inalcançável fica -1.
+const distFieldToGoal = (state: GameState, targetRow: number): Int16Array => {
+  const walls = state.walls;
+  const field = new Int16Array(TOTAL_SQUARES).fill(-1);
+  let frontier: number[] = [];
+  for (let c = 0; c < BOARD_SIZE; c++) {
+    const cell = targetRow * BOARD_SIZE + c;
+    field[cell] = 0;
+    frontier.push(cell);
+  }
+  let d = 0;
+  while (frontier.length > 0) {
+    d++;
+    const next: number[] = [];
+    for (const cur of frontier) {
+      const r = (cur / BOARD_SIZE) | 0;
+      const c = cur % BOARD_SIZE;
+      if (r > 0) { const n = cur - BOARD_SIZE; if (field[n] < 0 && !isBlocked(walls, cur, n)) { field[n] = d; next.push(n); } }
+      if (r < BOARD_SIZE - 1) { const n = cur + BOARD_SIZE; if (field[n] < 0 && !isBlocked(walls, cur, n)) { field[n] = d; next.push(n); } }
+      if (c > 0) { const n = cur - 1; if (field[n] < 0 && !isBlocked(walls, cur, n)) { field[n] = d; next.push(n); } }
+      if (c < BOARD_SIZE - 1) { const n = cur + 1; if (field[n] < 0 && !isBlocked(walls, cur, n)) { field[n] = d; next.push(n); } }
+    }
+    frontier = next;
+  }
+  return field;
+};
+
+// Anti-pêndulo: para o nó onde o BOT vai mover, devolve uma função que dá a
+// penalidade de RECUO de cada destino de peça. Um campo de distância (1 BFS) diz
+// a distância de cada casa; um destino só é punido se afasta do objetivo
+// (dist maior que a atual) E existe algum lance de peça que NÃO afasta (recuo
+// desnecessário). Recuo forçado (todos afastam) passa livre.
+const retreatPenalty = (
+  state: GameState,
+  botId: PlayerId,
+  moves: Move[],
+): ((to: number) => number) => {
+  const field = distFieldToGoal(state, goalRow(botId));
+  const myDist = field[pieceOf(state, botId)];
+  let hasNonRetreat = false;
+  for (const mv of moves) {
+    if (mv.kind !== "piece") continue;
+    const d = field[mv.to];
+    if (d >= 0 && d <= myDist) { hasNonRetreat = true; break; }
+  }
+  return (to: number): number =>
+    field[to] > myDist && hasNonRetreat ? RETREAT_PENALTY : 0;
+};
+
 // Avalia o estado-filho recursando no minimax — mas se `child` recria uma
 // posição já presente no caminho de busca (`history`), corta a linha como um
 // EMPATE por repetição em vez de recursar (#1).
@@ -250,11 +321,14 @@ const minimax = (
   let explored = false;
   if (isMax) {
     let best = -Infinity;
+    // Penalidade de recuo desnecessário do peão do bot neste nó (anti-pêndulo).
+    const penalty = retreatPenalty(turned, botId, moves);
     for (const move of moves) {
       const res = applyMove(turned, player, move);
       if (!res.ok) continue;
       explored = true;
-      const score = scoreChild(res.state, depth, alpha, beta, false, botId, humanId, history);
+      const pen = move.kind === "piece" ? penalty(move.to) : 0;
+      const score = scoreChild(res.state, depth, alpha, beta, false, botId, humanId, history) - pen;
       if (score > best) best = score;
       if (best > alpha) alpha = best;
       if (alpha >= beta) break;
@@ -315,6 +389,9 @@ export const botMove = (
   // lance sai exato — só o ranking de 2º/3º vira aproximado, o que não afeta a
   // escolha (só pegamos o melhor não-repetido). Repetições recebem score exato
   // (−REPEAT_PENALTY) sem recursão.
+  // Penalidade de recuo desnecessário do peão no root (anti-pêndulo) — mesma
+  // regra das camadas internas, agora sobre a decisão real do bot.
+  const penalty = retreatPenalty(turned, botId, moves);
   const scored: Array<{ move: Move; score: number }> = [];
   let alpha = -Infinity;
   for (const move of moves) {
@@ -325,8 +402,9 @@ export const botMove = (
     if (history.has(hash)) {
       score = -REPEAT_PENALTY; // bot recriando a posição → fortemente evitado
     } else {
+      const pen = move.kind === "piece" ? penalty(move.to) : 0;
       history.add(hash);
-      score = minimax(res.state, depth - 1, alpha, Infinity, false, botId, humanId, history);
+      score = minimax(res.state, depth - 1, alpha, Infinity, false, botId, humanId, history) - pen;
       history.delete(hash);
     }
     scored.push({ move, score });
