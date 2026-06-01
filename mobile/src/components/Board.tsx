@@ -1,6 +1,12 @@
-import { ReactElement } from "react";
+import { ReactElement, useEffect } from "react";
 import { View, StyleSheet } from "react-native";
-import Animated, { type AnimatedRef } from "react-native-reanimated";
+import Animated, {
+  Easing,
+  useAnimatedStyle,
+  useSharedValue,
+  withTiming,
+  type AnimatedRef,
+} from "react-native-reanimated";
 import { LinearGradient } from "expo-linear-gradient";
 import {
   BOARD_SIZE,
@@ -8,6 +14,7 @@ import {
   col,
   row,
   type GameState,
+  type PlayerId,
   type WallPlacement,
 } from "@barreira/shared";
 import { BlockedPathToast } from "./BlockedPathToast";
@@ -16,6 +23,53 @@ import { Square } from "./Square";
 import { Wall } from "./Wall";
 import { useResponsiveBoard, type BoardLayout } from "../hooks/useResponsiveBoard";
 import { gc } from "../gameColors";
+
+// Duração/curva da animação do peão — IGUAL à web (Board.tsx web usa
+// `transition: left 200ms ease-out, top 200ms ease-out`). A bezier abaixo é a
+// CSS `ease-out` (cubic-bezier(0, 0, 0.58, 1)).
+const PAWN_ANIM_MS = 200;
+const PAWN_EASING = Easing.bezier(0, 0, 0.58, 1);
+
+// Peão como overlay absoluto ANIMADO (igual à web): em vez de re-renderizar o
+// peão dentro da casa nova (teletransporte), ele desliza suavemente da posição
+// anterior até a nova quando `index` muda. A caixa do peão (squareSize) coincide
+// com a casa, então seu canto = padding + coluna/linha * cellSize.
+const AnimatedPawn = ({
+  player,
+  index,
+  layout,
+}: {
+  player: PlayerId;
+  index: number;
+  layout: BoardLayout;
+}) => {
+  const cellSize = layout.squareSize + layout.gap;
+  const targetX = layout.padding + col(index) * cellSize;
+  const targetY = layout.padding + row(index) * cellSize;
+
+  const x = useSharedValue(targetX);
+  const y = useSharedValue(targetY);
+
+  // Anima ao mudar de casa (lance) ou ao recalcular o layout (resize). No
+  // primeiro render o shared value já nasce na posição certa (sem glide).
+  useEffect(() => {
+    x.value = withTiming(targetX, { duration: PAWN_ANIM_MS, easing: PAWN_EASING });
+    y.value = withTiming(targetY, { duration: PAWN_ANIM_MS, easing: PAWN_EASING });
+  }, [targetX, targetY, x, y]);
+
+  const animStyle = useAnimatedStyle(() => ({
+    transform: [{ translateX: x.value }, { translateY: y.value }],
+  }));
+
+  return (
+    <Animated.View
+      pointerEvents="none"
+      style={[styles.pawn, { width: layout.squareSize, height: layout.squareSize }, animStyle]}
+    >
+      <Piece player={player} size={layout.squareSize} />
+    </Animated.View>
+  );
+};
 
 type Props = {
   state: GameState;
@@ -48,13 +102,8 @@ export const Board = ({
     const isAlt = (r + c) % 2 === 1;
     const isValidMove = validMoves.has(i);
 
-    const piece =
-      i === state.p1 ? (
-        <Piece player={1} size={layout.squareSize} />
-      ) : i === state.p2 ? (
-        <Piece player={2} size={layout.squareSize} />
-      ) : null;
-
+    // Os peões NÃO ficam mais dentro da casa — são overlays animados (abaixo),
+    // pra deslizar entre as casas em vez de teletransportar.
     squares.push(
       <Square
         key={i}
@@ -63,9 +112,7 @@ export const Board = ({
         isAlt={isAlt}
         isHighlighted={isValidMove}
         onPress={isValidMove ? onSquareTap : undefined}
-      >
-        {piece}
-      </Square>,
+      />,
     );
   }
 
@@ -148,6 +195,11 @@ export const Board = ({
           ))}
           {ghost && <Wall placement={ghost} layout={layout} ghost ghostInvalid={ghostInvalid} />}
 
+          {/* Peões — overlays absolutos animados, acima das paredes (z-index 15,
+              igual à web). Deslizam suavemente ao mudar de casa. */}
+          <AnimatedPawn player={1} index={state.p1} layout={layout} />
+          <AnimatedPawn player={2} index={state.p2} layout={layout} />
+
           <BlockedPathToast
             visible={showBlockedToast}
             position={ghost && ghost.interRow < 4 ? "bottom" : "top"}
@@ -185,5 +237,13 @@ const styles = StyleSheet.create({
     position: "absolute",
     zIndex: 5,
     pointerEvents: "none",
+  },
+  pawn: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    alignItems: "center",
+    justifyContent: "center",
+    zIndex: 15,
   },
 });
