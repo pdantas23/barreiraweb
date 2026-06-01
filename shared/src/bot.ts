@@ -20,8 +20,8 @@
 import { BOARD_SIZE, goalRow, opponentOf } from "./board";
 import { applyMove } from "./engine";
 import { getValidMoves } from "./moves";
-import type { GameState, Move, PlayerId } from "./types";
-import { allPossiblePlacements, canPlaceWall, isBlocked } from "./walls";
+import type { GameState, Move, PlayerId, WallPlacement } from "./types";
+import { allPossiblePlacements, canPlaceWall, isBlocked, registerWall } from "./walls";
 
 const TOTAL_SQUARES = BOARD_SIZE * BOARD_SIZE;
 
@@ -182,6 +182,10 @@ const evaluate = (state: GameState, botId: PlayerId, humanId: PlayerId): number 
   // viram platôs (andar não muda o score) — a origem dos ciclos. Com ele, o bot
   // sempre prefere avançar mesmo quando a posição relativa é neutra.
   const progressScore = (MAX_DIST - botDist) * 3;
+  // Saldo de paredes na mão (peso baixo, ×1): ter mais paredes que o adversário
+  // é uma vantagem leve, mas NÃO penalizamos usar paredes — o bot deve bloquear
+  // à vontade. O que evita parede ruim é o filtro de relevância em generateMoves
+  // (só vira candidata a parede que de fato afasta o adversário), não o custo.
   const wallScore = (state.wallsLeft[botId] - state.wallsLeft[humanId]) * 1;
   return distScore + progressScore + wallScore;
 };
@@ -196,16 +200,67 @@ const wallNearPieces = (state: GameState, ir: number, ic: number): boolean => {
   return false;
 };
 
+// As 2 adjacências (arestas do grafo) que uma parede bloqueia. H em (ir,ic)
+// corta as duas verticais abaixo dela; V corta as duas horizontais à direita.
+const wallBlockedEdges = (p: WallPlacement): [number, number][] => {
+  const { type, interRow: ir, interCol: ic } = p;
+  const idx = (r: number, c: number) => r * BOARD_SIZE + c;
+  return type === "h"
+    ? [[idx(ir, ic), idx(ir + 1, ic)], [idx(ir, ic + 1), idx(ir + 1, ic + 1)]]
+    : [[idx(ir, ic), idx(ir, ic + 1)], [idx(ir + 1, ic), idx(ir + 1, ic + 1)]];
+};
+
+// Filtro de relevância (#2/#3): a parede SÓ é candidata se aumentar a distância
+// BFS do peão `pawnCell` ao seu objetivo em ≥1 (paredes só podem aumentar
+// distância, nunca reduzir, então "afasta o adversário" é o único ganho real).
+//
+// Eficiência: o `field` (dist-to-goal de todas as casas, 1 BFS já feito no
+// chamador) dá um pré-filtro de GRAÇA — pra aumentar a distância a parede TEM
+// que cortar ao menos uma aresta do gradiente do caminho mais curto
+// (|Δfield|=1). Se não corta nenhuma, ΔBFS=0 garantido → descarta sem BFS. Só
+// quando toca o gradiente fazemos UM BFS pra separar bloqueio REAL de rota
+// paralela (parede de "pressão", ΔBFS=0, que era 95% das paredes inúteis).
+const wallIncreasesDist = (
+  state: GameState,
+  placement: WallPlacement,
+  pawnCell: number,
+  goalR: number,
+  field: Int16Array,
+  baseDist: number,
+): boolean => {
+  let touchesGradient = false;
+  for (const [a, b] of wallBlockedEdges(placement)) {
+    if (field[a] >= 0 && field[b] >= 0 && Math.abs(field[a] - field[b]) === 1) {
+      touchesGradient = true;
+      break;
+    }
+  }
+  if (!touchesGradient) return false; // ΔBFS=0 certo — sem BFS
+  const newWalls = registerWall(state.walls, placement);
+  const newDist = shortestPathDistance({ ...state, walls: newWalls }, pawnCell, goalR);
+  return newDist > baseDist; // bloqueio real (não rota paralela)
+};
+
 // Gera as jogadas candidatas de `player`. Peças PRIMEIRO (melhora os cortes do
 // α-β e dá prioridade determinística ao avanço em empates), paredes depois.
-// Não faz BFS de legalidade aqui — `applyMove` rejeita paredes que trancam o
-// caminho (res.ok=false), evitando o BFS duplicado e acelerando a busca.
+// As paredes passam pelo filtro de relevância: só entram as que de fato afastam
+// o adversário do objetivo — elimina paredes inúteis/de-pressão da árvore (corta
+// o branching e some com a maioria dos lances de parede ruins). `applyMove` no
+// minimax ainda rejeita as que trancam o caminho por completo.
 const generateMoves = (state: GameState, player: PlayerId): Move[] => {
   const moves: Move[] = getValidMoves(state, player).map((to) => ({ kind: "piece", to }));
   if (state.wallsLeft[player] > 0) {
+    const opp = opponentOf(player);
+    const oppGoal = goalRow(opp);
+    const oppPawn = pieceOf(state, opp);
+    // 1 BFS: campo de distância do adversário ao objetivo, reusado por todas as
+    // candidatas (pré-filtro de gradiente + base do ΔBFS).
+    const oppField = distFieldToGoal(state, oppGoal);
+    const oppDist = oppField[oppPawn];
     for (const placement of allPossiblePlacements()) {
       if (!wallNearPieces(state, placement.interRow, placement.interCol)) continue;
       if (!canPlaceWall(state.walls, placement)) continue;
+      if (!wallIncreasesDist(state, placement, oppPawn, oppGoal, oppField, oppDist)) continue;
       moves.push({ kind: "wall", placement });
     }
   }
