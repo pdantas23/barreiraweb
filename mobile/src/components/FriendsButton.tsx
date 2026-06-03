@@ -169,8 +169,12 @@ export const FriendsButton = ({ color = C.blue }: Props) => {
                       return { ok: res.ok, error: res.ok ? undefined : res.message };
                     }}
                   />
-                  <Pressable onPress={() => setAddOpen(false)} style={styles.addClose}>
-                    <Text style={styles.addCloseText}>Fechar</Text>
+                  <Pressable
+                    accessibilityLabel="Fechar"
+                    onPress={() => setAddOpen(false)}
+                    style={styles.addCloseX}
+                  >
+                    <Ionicons name="close" size={18} color={C.muted} />
                   </Pressable>
                 </Pressable>
               </Pressable>
@@ -258,6 +262,23 @@ const styles = StyleSheet.create({
   footerBtnGhost: { backgroundColor: C.white, borderWidth: 1, borderColor: C.border },
   footerBtnGhostText: { color: C.navy, fontSize: 13, fontWeight: "800" },
   addCard: { width: "100%", maxWidth: 340 },
-  addClose: { marginTop: 10, alignSelf: "center", paddingVertical: 8, paddingHorizontal: 20 },
-  addCloseText: { color: C.muted, fontSize: 13, fontWeight: "700" },
+  addCloseX: {
+    position: "absolute",
+    top: -12,
+    right: -8,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: C.white,
+    borderWidth: 1,
+    borderColor: "#EEF2FF",
+    alignItems: "center",
+    justifyContent: "center",
+    zIndex: 10,
+    elevation: 6,
+    shadowColor: C.blue,
+    shadowOpacity: 0.15,
+    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 2 },
+  },
 });
