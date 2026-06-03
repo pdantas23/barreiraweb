@@ -304,37 +304,45 @@ export default function HomeScreen() {
         {/* === Body responsivo: 3 colunas no desktop, 1 fluindo no mobile ===
             No mobile não há flex-1/min-h-0 (sem altura travada) → o conteúdo
             cresce e o container externo scrolla tudo junto. */}
-        <div className="flex flex-col lg:flex-1 lg:flex-row lg:overflow-hidden lg:min-h-0">
-          {/* Coluna central: lobby. Mobile flui (sem altura travada); desktop
-              é flex-1 com scroll interno na lista de salas. O leaderboard saiu
-              da sidebar/topo e virou o botão flutuante (modal abaixo). */}
-          <main className="flex flex-col lg:flex-1 lg:min-h-0">
-            {/* Barra de status */}
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 20px 12px" }}>
+        <div className="flex flex-col flex-1 min-h-0 overflow-hidden lg:flex-row">
+          {/* Coluna central: lobby. Em qualquer largura é flex-1 com scroll
+              interno na lista de salas — assim a bottom bar fica sempre colada
+              no rodapé mesmo com poucas salas. O leaderboard saiu da
+              sidebar/topo e virou o botão flutuante (modal abaixo). */}
+          <main className="flex flex-col flex-1 min-h-0">
+            {/* Barra de status — título centralizado na tela e o refresh colado
+                na extrema direita. Os dois spacers flex:1 (esquerda e direita)
+                mantêm o título no centro independente do botão. O troféu
+                flutuante continua fixo no canto. */}
+            <div style={{ display: "flex", alignItems: "center", padding: "10px 20px 12px" }}>
+              <div style={{ flex: 1 }} />
               <span style={{ color: C.muted, fontSize: 12, fontWeight: 700, letterSpacing: 0.5, textTransform: "uppercase" }}>
                 {loading ? "Carregando..." : `${rooms.length} sala${rooms.length === 1 ? "" : "s"} disponive${rooms.length === 1 ? "l" : "is"}`}
               </span>
-              <button
-                onClick={refresh}
-                disabled={loading || busy}
-                style={{
-                  width: 32, height: 32, borderRadius: 16, backgroundColor: C.white,
-                  border: `1px solid ${C.border}`, display: "flex", alignItems: "center",
-                  justifyContent: "center", cursor: "pointer", opacity: (loading || busy) ? 0.5 : 1,
-                }}
-                aria-label="Atualizar salas"
-              >
-                {loading ? (
-                  <div style={{ width: 16, height: 16, border: `2px solid ${C.muted}`, borderTopColor: "transparent", borderRadius: "50%", animation: "spin 0.8s linear infinite" }} />
-                ) : (
-                  <IoRefresh size={16} color={C.blue} />
-                )}
-              </button>
+              <div style={{ flex: 1, display: "flex", justifyContent: "flex-end" }}>
+                <button
+                  onClick={refresh}
+                  disabled={loading || busy}
+                  style={{
+                    width: 32, height: 32, borderRadius: 16, backgroundColor: C.white,
+                    border: `1px solid ${C.border}`, display: "flex", alignItems: "center",
+                    justifyContent: "center", cursor: "pointer", opacity: (loading || busy) ? 0.5 : 1,
+                  }}
+                  aria-label="Atualizar salas"
+                >
+                  {loading ? (
+                    <div style={{ width: 16, height: 16, border: `2px solid ${C.muted}`, borderTopColor: "transparent", borderRadius: "50%", animation: "spin 0.8s linear infinite" }} />
+                  ) : (
+                    <IoRefresh size={16} color={C.blue} />
+                  )}
+                </button>
+              </div>
             </div>
 
-            {/* Lista de salas. No mobile flui (sem scroll próprio); no desktop
-                é a área rolável da coluna central (lg:overflow-auto). */}
-            <div className="px-5 pb-2 lg:flex-1 lg:min-h-0 lg:overflow-auto">
+            {/* Lista de salas — área rolável da coluna central (em qualquer
+                largura). Cresce pra empurrar a bottom bar pro fim; o conteúdo
+                rola aqui dentro, sem ficar escondido atrás dos botões. */}
+            <div className="px-5 pb-2 flex-1 min-h-0 overflow-auto">
               {rooms.length === 0 && !loading ? (
                 <div style={{ display: "flex", flexDirection: "column", alignItems: "center", padding: "32px 24px", justifyContent: "center" }}>
                   <IoPeopleOutline size={48} color={C.border} />
@@ -391,11 +399,12 @@ export default function HomeScreen() {
                   })}
                 </div>
               )}
-            </div>
 
-            {/* Quick Play (mobile) — acima da barra de ações. No desktop fica
-                na sidebar direita (lg:hidden aqui). */}
-            <QuickPlayCard className="lg:hidden mx-3 mt-4 mb-2" onPlay={() => { playButtonSound(); setOfflineModal(true); }} />
+              {/* Quick Play (mobile) — flui logo abaixo da última sala, dentro
+                  da área de scroll (não pinado acima dos botões). No desktop
+                  fica na sidebar direita (lg:hidden aqui). */}
+              <QuickPlayCard className="lg:hidden mt-4 mb-2" onPlay={() => { playButtonSound(); setOfflineModal(true); }} />
+            </div>
 
             {/* Bottom bar (Entrar com codigo / Criar sala). No mobile fica no
                 rodape, logo acima dos links; no desktop, pinada no fim da coluna. */}
