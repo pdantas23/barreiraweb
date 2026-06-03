@@ -14,6 +14,7 @@ import {
   IoAdd,
   IoArrowForward,
   IoChevronForward,
+  IoClose,
   IoFlash,
   IoGameController,
   IoKeyOutline,
@@ -23,6 +24,7 @@ import {
   IoRefresh,
   IoSettingsOutline,
   IoShieldCheckmark,
+  IoTrophy,
   IoVolumeHigh,
 } from "react-icons/io5";
 import { useNavigate, useSearchParams } from "react-router-dom";
@@ -114,6 +116,7 @@ export default function HomeScreen() {
   // Modais de menu/config
   const [showPrivacy, setShowPrivacy] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
+  const [showLeaderboard, setShowLeaderboard] = useState(false);
 
   // Treino (vs Computador)
   const [difficulty, setDifficulty] = useState<Difficulty>("easy");
@@ -286,22 +289,26 @@ export default function HomeScreen() {
           </div>
         </header>
 
+        {/* === Botão flutuante do leaderboard ===
+            Fixo no canto superior esquerdo, logo abaixo do header. Abre o
+            ranking num modal (antes ficava inline no topo do lobby). */}
+        <button
+          onClick={() => { playButtonSound(); setShowLeaderboard(true); }}
+          className="fixed left-4 z-[100] w-11 h-11 rounded-full bg-white border border-[#DDEAFF] shadow-[0_2px_8px_rgba(61,111,255,0.15)] flex items-center justify-center cursor-pointer hover:opacity-90 active:scale-95 transition-transform"
+          style={{ top: 72 }}
+          aria-label="Ver leaderboard"
+        >
+          <IoTrophy size={20} color="#F4B619" />
+        </button>
+
         {/* === Body responsivo: 3 colunas no desktop, 1 fluindo no mobile ===
             No mobile não há flex-1/min-h-0 (sem altura travada) → o conteúdo
             cresce e o container externo scrolla tudo junto. */}
         <div className="flex flex-col lg:flex-1 lg:flex-row lg:overflow-hidden lg:min-h-0">
-          {/* Sidebar esquerda: leaderboard (desktop). No mobile vai no topo do main. */}
-          <aside className="hidden lg:flex lg:flex-col lg:w-72 lg:flex-shrink-0 lg:border-r lg:border-[#DDEAFF] lg:overflow-auto lg:p-3 lg:bg-white/40">
-            <Leaderboard />
-          </aside>
-
           {/* Coluna central: lobby. Mobile flui (sem altura travada); desktop
-              é flex-1 com scroll interno na lista de salas. */}
+              é flex-1 com scroll interno na lista de salas. O leaderboard saiu
+              da sidebar/topo e virou o botão flutuante (modal abaixo). */}
           <main className="flex flex-col lg:flex-1 lg:min-h-0">
-            {/* Leaderboard no topo (mobile) — ordem: leaderboard → salas → quick play.
-                No desktop fica na sidebar esquerda (lg:hidden aqui). */}
-            <Leaderboard className="lg:hidden mx-3 mt-3" />
-
             {/* Barra de status */}
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 20px 12px" }}>
               <span style={{ color: C.muted, fontSize: 12, fontWeight: 700, letterSpacing: 0.5, textTransform: "uppercase" }}>
@@ -566,6 +573,24 @@ export default function HomeScreen() {
               >
                 Fechar
               </button>
+            </div>
+          </div>
+        )}
+
+        {/* Leaderboard (modal) — mesmo visual de antes, agora atrás de overlay
+            escuro com botão de fechar. O blur/gate pra anônimos (quando houver)
+            continua dentro do próprio componente Leaderboard. */}
+        {showLeaderboard && (
+          <div className="fixed inset-0 bg-black/40 flex items-center justify-center p-6 z-[300]" onClick={() => setShowLeaderboard(false)}>
+            <div className="w-full max-w-[360px] relative" onClick={(e) => e.stopPropagation()}>
+              <button
+                onClick={() => { playButtonSound(); setShowLeaderboard(false); }}
+                className="absolute -top-3 -right-3 w-9 h-9 rounded-full bg-white border border-cell-bg shadow-[0_2px_8px_rgba(61,111,255,0.15)] flex items-center justify-center cursor-pointer hover:opacity-80 z-10"
+                aria-label="Fechar"
+              >
+                <IoClose size={18} color="#9AAACA" />
+              </button>
+              <Leaderboard />
             </div>
           </div>
         )}
