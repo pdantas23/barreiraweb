@@ -6,6 +6,7 @@ import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { useFonts, BebasNeue_400Regular } from "@expo-google-fonts/bebas-neue";
 import { DragLayer } from "../src/components/DragLayer";
 import { SplashOverlay } from "../src/components/SplashOverlay";
+import { AppGate } from "../src/components/AppGate";
 import { initClientId } from "../src/net/clientId";
 import { DragOverlayProvider, useDragOverlay } from "../src/state/dragOverlay";
 import { AudioSettingsProvider } from "../src/state/audioSettings";
@@ -60,11 +61,13 @@ export default function RootLayout() {
                 <Stack.Screen name="game" />
                 <Stack.Screen name="online" />
                 <Stack.Screen name="online-game" />
+                <Stack.Screen name="amigos" options={{ animation: "slide_from_right" }} />
                 <Stack.Screen name="privacy" />
                 <Stack.Screen name="perfil" />
                 <Stack.Screen name="auth" options={{ animation: "fade" }} />
               </Stack>
               <DragOverlayRenderer />
+              <AppGate />
               <SplashOverlay />
             </ProfileProvider>
           </AuthProvider>

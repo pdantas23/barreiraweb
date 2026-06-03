@@ -97,6 +97,19 @@ export const TopBar = ({ onSettingsPress }: Props) => {
           </Text>
         </Pressable>
 
+        {isLogged && (
+          <Pressable
+            accessibilityLabel="Amigos"
+            onPress={() => {
+              playButtonSound();
+              router.push("/amigos" as never);
+            }}
+            style={({ pressed }) => [styles.settingsBtn, pressed && styles.btnPressed]}
+          >
+            <Ionicons name="people" size={16} color={C.blue} />
+          </Pressable>
+        )}
+
         <Pressable
           onPress={() => {
             playButtonSound();
