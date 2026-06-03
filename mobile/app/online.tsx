@@ -3,6 +3,7 @@ import {
   ActivityIndicator,
   Alert,
   FlatList,
+  Modal,
   Pressable,
   StyleSheet,
   Text,
@@ -39,6 +40,7 @@ const C = {
   cellBg: "#EEF2FF",
   border: "#DDEAFF",
   red: "#FF3D6F",
+  gold: "#F4B619",
 } as const;
 
 // Fallback caso o profile ainda não tenha chegado do server. Em produção
@@ -72,6 +74,7 @@ export default function OnlineScreen() {
   const [rooms, setRooms] = useState<PublicRoom[]>([]);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
+  const [showLeaderboard, setShowLeaderboard] = useState(false);
 
   const showError = useCallback((res: { error: string; message?: string }) => {
     const info = errorInfo(res.error);
@@ -259,7 +262,6 @@ export default function OnlineScreen() {
           showsVerticalScrollIndicator={false}
           ListHeaderComponent={
             <View>
-              <Leaderboard />
               <View style={styles.subRow}>
                 <Text style={styles.subText}>
                   {loading
@@ -340,6 +342,41 @@ export default function OnlineScreen() {
           lockCode={joinPrivate !== null}
           requirePassword={joinPrivate !== null}
         />
+
+        {/* Botão flutuante do leaderboard — abaixo da seta de voltar. Abre o
+            ranking num modal (antes o leaderboard ficava no topo da lista). */}
+        <Pressable
+          onPress={() => { playButtonSound(); setShowLeaderboard(true); }}
+          style={({ pressed }) => [
+            styles.lbFab,
+            { top: insets.top + 56 },
+            pressed && styles.pressed,
+          ]}
+          accessibilityLabel="Ver leaderboard"
+        >
+          <Ionicons name="trophy" size={20} color={C.gold} />
+        </Pressable>
+
+        <Modal
+          transparent
+          visible={showLeaderboard}
+          animationType="fade"
+          statusBarTranslucent
+          onRequestClose={() => setShowLeaderboard(false)}
+        >
+          <Pressable style={styles.lbBackdrop} onPress={() => setShowLeaderboard(false)}>
+            <Pressable style={styles.lbModalCard} onPress={(e) => e.stopPropagation?.()}>
+              <Pressable
+                onPress={() => { playButtonSound(); setShowLeaderboard(false); }}
+                style={({ pressed }) => [styles.lbCloseBtn, pressed && styles.pressed]}
+                accessibilityLabel="Fechar"
+              >
+                <Ionicons name="close" size={20} color={C.muted} />
+              </Pressable>
+              <Leaderboard />
+            </Pressable>
+          </Pressable>
+        </Modal>
       </View>
     </LinearGradient>
   );
@@ -397,6 +434,9 @@ const styles = StyleSheet.create({
   listContent: {
     paddingHorizontal: 20,
     paddingBottom: 8,
+    // Folga no topo pro FAB do leaderboard (flutuante à esquerda) não cobrir
+    // a subRow ("X salas disponíveis").
+    paddingTop: 44,
   },
   listEmpty: {
     flexGrow: 1,
@@ -550,5 +590,54 @@ const styles = StyleSheet.create({
   },
   disabled: {
     opacity: 0.5,
+  },
+  // ─── Leaderboard FAB + modal ───
+  lbFab: {
+    position: "absolute",
+    left: 16,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: C.white,
+    borderWidth: 1,
+    borderColor: C.border,
+    alignItems: "center",
+    justifyContent: "center",
+    shadowColor: C.blue,
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 4,
+    zIndex: 10,
+  },
+  lbBackdrop: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.4)",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 24,
+  },
+  lbModalCard: {
+    width: "100%",
+    maxWidth: 360,
+  },
+  lbCloseBtn: {
+    position: "absolute",
+    top: -14,
+    right: -6,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: C.white,
+    borderWidth: 1,
+    borderColor: C.cellBg,
+    alignItems: "center",
+    justifyContent: "center",
+    zIndex: 10,
+    shadowColor: C.blue,
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 6,
   },
 });

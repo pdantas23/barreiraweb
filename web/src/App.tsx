@@ -19,6 +19,7 @@ import Profile from "./pages/Profile";
 import ForgotPassword from "./pages/ForgotPassword";
 import ResetPassword from "./pages/ResetPassword";
 import AmigoRedirect from "./pages/AmigoRedirect";
+import SalaRedirect from "./pages/SalaRedirect";
 
 // Bootstrap clientId synchronously (localStorage is sync)
 initClientId();
@@ -48,6 +49,7 @@ export const App = () => {
               <Routes>
                 <Route path="/" element={<Home />} />
                 <Route path="/amigo/:username" element={<AmigoRedirect />} />
+                <Route path="/sala/:codigo" element={<SalaRedirect />} />
                 <Route path="/game" element={<Game />} />
                 <Route path="/online-game" element={<OnlineGame />} />
                 <Route path="/privacy" element={<Privacy />} />

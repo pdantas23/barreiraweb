@@ -397,8 +397,12 @@ const BottomNav = ({
   setTab: (t: Tab) => void;
   bottomInset: number;
 }) => {
+  // A barra tem 70px úteis pros botões; somamos o inset inferior à altura
+  // (em vez de só padding) porque a altura era travada em 70 e o padding
+  // ficava espremido — no Android os botões caíam atrás da barra do sistema.
+  const safeBottom = Math.max(bottomInset, 8);
   return (
-    <View style={[styles.navbar, { paddingBottom: Math.max(bottomInset, 8) }]}>
+    <View style={[styles.navbar, { height: 70 + safeBottom, paddingBottom: safeBottom }]}>
       <NavTab
         active={tab === "offline"}
         iconActive="game-controller"

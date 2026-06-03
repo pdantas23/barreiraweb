@@ -1,0 +1,15 @@
+{
+  "applinks": {
+    "details": [
+      {
+        "appIDs": ["TEAMID.com.barreira.app"],
+        "components": [
+          {
+            "/": "/sala/*",
+            "comment": "Abre salas compartilhadas direto no app (Universal Links)"
+          }
+        ]
+      }
+    ]
+  }
+}

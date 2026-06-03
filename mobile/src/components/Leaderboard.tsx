@@ -8,6 +8,7 @@
 import { useEffect, useState } from "react";
 import {
   ActivityIndicator,
+  Platform,
   Pressable,
   StyleSheet,
   Text,
@@ -94,6 +95,38 @@ export const Leaderboard = () => {
     }
   };
 
+  // Conteúdo do gate (mesmo em iOS e Android). No Android usamos texto claro
+  // porque o overlay é escuro; no iOS o blur é claro, então mantemos o navy.
+  const onDark = Platform.OS === "android";
+  const gateInner = (
+    <View style={styles.gateContent}>
+      <Ionicons name="lock-closed" size={22} color={onDark ? C.white : C.blue} />
+      <Text style={[styles.gateTitle, onDark && styles.gateTextOnDark]}>
+        Crie uma conta pra competir
+      </Text>
+      <Text style={[styles.gateSub, onDark && styles.gateSubOnDark]}>
+        Pontuação e ranking aparecem só pra contas cadastradas.
+      </Text>
+      <Pressable
+        onPress={openSiteForLogin}
+        style={({ pressed }) => [
+          styles.gateBtn,
+          pressed && { opacity: 0.85, transform: [{ scale: 0.98 }] },
+        ]}
+      >
+        <Text style={styles.gateBtnText}>Entrar pra ver</Text>
+        <Ionicons name="arrow-forward" size={14} color={C.white} />
+      </Pressable>
+    </View>
+  );
+  const gateBody = onDark ? (
+    <View style={[styles.gate, styles.gateSolid]}>{gateInner}</View>
+  ) : (
+    <BlurView intensity={18} tint="light" style={styles.gate}>
+      {gateInner}
+    </BlurView>
+  );
+
   return (
     <View style={styles.card}>
       {/* Header */}
@@ -153,27 +186,12 @@ export const Leaderboard = () => {
         )}
       </View>
 
-      {/* Gate pra anônimos: blur sobre o conteúdo + CTA pra criar conta */}
+      {/* Gate pra anônimos: cobre o ranking + CTA pra criar conta.
+          iOS: BlurView (blur nativo). Android: o expo-blur não renderiza de
+          forma confiável (deixava a tabela legível), então usamos um overlay
+          sólido semi-transparente escuro — sem depender de blur nativo. */}
       {!isLogged && !loading && !error && entries.length > 0 && (
-        <BlurView intensity={18} tint="light" style={styles.gate}>
-          <View style={styles.gateContent}>
-            <Ionicons name="lock-closed" size={22} color={C.blue} />
-            <Text style={styles.gateTitle}>Crie uma conta pra competir</Text>
-            <Text style={styles.gateSub}>
-              Pontuação e ranking aparecem só pra contas cadastradas.
-            </Text>
-            <Pressable
-              onPress={openSiteForLogin}
-              style={({ pressed }) => [
-                styles.gateBtn,
-                pressed && { opacity: 0.85, transform: [{ scale: 0.98 }] },
-              ]}
-            >
-              <Text style={styles.gateBtnText}>Entrar pra ver</Text>
-              <Ionicons name="arrow-forward" size={14} color={C.white} />
-            </Pressable>
-          </View>
-        </BlurView>
+        gateBody
       )}
     </View>
   );
@@ -336,11 +354,22 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     paddingHorizontal: 24,
-    // bg sutil pra reforçar o gate sem cobrir o blur
+    // bg sutil pra reforçar o gate sem cobrir o blur (iOS)
     backgroundColor: "rgba(255,255,255,0.55)",
+  },
+  // Android: sem blur nativo confiável → overlay escuro opaco o bastante pra
+  // esconder os nomes/pontos da tabela. Sobrescreve o bg claro do gate.
+  gateSolid: {
+    backgroundColor: "rgba(20,28,46,0.94)",
   },
   gateContent: {
     alignItems: "center",
+  },
+  gateTextOnDark: {
+    color: C.white,
+  },
+  gateSubOnDark: {
+    color: "rgba(255,255,255,0.8)",
   },
   gateTitle: {
     color: C.navy,

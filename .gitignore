@@ -11,3 +11,9 @@ server/logs/
 
 # Backup local que pode aparecer ao mexer no VPS via sftp
 _archive*/
+
+# Playwright (e2e local) — artefatos de execução. Os baselines em
+# web/e2e/snapshots/ SÃO versionados de propósito.
+test-results/
+playwright-report/
+playwright/.cache/
