@@ -62,6 +62,48 @@ export const validateListRooms = (p: unknown): void => {
   if (p !== undefined && p !== null && typeof p !== "object") fail();
 };
 
+// === Sistema de amizade ===
+
+const MAX_USERNAME = 30;
+const MAX_TOKEN = 200;
+const VALID_PLATFORMS = new Set(["ios", "android"]);
+
+export const validateSendFriendRequest = (p: unknown): void => {
+  const o = asObj(p);
+  if (!isNonEmptyStr(o.targetUsername, MAX_USERNAME)) fail();
+};
+
+export const validateRespondFriendRequest = (p: unknown): void => {
+  const o = asObj(p);
+  if (!isNonEmptyStr(o.requesterUsername, MAX_USERNAME)) fail();
+};
+
+export const validateRemoveFriend = (p: unknown): void => {
+  const o = asObj(p);
+  if (!isNonEmptyStr(o.targetUsername, MAX_USERNAME)) fail();
+};
+
+export const validateGetFriends = (p: unknown): void => {
+  if (p !== undefined && p !== null && typeof p !== "object") fail();
+};
+
+export const validateSendGameInvite = (p: unknown): void => {
+  const o = asObj(p);
+  if (!isNonEmptyStr(o.targetUsername, MAX_USERNAME)) fail();
+};
+
+export const validateRespondGameInvite = (p: unknown): void => {
+  const o = asObj(p);
+  if (!isNonEmptyStr(o.fromUsername, MAX_USERNAME)) fail();
+  if (typeof o.accept !== "boolean") fail();
+};
+
+export const validateRegisterPushToken = (p: unknown): void => {
+  const o = asObj(p);
+  if (!isNonEmptyStr(o.token, MAX_TOKEN)) fail();
+  if (typeof o.platform !== "string" || !VALID_PLATFORMS.has(o.platform)) fail();
+};
+
 export const validateMove = (p: unknown): void => {
   const o = asObj(p);
   const move = asObj(o.move);

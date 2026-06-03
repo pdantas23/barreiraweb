@@ -58,8 +58,19 @@ import {
   validateJoinRoom,
   validateListRooms,
   validateMove,
+  validateSendFriendRequest,
+  validateRespondFriendRequest,
+  validateRemoveFriend,
+  validateGetFriends,
+  validateSendGameInvite,
+  validateRespondGameInvite,
+  validateRegisterPushToken,
 } from "./validation.js";
 import { isAllowedOrigin } from "./cors.js";
+import { createOnlineRegistry } from "./onlineRegistry.js";
+import { createFriendService, createSupabaseFriendStore } from "./friendships.js";
+import { sendInvitePush, upsertPushToken } from "./push.js";
+import type { InviteAcceptResult } from "@barreira/shared";
 import {
   maybeBotRequestRematch,
   maybeScheduleBotMove,
@@ -225,6 +236,68 @@ setOnLobbyChanged(() => {
   io.emit("lobbyUpdated");
 });
 
+// === Sistema de amizade ===
+// Registry de presença (username → sockets) + serviço de amizade. O serviço
+// é desacoplado do io/Supabase via dependências injetadas (ver friendships.ts).
+const onlineRegistry = createOnlineRegistry();
+
+// Emite um evento server→client pra todos os sockets de um username online.
+const emitToUser = (username: string, event: string, payload: unknown): void => {
+  for (const sid of onlineRegistry.socketsOf(username)) {
+    // event/payload são tipados em ServerToClientEvents; o cast evita ginástica
+    // de tipos genérica aqui (o protocolo já garante a forma na origem).
+    io.to(sid).emit(event as keyof ServerToClientEvents, payload as never);
+  }
+};
+
+// Um username está "em partida" se algum dos seus sockets está numa sala
+// com status playing.
+const isInGame = (username: string): boolean =>
+  onlineRegistry
+    .socketsOf(username)
+    .some((sid) => getRoomBySocket(sid)?.status === "playing");
+
+// Cria a sala privada quando um convite é aceito: hospedada pelo convidante.
+const createInviteRoom = (
+  fromUsername: string,
+  _toUsername: string,
+): InviteAcceptResult | null => {
+  const hostSocketId = onlineRegistry.socketsOf(fromUsername)[0];
+  if (!hostSocketId) return null;
+  const hostSocket = io.sockets.sockets.get(hostSocketId);
+  const room = createRoom({
+    hostSocketId,
+    hostClientId: (hostSocket?.data.clientId as string | null) ?? null,
+    hostAuthUserId: (hostSocket?.data.authUserId as string | null) ?? null,
+    hostName: fromUsername,
+    color: "random",
+    isPrivate: true,
+  });
+  hostSocket?.join(room.code);
+  return { code: room.code, password: room.password };
+};
+
+const friendService = createFriendService({
+  store: createSupabaseFriendStore(),
+  registry: onlineRegistry,
+  emitToUser,
+  isInGame,
+  createInviteRoom,
+  sendInvitePush,
+});
+
+// Resolve o username (login) do socket; erro tipado se não estiver logado.
+// O sistema de amizade é exclusivo de usuários autenticados.
+const requireUsername = async (socket: TypedSocket): Promise<string> => {
+  const uid = await ensureAuthUserId(socket);
+  if (!uid) throw new LobbyError("not-authenticated", "Faça login para usar amigos.");
+  const username = await getUsernameForAuthUser(uid);
+  if (!username) {
+    throw new LobbyError("not-authenticated", "Sua conta ainda não tem username.");
+  }
+  return username;
+};
+
 // === Conexões ===
 
 // Devolve o authUserId do socket. Se a resolução em background ainda não
@@ -284,12 +357,21 @@ io.on("connection", (socket: TypedSocket) => {
   // createRoom/joinRoom em casos normais (latencia Supabase << UX humana).
   // Se chegar tarde, o socket cria sala como anonimo — aceitavel.
   if (accessToken) {
-    void resolveAuthUser(accessToken).then((uid) => {
+    void (async () => {
+      const uid = await resolveAuthUser(accessToken);
       socket.data.authUserId = uid;
-      if (uid) {
-        console.log(`[auth] socket ${socket.id} = user ${uid.slice(0, 8)}…`);
+      if (!uid) return;
+      console.log(`[auth] socket ${socket.id} = user ${uid.slice(0, 8)}…`);
+      // Presença online pro sistema de amizade: registra o socket sob o
+      // username e, se o usuário acabou de ficar online, avisa os amigos.
+      const username = await getUsernameForAuthUser(uid);
+      if (!username) return;
+      socket.data.username = username;
+      const wasOffline = onlineRegistry.add(username, socket.id);
+      if (wasOffline) {
+        void friendService.notifyFriendsOfStatus(username, "online");
       }
-    });
+    })();
   }
 
   // Reanchor: cliente conhecido voltou a uma sala em andamento.
@@ -580,8 +662,82 @@ io.on("connection", (socket: TypedSocket) => {
     })(payload, socket, ack),
   );
 
+  // === Sistema de amizade ===
+  // Todos exigem login (requireUsername lança not-authenticated se anônimo).
+
+  socket.on("sendFriendRequest", (payload, ack) =>
+    rpc(async (p: typeof payload) => {
+      validateSendFriendRequest(p);
+      const me = await requireUsername(socket);
+      return friendService.sendFriendRequest(me, p.targetUsername);
+    })(payload, socket, ack),
+  );
+
+  socket.on("acceptFriendRequest", (payload, ack) =>
+    rpc(async (p: typeof payload) => {
+      validateRespondFriendRequest(p);
+      const me = await requireUsername(socket);
+      return friendService.acceptFriendRequest(me, p.requesterUsername);
+    })(payload, socket, ack),
+  );
+
+  socket.on("declineFriendRequest", (payload, ack) =>
+    rpc(async (p: typeof payload) => {
+      validateRespondFriendRequest(p);
+      const me = await requireUsername(socket);
+      return friendService.declineFriendRequest(me, p.requesterUsername);
+    })(payload, socket, ack),
+  );
+
+  socket.on("removeFriend", (payload, ack) =>
+    rpc(async (p: typeof payload) => {
+      validateRemoveFriend(p);
+      const me = await requireUsername(socket);
+      return friendService.removeFriend(me, p.targetUsername);
+    })(payload, socket, ack),
+  );
+
+  socket.on("getFriends", (payload, ack) =>
+    rpc(async (p: typeof payload) => {
+      validateGetFriends(p);
+      const me = await requireUsername(socket);
+      return friendService.getFriends(me);
+    })(payload, socket, ack),
+  );
+
+  socket.on("sendGameInvite", (payload, ack) =>
+    rpc(async (p: typeof payload) => {
+      validateSendGameInvite(p);
+      const me = await requireUsername(socket);
+      return friendService.sendGameInvite(me, p.targetUsername);
+    })(payload, socket, ack),
+  );
+
+  socket.on("respondGameInvite", (payload, ack) =>
+    rpc(async (p: typeof payload) => {
+      validateRespondGameInvite(p);
+      const me = await requireUsername(socket);
+      return friendService.respondGameInvite(me, p.fromUsername, p.accept);
+    })(payload, socket, ack),
+  );
+
+  socket.on("registerPushToken", (payload, ack) =>
+    rpc(async (p: typeof payload) => {
+      validateRegisterPushToken(p);
+      const uid = await ensureAuthUserId(socket);
+      if (!uid) throw new LobbyError("not-authenticated", "Faça login.");
+      await upsertPushToken(uid, p.token, p.platform);
+      return null;
+    })(payload, socket, ack),
+  );
+
   socket.on("disconnect", (reason) => {
     console.log(`[-] desconectou: ${socket.id} (${reason})`);
+    // Baixa de presença: se foi o último socket do usuário, avisa amigos.
+    const off = onlineRegistry.remove(socket.id);
+    if (off?.nowOffline) {
+      void friendService.notifyFriendsOfStatus(off.username, "offline");
+    }
     const room = getRoomBySocket(socket.id);
     if (!room) return;
 

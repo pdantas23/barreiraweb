@@ -122,6 +122,45 @@ export type ProfilePayload = {
   displayName: string; // ex: "anonimo276"
 };
 
+// === Sistema de amizade ===
+
+// Status de presença de um amigo, calculado em tempo real no server.
+export type FriendStatus = "online" | "offline" | "in-game";
+
+export type Friend = { username: string; status: FriendStatus };
+
+// Retorno do getFriends: amigos aceitos (com status) + pedidos pendentes nos
+// dois sentidos (recebidos / enviados), pra UI montar a lista e os pedidos.
+export type FriendsData = {
+  friends: Friend[];
+  incomingRequests: string[];
+  outgoingRequests: string[];
+};
+
+export type SendFriendRequestPayload = { targetUsername: string };
+export type RespondFriendRequestPayload = { requesterUsername: string };
+export type RemoveFriendPayload = { targetUsername: string };
+export type GetFriendsPayload = Record<string, never>;
+export type SendGameInvitePayload = { targetUsername: string };
+export type RespondGameInvitePayload = { fromUsername: string; accept: boolean };
+export type RegisterPushTokenPayload = { token: string; platform: "ios" | "android" };
+
+// Devolvido ao aceitar um convite: a sala privada criada pro par.
+export type InviteAcceptResult = { code: string; password: string | null };
+
+// server → client (pushes do sistema de amizade)
+export type FriendStatusChangedPayload = { username: string; status: FriendStatus };
+export type FriendRequestReceivedPayload = { fromUsername: string };
+export type GameInviteReceivedPayload = { fromUsername: string; expiresAt: number };
+export type GameInviteResponsePayload = {
+  fromUsername: string;
+  accept: boolean;
+  // Presentes só quando accept === true (sala criada).
+  code?: string;
+  password?: string | null;
+};
+export type GameInviteExpiredPayload = { fromUsername: string };
+
 // === RPC error envelope ===
 
 // Lista de erros conhecidos — qualquer outro vira "internal-error".
@@ -143,6 +182,18 @@ export type RpcError =
   // esperando pra aceitar).
   | "rematch-unavailable"
   | "self-match"
+  // === Sistema de amizade ===
+  | "not-authenticated" // ação exige login
+  | "already-friends"
+  | "request-pending" // já existe pedido pendente entre o par
+  | "friend-not-found" // username alvo não existe
+  | "self-friend" // não dá pra se adicionar
+  | "no-friend-request" // aceitar/recusar sem pedido pendente
+  | "not-friends" // convidar quem não é amigo
+  | "friend-offline"
+  | "friend-in-game"
+  | "invite-cooldown" // anti-spam de convites
+  | "no-invite-pending"
   | "invalid-payload"
   | "internal-error";
 
@@ -186,6 +237,39 @@ export type ClientToServerEvents = {
     payload: RespondRematchPayload,
     ack: (res: RpcResult<null>) => void,
   ) => void;
+  // === Sistema de amizade ===
+  sendFriendRequest: (
+    payload: SendFriendRequestPayload,
+    ack: (res: RpcResult<null>) => void,
+  ) => void;
+  acceptFriendRequest: (
+    payload: RespondFriendRequestPayload,
+    ack: (res: RpcResult<null>) => void,
+  ) => void;
+  declineFriendRequest: (
+    payload: RespondFriendRequestPayload,
+    ack: (res: RpcResult<null>) => void,
+  ) => void;
+  removeFriend: (
+    payload: RemoveFriendPayload,
+    ack: (res: RpcResult<null>) => void,
+  ) => void;
+  getFriends: (
+    payload: GetFriendsPayload,
+    ack: (res: RpcResult<FriendsData>) => void,
+  ) => void;
+  sendGameInvite: (
+    payload: SendGameInvitePayload,
+    ack: (res: RpcResult<null>) => void,
+  ) => void;
+  respondGameInvite: (
+    payload: RespondGameInvitePayload,
+    ack: (res: RpcResult<InviteAcceptResult | null>) => void,
+  ) => void;
+  registerPushToken: (
+    payload: RegisterPushTokenPayload,
+    ack: (res: RpcResult<null>) => void,
+  ) => void;
 };
 
 export type ServerToClientEvents = {
@@ -205,4 +289,10 @@ export type ServerToClientEvents = {
   rematchRequested: (payload: RematchRequestedPayload) => void;
   rematchDeclined: (payload: RematchDeclinedPayload) => void;
   rematchExpired: (payload: RematchExpiredPayload) => void;
+  // === Sistema de amizade ===
+  friendStatusChanged: (payload: FriendStatusChangedPayload) => void;
+  friendRequestReceived: (payload: FriendRequestReceivedPayload) => void;
+  gameInviteReceived: (payload: GameInviteReceivedPayload) => void;
+  gameInviteResponse: (payload: GameInviteResponsePayload) => void;
+  gameInviteExpired: (payload: GameInviteExpiredPayload) => void;
 };
