@@ -10,7 +10,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { IoPeople } from "react-icons/io5";
+import { IoPeople, IoPersonAddOutline, IoShareSocialOutline, IoClose } from "react-icons/io5";
 import type { FriendsData } from "@barreira/shared";
 import { useAuth } from "../state/auth";
 import { usePlayerName } from "../state/profile";
@@ -36,6 +36,8 @@ export const FriendsHub = () => {
   const playerName = usePlayerName();
   const navigate = useNavigate();
   const [open, setOpen] = useState(false);
+  const [addOpen, setAddOpen] = useState(false); // modal "adicionar amigo"
+  const [pendingRemove, setPendingRemove] = useState<string | null>(null); // confirmação de exclusão
   const [data, setData] = useState<FriendsData>(EMPTY);
   const [invite, setInvite] = useState<GameInvite | null>(null);
   const [toast, setToast] = useState<string | null>(null);
@@ -128,6 +130,30 @@ export const FriendsHub = () => {
     else showToast(`Convite enviado para ${target}.`);
   };
 
+  // Compartilha o link de amizade (nativo se disponível, senão copia).
+  const shareLink = async () => {
+    const link = `${window.location.origin}/amigo/${username}`;
+    try {
+      if (navigator.share) {
+        await navigator.share({ title: "Barreira", text: "Me adiciona no Barreira!", url: link });
+      } else {
+        await navigator.clipboard.writeText(link);
+        showToast("Link copiado!");
+      }
+    } catch {
+      /* compartilhamento cancelado ou clipboard indisponível — ignora */
+    }
+  };
+
+  // Confirma exclusão de amigo (o ícone de lixo só abre o diálogo).
+  const confirmRemove = async () => {
+    const u = pendingRemove;
+    if (!u) return;
+    setPendingRemove(null);
+    await removeFriend(u);
+    void refresh();
+  };
+
   if (!user) return null;
 
   return (
@@ -146,18 +172,10 @@ export const FriendsHub = () => {
         )}
       </button>
 
-      {/* Painel */}
+      {/* Painel: amigos em cima, dois botões embaixo */}
       {open && (
         <div className="fixed inset-0 bg-black/40 flex items-start justify-center p-4 pt-16 z-[300]" onClick={() => setOpen(false)}>
           <div className="w-full max-w-[380px] flex flex-col gap-3" onClick={(e) => e.stopPropagation()}>
-            <AddFriend
-              myUsername={username}
-              onAdd={async (u) => {
-                const res = await sendFriendRequest(u);
-                if (res.ok) void refresh();
-                return { ok: res.ok, error: res.ok ? undefined : res.message };
-              }}
-            />
             <FriendsList
               friends={data.friends}
               incomingRequests={data.incomingRequests}
@@ -166,8 +184,72 @@ export const FriendsHub = () => {
               onInvite={onInviteFriend}
               onAccept={async (u) => { await acceptFriendRequest(u); void refresh(); }}
               onDecline={async (u) => { await declineFriendRequest(u); void refresh(); }}
-              onRemove={async (u) => { await removeFriend(u); void refresh(); }}
+              onRemove={(u) => setPendingRemove(u)}
             />
+
+            {/* Ações: adicionar amigo (modal) + compartilhar link */}
+            <div className="flex gap-2">
+              <button
+                onClick={() => setAddOpen(true)}
+                className="flex-1 flex items-center justify-center gap-2 py-3 rounded-xl bg-brand text-white text-[13px] font-bold cursor-pointer hover:opacity-90 border-none"
+              >
+                <IoPersonAddOutline size={16} /> Adicionar amigo
+              </button>
+              <button
+                onClick={shareLink}
+                className="flex-1 flex items-center justify-center gap-2 py-3 rounded-xl bg-white text-navy text-[13px] font-bold cursor-pointer hover:opacity-80 border border-[#DDEAFF]"
+              >
+                <IoShareSocialOutline size={16} color="#3D6FFF" /> Compartilhar link
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal "Adicionar amigo" — só o campo de username */}
+      {addOpen && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center p-6 z-[320]" onClick={() => setAddOpen(false)}>
+          <div className="w-full max-w-[340px] relative" onClick={(e) => e.stopPropagation()}>
+            <button
+              onClick={() => setAddOpen(false)}
+              aria-label="Fechar"
+              className="absolute -top-3 -right-3 w-9 h-9 rounded-full bg-white border border-cell-bg shadow-[0_2px_8px_rgba(61,111,255,0.15)] flex items-center justify-center cursor-pointer hover:opacity-80 z-10"
+            >
+              <IoClose size={18} color="#9AAACA" />
+            </button>
+            <AddFriend
+              onAdd={async (u) => {
+                const res = await sendFriendRequest(u);
+                if (res.ok) void refresh();
+                return { ok: res.ok, error: res.ok ? undefined : res.message };
+              }}
+            />
+          </div>
+        </div>
+      )}
+
+      {/* Confirmação de exclusão de amigo */}
+      {pendingRemove && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center p-6 z-[330]" onClick={() => setPendingRemove(null)}>
+          <div className="w-full max-w-[320px] bg-white rounded-2xl p-6 flex flex-col items-center shadow-[0_8px_20px_rgba(61,111,255,0.15)]" onClick={(e) => e.stopPropagation()}>
+            <span className="text-[16px] font-extrabold text-navy text-center">Remover amigo?</span>
+            <span className="text-[13px] text-muted text-center mt-2">
+              Tem certeza que quer remover <b className="text-navy">{pendingRemove}</b> da sua lista de amigos?
+            </span>
+            <div className="flex gap-2.5 mt-5 w-full">
+              <button
+                onClick={() => setPendingRemove(null)}
+                className="flex-1 py-3 rounded-xl bg-cell-bg border-none text-muted font-bold text-sm cursor-pointer hover:opacity-80"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={confirmRemove}
+                className="flex-1 py-3 rounded-xl bg-[#FF3D6F] border-none text-white font-black text-[15px] cursor-pointer hover:opacity-90"
+              >
+                Remover
+              </button>
+            </div>
           </div>
         </div>
       )}
