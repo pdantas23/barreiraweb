@@ -9,6 +9,7 @@
 // Só renderiza pra usuários logados (amizade exige login).
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { IoPeople, IoPersonAddOutline, IoShareSocialOutline, IoClose } from "react-icons/io5";
 import type { FriendsData } from "@barreira/shared";
@@ -172,6 +173,10 @@ export const FriendsHub = () => {
         )}
       </button>
 
+      {/* Overlays via portal no body: escapam do contexto de empilhamento do
+          header (senão o troféu flutuante z-100 fica por cima). */}
+      {createPortal(
+        <>
       {/* Painel: card único centralizado, lista scrollável, botões fixos no
           rodapé. z alto pra ficar acima do troféu flutuante do leaderboard. */}
       {open && (
@@ -283,10 +288,13 @@ export const FriendsHub = () => {
       {toast && (
         <div
           role="status"
-          className="fixed bottom-4 left-1/2 -translate-x-1/2 z-[400] bg-navy text-white text-[13px] font-semibold px-4 py-2.5 rounded-xl shadow-lg"
+          className="fixed bottom-4 left-1/2 -translate-x-1/2 z-[1030] bg-navy text-white text-[13px] font-semibold px-4 py-2.5 rounded-xl shadow-lg"
         >
           {toast}
         </div>
+      )}
+        </>,
+        document.body,
       )}
     </>
   );
