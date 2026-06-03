@@ -129,6 +129,44 @@ Copia o output e cola em GitHub → Settings → SSH and GPG keys → New SSH ke
 
 Testa: `ssh -T git@github.com` deve dizer "Hi USER!".
 
+## Deep links de sala (Universal Links / App Links)
+
+Links compartilhados (`https://barreirajogo.com/sala/CODE`) abrem o app direto
+na sala se ele estiver instalado; senão caem no site (auto-join). Pra isso o
+SO precisa baixar dois arquivos do domínio, servidos por
+`deploy/public/.well-known/` (o nginx já tem `location` pra eles):
+
+- `apple-app-site-association` (iOS) — **substituir `TEAMID`** pelo Apple Team
+  ID da conta (Apple Developer → Membership, ex: `A1B2C3D4E5`). O appID fica
+  `TEAMID.com.barreira.app`.
+- `assetlinks.json` (Android) — **substituir `REPLACE_WITH_SHA256_FINGERPRINT`**
+  pelo fingerprint SHA256 do certificado de assinatura do APK/AAB.
+
+Pegar o SHA256 do Android (credenciais gerenciadas pela EAS):
+
+```bash
+cd mobile
+eas credentials        # Android → escolher o build profile → ver SHA-256
+# ou, a partir de um keystore local:
+# keytool -list -v -keystore caminho/para.keystore -alias SEU_ALIAS
+```
+
+No app (`mobile/app.json`) já estão configurados:
+- iOS: `ios.associatedDomains = ["applinks:barreirajogo.com"]`
+- Android: `android.intentFilters` com `autoVerify` em `https://barreirajogo.com/sala`
+
+Depois de preencher os dois arquivos e fazer deploy, valide:
+
+```bash
+# Tem que voltar JSON (não o index.html da SPA) com Content-Type application/json:
+curl -i https://barreirajogo.com/.well-known/apple-app-site-association
+curl -i https://barreirajogo.com/.well-known/assetlinks.json
+```
+
+iOS cacheia o AASA de forma agressiva — reinstalar o app força o refetch.
+Android verifica via `autoVerify` na instalação (testar com
+`adb shell pm get-app-links com.barreira.app`).
+
 ## Updates futuros (após mudanças no código)
 
 ```bash

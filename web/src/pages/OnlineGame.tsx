@@ -20,14 +20,14 @@ const L = {
   bgBottom: "#E8EEF8",
 };
 
-// Monta o link compartilhável que dispara auto-join na Home.
-// Quem clicar no link cai em "/" com ?join=CODE&pw=PW; a Home detecta
-// e chama joinRoom direto, redirecionando pra /online-game.
+// Monta o link compartilhável de sala: https://dominio/sala/CODE[?pw=SENHA].
+// No celular com o app instalado, Universal/App Links abrem o app direto na
+// sala; sem o app (ou no desktop), a rota web /sala/:codigo cai no auto-join
+// existente da Home. A senha de salas privadas vai como query (?pw=).
 const buildShareUrl = (code: string, password: string | null): string => {
   const base = window.location.origin;
-  const params = new URLSearchParams({ join: code });
-  if (password) params.set("pw", password);
-  return `${base}/?${params.toString()}`;
+  const query = password ? `?pw=${encodeURIComponent(password)}` : "";
+  return `${base}/sala/${encodeURIComponent(code)}${query}`;
 };
 
 const buildWhatsAppText = (code: string, password: string | null): string => {

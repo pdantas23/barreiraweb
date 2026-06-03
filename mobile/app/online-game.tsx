@@ -427,16 +427,17 @@ export default function OnlineGameScreen() {
 
   const onBackToMenu = () => router.replace("/");
 
-  // Monta link de convite — formato igual à web: /?join=CODE[&pw=SENHA].
-  // Share.share() abre o menu nativo (WhatsApp, Messages, Copy, etc).
+  // Monta link de convite: https://dominio/sala/CODE[?pw=SENHA]. No celular
+  // com o app instalado, Universal/App Links abrem o app direto na sala; sem
+  // o app, a rota web /sala/:codigo cai no auto-join. Share.share() abre o
+  // menu nativo (WhatsApp, Messages, Copy, etc).
   const onShareRoom = async () => {
     playButtonSound();
     const base =
       (Constants.expoConfig?.extra?.serverUrl as string | undefined) ??
       "https://barreirajogo.com";
-    const params = new URLSearchParams({ join: code });
-    if (password) params.set("pw", password);
-    const url = `${base}/?${params.toString()}`;
+    const query = password ? `?pw=${encodeURIComponent(password)}` : "";
+    const url = `${base}/sala/${encodeURIComponent(code)}${query}`;
     const lines = [
       "Bora jogar Barreira?",
       `Sala: ${code}`,

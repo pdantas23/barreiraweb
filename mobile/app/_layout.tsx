@@ -60,6 +60,7 @@ export default function RootLayout() {
                 <Stack.Screen name="game" />
                 <Stack.Screen name="online" />
                 <Stack.Screen name="online-game" />
+                <Stack.Screen name="sala/[codigo]" options={{ animation: "fade" }} />
                 <Stack.Screen name="privacy" />
                 <Stack.Screen name="perfil" />
                 <Stack.Screen name="auth" options={{ animation: "fade" }} />
