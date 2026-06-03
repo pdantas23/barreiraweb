@@ -1,5 +1,7 @@
 import type {
   CreateRoomPayload,
+  FriendsData,
+  InviteAcceptResult,
   JoinRoomPayload,
   Move,
   PublicRoom,
@@ -64,3 +66,29 @@ export const requestRematch = (): Promise<RpcResult<null>> =>
 
 export const respondRematch = (accept: boolean): Promise<RpcResult<null>> =>
   safeRpc(() => connectSocket().emitWithAck("respondRematch", { accept }));
+
+// === Sistema de amizade ===
+
+export const sendFriendRequest = (targetUsername: string): Promise<RpcResult<null>> =>
+  safeRpc(() => connectSocket().emitWithAck("sendFriendRequest", { targetUsername }));
+
+export const acceptFriendRequest = (requesterUsername: string): Promise<RpcResult<null>> =>
+  safeRpc(() => connectSocket().emitWithAck("acceptFriendRequest", { requesterUsername }));
+
+export const declineFriendRequest = (requesterUsername: string): Promise<RpcResult<null>> =>
+  safeRpc(() => connectSocket().emitWithAck("declineFriendRequest", { requesterUsername }));
+
+export const removeFriend = (targetUsername: string): Promise<RpcResult<null>> =>
+  safeRpc(() => connectSocket().emitWithAck("removeFriend", { targetUsername }));
+
+export const getFriends = (): Promise<RpcResult<FriendsData>> =>
+  safeRpc(() => connectSocket().emitWithAck("getFriends", {}));
+
+export const sendGameInvite = (targetUsername: string): Promise<RpcResult<null>> =>
+  safeRpc(() => connectSocket().emitWithAck("sendGameInvite", { targetUsername }));
+
+export const respondGameInvite = (
+  fromUsername: string,
+  accept: boolean,
+): Promise<RpcResult<InviteAcceptResult | null>> =>
+  safeRpc(() => connectSocket().emitWithAck("respondGameInvite", { fromUsername, accept }));

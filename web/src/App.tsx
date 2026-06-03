@@ -18,6 +18,7 @@ import Termos from "./pages/Termos";
 import Profile from "./pages/Profile";
 import ForgotPassword from "./pages/ForgotPassword";
 import ResetPassword from "./pages/ResetPassword";
+import AmigoRedirect from "./pages/AmigoRedirect";
 
 // Bootstrap clientId synchronously (localStorage is sync)
 initClientId();
@@ -46,6 +47,7 @@ export const App = () => {
             <ProfileProvider>
               <Routes>
                 <Route path="/" element={<Home />} />
+                <Route path="/amigo/:username" element={<AmigoRedirect />} />
                 <Route path="/game" element={<Game />} />
                 <Route path="/online-game" element={<OnlineGame />} />
                 <Route path="/privacy" element={<Privacy />} />

@@ -33,6 +33,7 @@ import { JoinByCodeModal } from "../components/JoinByCodeModal";
 import { MessageModal } from "../components/MessageModal";
 import { PageGate } from "../components/PageGate";
 import { HeaderAuthButtons } from "../components/HeaderAuthButtons";
+import { FriendsHub } from "../components/FriendsHub";
 import { Leaderboard } from "../components/Leaderboard";
 import { createRoom, joinRoom, listRooms } from "../net/api";
 import { clearLastGameStart, connectSocket } from "../net/socket";
@@ -276,6 +277,7 @@ export default function HomeScreen() {
           </div>
           <div className="flex items-center gap-1.5">
             <HeaderAuthButtons />
+            <FriendsHub />
             <button
               onClick={() => { playButtonSound(); setShowSettings(true); }}
               className="w-9 h-9 rounded-full bg-white border border-cell-bg flex items-center justify-center cursor-pointer hover:opacity-80"
