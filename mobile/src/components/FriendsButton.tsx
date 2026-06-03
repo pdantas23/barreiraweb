@@ -156,24 +156,25 @@ export const FriendsButton = ({ color = C.blue }: Props) => {
                 <Text style={styles.footerBtnGhostText}>Compartilhar link</Text>
               </Pressable>
             </View>
-          </Pressable>
-        </Pressable>
-      </Modal>
 
-      {/* Sub-modal "Adicionar amigo" — só o campo de username */}
-      <Modal transparent visible={addOpen} animationType="fade" statusBarTranslucent onRequestClose={() => setAddOpen(false)}>
-        <Pressable style={styles.backdropCenter} onPress={() => setAddOpen(false)}>
-          <Pressable style={styles.addCard} onPress={(e) => e.stopPropagation?.()}>
-            <AddFriend
-              onAdd={async (u) => {
-                const res = await sendFriendRequest(u);
-                if (res.ok) void refresh();
-                return { ok: res.ok, error: res.ok ? undefined : res.message };
-              }}
-            />
-            <Pressable onPress={() => setAddOpen(false)} style={styles.addClose}>
-              <Text style={styles.addCloseText}>Fechar</Text>
-            </Pressable>
+            {/* "Adicionar amigo" como overlay DENTRO do mesmo modal — dois
+                <Modal> simultâneos não apresentam de forma confiável no RN. */}
+            {addOpen && (
+              <Pressable style={styles.addOverlay} onPress={() => setAddOpen(false)}>
+                <Pressable style={styles.addCard} onPress={(e) => e.stopPropagation?.()}>
+                  <AddFriend
+                    onAdd={async (u) => {
+                      const res = await sendFriendRequest(u);
+                      if (res.ok) void refresh();
+                      return { ok: res.ok, error: res.ok ? undefined : res.message };
+                    }}
+                  />
+                  <Pressable onPress={() => setAddOpen(false)} style={styles.addClose}>
+                    <Text style={styles.addCloseText}>Fechar</Text>
+                  </Pressable>
+                </Pressable>
+              </Pressable>
+            )}
           </Pressable>
         </Pressable>
       </Modal>
@@ -212,12 +213,12 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     padding: 16,
   },
-  backdropCenter: {
-    flex: 1,
-    backgroundColor: "rgba(0,0,0,0.4)",
+  addOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "rgba(26,42,74,0.55)",
     alignItems: "center",
     justifyContent: "center",
-    padding: 24,
+    padding: 20,
   },
   card: {
     width: "100%",
