@@ -40,6 +40,8 @@ export type FriendStore = {
   listAccepted(username: string): Promise<string[]>;
   listIncoming(username: string): Promise<string[]>;
   listOutgoing(username: string): Promise<string[]>;
+  /** Troféus casual de cada username (0 quando ausente). */
+  getTrophies(usernames: string[]): Promise<Record<string, number>>;
   getCooldown(from: string, to: string): Promise<{ count: number; windowStart: number } | null>;
   setCooldown(from: string, to: string, count: number, windowStart: number): Promise<void>;
   clearCooldown(from: string, to: string): Promise<void>;
@@ -156,9 +158,11 @@ export const createFriendService = (deps: FriendDeps) => {
       store.listIncoming(me),
       store.listOutgoing(me),
     ]);
+    const trophies = await store.getTrophies(accepted);
     const friends: Friend[] = accepted.map((username) => ({
       username,
       status: statusOf(username),
+      trofeus: trophies[username] ?? 0,
     }));
     return { friends, incomingRequests: incoming, outgoingRequests: outgoing };
   };
@@ -283,6 +287,7 @@ export const createFriendService = (deps: FriendDeps) => {
 
 export const createInMemoryFriendStore = (
   knownUsernames: string[] = [],
+  trophies: Record<string, number> = {},
 ): FriendStore & { _pairs: FriendPair[] } => {
   const usernames = new Set(knownUsernames);
   let pairs: FriendPair[] = [];
@@ -337,6 +342,11 @@ export const createInMemoryFriendStore = (
     },
     async listOutgoing(username) {
       return pairs.filter((p) => p.status === "pending" && p.requester === username).map((p) => p.receiver);
+    },
+    async getTrophies(usernames) {
+      const out: Record<string, number> = {};
+      for (const u of usernames) out[u] = trophies[u] ?? 0;
+      return out;
     },
     async getCooldown(from, to) {
       const c = cooldowns.get(ck(from, to));
@@ -444,6 +454,16 @@ export const createSupabaseFriendStore = (): FriendStore => {
         .eq("status", "pending")
         .eq("requester_username", username);
       return (data ?? []).map((r) => r.receiver_username);
+    },
+    async getTrophies(usernames) {
+      if (usernames.length === 0) return {};
+      const { data } = await sb()
+        .from("profiles")
+        .select("username, trofeus_casual")
+        .in("username", usernames);
+      const out: Record<string, number> = {};
+      for (const r of data ?? []) out[r.username] = r.trofeus_casual ?? 0;
+      return out;
     },
     async getCooldown(from, to) {
       const { data } = await sb()

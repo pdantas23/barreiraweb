@@ -11,6 +11,7 @@ import {
   IoGameController,
   IoPeopleOutline,
   IoTrashOutline,
+  IoTrophy,
 } from "react-icons/io5";
 import type { Friend, FriendStatus } from "@barreira/shared";
 
@@ -35,6 +36,9 @@ type Props = {
   onDecline?: (username: string) => void;
   onRemove?: (username: string) => void;
   invitingUsername?: string | null;
+  // "bare": sem card/cabeçalho próprios (quando embutido num modal que já
+  // tem chrome). O container externo controla altura/scroll.
+  bare?: boolean;
 };
 
 export const FriendsList = ({
@@ -46,13 +50,16 @@ export const FriendsList = ({
   onDecline,
   onRemove,
   invitingUsername = null,
+  bare = false,
 }: Props) => {
   return (
-    <div className="bg-white rounded-2xl border border-[#DDEAFF] overflow-hidden">
-      <div className="flex items-center gap-2 px-4 py-3 border-b border-[#DDEAFF] bg-gradient-to-r from-[#F5F8FF] to-white">
-        <IoPeopleOutline size={16} color="#3D6FFF" />
-        <span className="text-navy text-[12px] font-extrabold tracking-[1px]">AMIGOS</span>
-      </div>
+    <div className={bare ? "flex flex-col" : "bg-white rounded-2xl border border-[#DDEAFF] overflow-hidden"}>
+      {!bare && (
+        <div className="flex items-center gap-2 px-4 py-3 border-b border-[#DDEAFF] bg-gradient-to-r from-[#F5F8FF] to-white">
+          <IoPeopleOutline size={16} color="#3D6FFF" />
+          <span className="text-navy text-[12px] font-extrabold tracking-[1px]">AMIGOS</span>
+        </div>
+      )}
 
       {/* Pedidos recebidos */}
       {incomingRequests.length > 0 && (
@@ -107,6 +114,10 @@ export const FriendsList = ({
                 />
                 <span className="flex-1 text-[13px] font-semibold text-navy truncate" title={f.username}>
                   {f.username}
+                </span>
+                <span className="flex items-center gap-1 text-[12px] font-bold text-brand font-mono tabular-nums flex-shrink-0">
+                  <IoTrophy size={11} color="#F4B619" />
+                  {f.trofeus ?? 0}
                 </span>
                 {canInvite ? (
                   <button

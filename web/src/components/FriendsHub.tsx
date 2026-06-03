@@ -172,23 +172,40 @@ export const FriendsHub = () => {
         )}
       </button>
 
-      {/* Painel: amigos em cima, dois botões embaixo */}
+      {/* Painel: card único centralizado, lista scrollável, botões fixos no
+          rodapé. z alto pra ficar acima do troféu flutuante do leaderboard. */}
       {open && (
-        <div className="fixed inset-0 bg-black/40 flex items-start justify-center p-4 pt-16 z-[300]" onClick={() => setOpen(false)}>
-          <div className="w-full max-w-[380px] flex flex-col gap-3" onClick={(e) => e.stopPropagation()}>
-            <FriendsList
-              friends={data.friends}
-              incomingRequests={data.incomingRequests}
-              outgoingRequests={data.outgoingRequests}
-              invitingUsername={inviting}
-              onInvite={onInviteFriend}
-              onAccept={async (u) => { await acceptFriendRequest(u); void refresh(); }}
-              onDecline={async (u) => { await declineFriendRequest(u); void refresh(); }}
-              onRemove={(u) => setPendingRemove(u)}
-            />
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-[1000]" onClick={() => setOpen(false)}>
+          <div
+            className="w-full max-w-[380px] h-[70vh] max-h-[560px] bg-white rounded-2xl border border-[#DDEAFF] shadow-[0_16px_40px_rgba(26,42,74,0.25)] flex flex-col overflow-hidden"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Cabeçalho */}
+            <div className="flex items-center gap-2 px-4 py-3 border-b border-[#DDEAFF] bg-gradient-to-r from-[#F5F8FF] to-white flex-shrink-0">
+              <IoPeople size={16} color="#3D6FFF" />
+              <span className="flex-1 text-navy text-[12px] font-extrabold tracking-[1px]">AMIGOS</span>
+              <button onClick={() => setOpen(false)} aria-label="Fechar" className="w-7 h-7 rounded-full flex items-center justify-center cursor-pointer hover:bg-[#F0F4FF] border-none bg-transparent">
+                <IoClose size={18} color="#9AAACA" />
+              </button>
+            </div>
 
-            {/* Ações: adicionar amigo (modal) + compartilhar link */}
-            <div className="flex gap-2">
+            {/* Lista scrollável (ocupa o espaço; rola se precisar) */}
+            <div className="flex-1 min-h-0 overflow-y-auto">
+              <FriendsList
+                bare
+                friends={data.friends}
+                incomingRequests={data.incomingRequests}
+                outgoingRequests={data.outgoingRequests}
+                invitingUsername={inviting}
+                onInvite={onInviteFriend}
+                onAccept={async (u) => { await acceptFriendRequest(u); void refresh(); }}
+                onDecline={async (u) => { await declineFriendRequest(u); void refresh(); }}
+                onRemove={(u) => setPendingRemove(u)}
+              />
+            </div>
+
+            {/* Rodapé fixo: dois botões dentro do modal */}
+            <div className="flex gap-2 p-3 border-t border-[#DDEAFF] flex-shrink-0 bg-white">
               <button
                 onClick={() => setAddOpen(true)}
                 className="flex-1 flex items-center justify-center gap-2 py-3 rounded-xl bg-brand text-white text-[13px] font-bold cursor-pointer hover:opacity-90 border-none"
@@ -208,7 +225,7 @@ export const FriendsHub = () => {
 
       {/* Modal "Adicionar amigo" — só o campo de username */}
       {addOpen && (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center p-6 z-[320]" onClick={() => setAddOpen(false)}>
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center p-6 z-[1010]" onClick={() => setAddOpen(false)}>
           <div className="w-full max-w-[340px] relative" onClick={(e) => e.stopPropagation()}>
             <button
               onClick={() => setAddOpen(false)}
@@ -230,7 +247,7 @@ export const FriendsHub = () => {
 
       {/* Confirmação de exclusão de amigo */}
       {pendingRemove && (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center p-6 z-[330]" onClick={() => setPendingRemove(null)}>
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center p-6 z-[1020]" onClick={() => setPendingRemove(null)}>
           <div className="w-full max-w-[320px] bg-white rounded-2xl p-6 flex flex-col items-center shadow-[0_8px_20px_rgba(61,111,255,0.15)]" onClick={(e) => e.stopPropagation()}>
             <span className="text-[16px] font-extrabold text-navy text-center">Remover amigo?</span>
             <span className="text-[13px] text-muted text-center mt-2">

@@ -127,7 +127,7 @@ export type ProfilePayload = {
 // Status de presença de um amigo, calculado em tempo real no server.
 export type FriendStatus = "online" | "offline" | "in-game";
 
-export type Friend = { username: string; status: FriendStatus };
+export type Friend = { username: string; status: FriendStatus; trofeus?: number };
 
 // Retorno do getFriends: amigos aceitos (com status) + pedidos pendentes nos
 // dois sentidos (recebidos / enviados), pra UI montar a lista e os pedidos.
