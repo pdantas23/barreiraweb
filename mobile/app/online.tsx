@@ -21,6 +21,7 @@ import {
 } from "../src/components/CreateRoomModal";
 import { JoinByCodeModal } from "../src/components/JoinByCodeModal";
 import { Leaderboard } from "../src/components/Leaderboard";
+import { FriendsButton } from "../src/components/FriendsButton";
 import { createRoom, joinRoom, listRooms } from "../src/net/api";
 import { errorInfo } from "../src/net/errors";
 import { clearLastGameStart, connectSocket, getSocket } from "../src/net/socket";
@@ -250,7 +251,9 @@ export default function OnlineScreen() {
             <Ionicons name="chevron-back" size={28} color={C.navy} />
           </Pressable>
           <Text style={styles.topTitle}>Lobby</Text>
-          <View style={styles.backButton} />
+          <View style={[styles.backButton, { alignItems: "center" }]}>
+            <FriendsButton />
+          </View>
         </View>
 
         <FlatList

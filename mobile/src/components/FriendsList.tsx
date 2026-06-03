@@ -26,6 +26,8 @@ type Props = {
   onDecline?: (username: string) => void;
   onRemove?: (username: string) => void;
   invitingUsername?: string | null;
+  // "bare": sem card/cabeçalho próprios (quando embutido num modal com chrome).
+  bare?: boolean;
 };
 
 export const FriendsList = ({
@@ -36,13 +38,16 @@ export const FriendsList = ({
   onDecline,
   onRemove,
   invitingUsername = null,
+  bare = false,
 }: Props) => {
   return (
-    <View style={styles.card}>
-      <View style={styles.header}>
-        <Ionicons name="people" size={14} color={C.blue} />
-        <Text style={styles.headerTitle}>AMIGOS</Text>
-      </View>
+    <View style={bare ? undefined : styles.card}>
+      {!bare && (
+        <View style={styles.header}>
+          <Ionicons name="people" size={14} color={C.blue} />
+          <Text style={styles.headerTitle}>AMIGOS</Text>
+        </View>
+      )}
 
       {incomingRequests.map((u) => (
         <View key={`req-${u}`} style={styles.row}>
@@ -69,6 +74,10 @@ export const FriendsList = ({
               style={[styles.dot, { backgroundColor: STATUS_COLOR[f.status] }]}
             />
             <Text style={styles.username} numberOfLines={1}>{f.username}</Text>
+            <View style={styles.trophyChip}>
+              <Ionicons name="trophy" size={11} color="#F4B619" />
+              <Text style={styles.trophyText}>{f.trofeus ?? 0}</Text>
+            </View>
             {f.status === "online" ? (
               <Pressable
                 accessibilityLabel={`Convidar ${f.username}`}
@@ -102,6 +111,8 @@ const styles = StyleSheet.create({
   dot: { width: 10, height: 10, borderRadius: 5 },
   username: { flex: 1, color: C.navy, fontSize: 13, fontWeight: "600" },
   statusText: { color: C.muted, fontSize: 10, fontWeight: "700" },
+  trophyChip: { flexDirection: "row", alignItems: "center", gap: 3 },
+  trophyText: { color: C.blue, fontSize: 12, fontWeight: "900", fontVariant: ["tabular-nums"] },
   inviteBtn: { flexDirection: "row", alignItems: "center", gap: 4, backgroundColor: C.blue, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8 },
   inviteText: { color: C.white, fontSize: 11, fontWeight: "800" },
   iconBtn: { width: 28, height: 28, alignItems: "center", justifyContent: "center" },

@@ -16,6 +16,7 @@ import { StatusBar } from "expo-status-bar";
 import { getClientId } from "../net/clientId";
 import { playButtonSound } from "../hooks/useButtonSound";
 import { useAuth } from "../state/auth";
+import { FriendsButton } from "./FriendsButton";
 
 const C = {
   blue: "#3D6FFF",
@@ -97,18 +98,7 @@ export const TopBar = ({ onSettingsPress }: Props) => {
           </Text>
         </Pressable>
 
-        {isLogged && (
-          <Pressable
-            accessibilityLabel="Amigos"
-            onPress={() => {
-              playButtonSound();
-              router.push("/amigos" as never);
-            }}
-            style={({ pressed }) => [styles.settingsBtn, pressed && styles.btnPressed]}
-          >
-            <Ionicons name="people" size={16} color={C.blue} />
-          </Pressable>
-        )}
+        <FriendsButton />
 
         <Pressable
           onPress={() => {
