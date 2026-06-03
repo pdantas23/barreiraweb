@@ -50,7 +50,8 @@ import {
   type ServerPlayer,
   type ServerRoom,
 } from "./lobby.js";
-import { getOrCreateProfile, getUsernameForAuthUser } from "./profiles.js";
+import { getOrCreateProfile, getUsernameForAuthUser, markPlayed } from "./profiles.js";
+import { startReengagementCron } from "./reengagement.js";
 import { resolveAuthUser } from "./auth.js";
 import { awardCasualTrophy } from "./trophies.js";
 import {
@@ -157,6 +158,12 @@ const broadcastGameStart = (room: ServerRoom) => {
   // Zera o relógio autoritativo — começa a contar quando o countdown acabar.
   // Cobre tanto a 1ª partida quanto a revanche (ambas passam por aqui).
   initGameClock(room);
+
+  // Marca atividade dos jogadores logados (profiles.last_played_at) pro cron
+  // de reengajamento saber quem está ativo. Fire-and-forget.
+  for (const p of room.players) {
+    if (p.authUserId) void markPlayed(p.authUserId);
+  }
 
   for (const me of room.players) {
     const opponent = room.players.find((p) => p.socketId !== me.socketId);
@@ -767,4 +774,6 @@ httpServer.listen(PORT, () => {
   console.log(`Socket:  ws://localhost:${PORT}`);
   // Inicializa o bot manager — vai povoar o lobby com salas fantasmas.
   startBotManager(io);
+  // Cron diário de reengajamento (18h BRT): push pra quem sumiu há 48h+.
+  startReengagementCron();
 });

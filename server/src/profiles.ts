@@ -157,6 +157,19 @@ export const getUsernameForAuthUser = async (
   return username;
 };
 
+// Marca que o usuário logado jogou agora (profiles.last_played_at). Usado pelo
+// cron de reengajamento pra achar quem está há 48h sem jogar. Fire-and-forget.
+export const markPlayed = async (authUserId: string): Promise<void> => {
+  try {
+    await getSupabase()
+      .from("profiles")
+      .update({ last_played_at: new Date().toISOString() })
+      .eq("user_id", authUserId);
+  } catch (err) {
+    console.warn("[profiles] markPlayed falhou:", err);
+  }
+};
+
 // Atualiza last_seen_at de forma fire-and-forget.
 const touchLastSeen = async (clientId: string): Promise<void> => {
   try {
