@@ -84,6 +84,10 @@ export type ServerRoom = {
   timeUsedMs: { 1: number; 2: number };
   // Quando o turno atual começou a contar (ms). null = relógio parado.
   turnStartedAt: number | null;
+  // ID da linha em `matches` (analytics). Setado em recordMatchStart quando a
+  // partida começa; limpo em recordMatchFinish no fim. null = sem partida
+  // registrada (sala em waiting, ou já finalizada).
+  matchId: string | null;
 };
 
 // === Estado global ===
@@ -258,6 +262,7 @@ export const createRoom = (input: CreateInput): ServerRoom => {
     countdownEndsAt: null,
     timeUsedMs: { 1: 0, 2: 0 },
     turnStartedAt: null,
+    matchId: null,
   };
   rooms.set(code, room);
   socketToRoom.set(input.hostSocketId, code);
@@ -737,6 +742,7 @@ export const createBotHostRoom = (input: BotHostInput): ServerRoom => {
     countdownEndsAt: null,
     timeUsedMs: { 1: 0, 2: 0 },
     turnStartedAt: null,
+    matchId: null,
   };
   rooms.set(code, room);
   // NÃO seta socketToRoom — o socketId é fake, não tem socket.io listener.

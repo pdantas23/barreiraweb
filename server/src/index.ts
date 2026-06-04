@@ -56,6 +56,7 @@ import {
   linkPlayerToUser,
 } from "./profiles.js";
 import { resolveAuthUser } from "./auth.js";
+import { recordMatchStart, recordMatchFinish } from "./matches.js";
 import { awardCasualTrophy } from "./trophies.js";
 import {
   validateCreateRoom,
@@ -207,6 +208,8 @@ setOnPlayerTimeout(async (_clientId, room, remaining) => {
     }
     io.to(room.code).emit("gameOver", { winner, reason: "abandon" });
     io.to(room.code).emit("opponentLeft");
+    // Analytics: oponente não voltou dentro do timeout (W.O. por abandono).
+    recordMatchFinish(room, winner, "abandoned");
     // Sala vs bot: bot pode pedir revanche.
     maybeBotRequestRematch(room);
   }
@@ -218,8 +221,10 @@ setOnRematchExpired((room) => {
   io.to(room.code).emit("rematchExpired", {});
 });
 
-setOnRematchAccepted((_room) => {
+setOnRematchAccepted((room) => {
   // broadcastGameStart já foi chamado dentro do respondRematch.
+  // Analytics: revanche é uma partida nova (cobre humano e bot).
+  recordMatchStart(room);
 });
 
 // Avisa todos os sockets sempre que o conjunto de salas "waiting" muda.
@@ -366,6 +371,9 @@ io.on("connection", (socket: TypedSocket) => {
       socket.join(room.code);
       console.log(`[room] ${playerName} entrou em ${room.code}`);
 
+      // Analytics: partida começou (humano entrou numa sala → playing).
+      recordMatchStart(room);
+
       broadcastGameStart(room);
       // Se a sala era de bot, ele é P1 e começa (50% das vezes via random).
       maybeScheduleBotMove(room);
@@ -408,6 +416,8 @@ io.on("connection", (socket: TypedSocket) => {
             winner: winner.enginePlayer,
             reason: "abandon",
           });
+          // Analytics: oponente saiu no meio da partida (W.O. por saída).
+          recordMatchFinish(room, winner.enginePlayer, "leave_wo");
         }
         socket.to(room.code).emit("opponentLeft");
       }
@@ -471,6 +481,8 @@ io.on("connection", (socket: TypedSocket) => {
           await awardCasualTrophy(winnerPlayer.authUserId, 1);
         }
         io.to(room.code).emit("gameOver", { winner: result.state.winner, reason: "goal" });
+        // Analytics: vitória normal (peão chegou na linha de chegada).
+        recordMatchFinish(room, result.state.winner, "goal");
         // Sala vs bot: bot pode pedir revanche.
         maybeBotRequestRematch(room);
       }
@@ -522,6 +534,8 @@ io.on("connection", (socket: TypedSocket) => {
         await awardCasualTrophy(winnerPlayer.authUserId, 1);
       }
       io.to(room.code).emit("gameOver", { winner, reason: "timeout" });
+      // Analytics: relógio do perdedor estourou (derrota por tempo).
+      recordMatchFinish(room, winner, "timeout_wo");
       // Sala vs bot: bot pode pedir revanche.
       maybeBotRequestRematch(room);
       return null;
@@ -602,8 +616,13 @@ io.on("connection", (socket: TypedSocket) => {
       markDisconnected(socket.id);
     } else {
       // Modo volátil: leaveRoom imediato, oponente recebe opponentLeft.
-      leaveRoom(socket.id);
+      const wasPlaying = room.status === "playing";
+      const left = leaveRoom(socket.id);
       io.to(room.code).emit("opponentLeft");
+      // Analytics: se a partida estava rolando, quem ficou vence por W.O.
+      if (wasPlaying && left && left.gameState) {
+        recordMatchFinish(left, left.players[0]?.enginePlayer ?? null, "leave_wo");
+      }
     }
   });
 });

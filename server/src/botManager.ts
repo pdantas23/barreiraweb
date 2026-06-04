@@ -42,6 +42,7 @@ import {
   type ServerPlayer,
   type ServerRoom,
 } from "./lobby.js";
+import { recordMatchStart, recordMatchFinish } from "./matches.js";
 
 type TypedServer = Server<ClientToServerEvents, ServerToClientEvents>;
 
@@ -145,6 +146,8 @@ export const scheduleBotRescue = (room: ServerRoom): void => {
     // Atribui dificuldade ao bot guest do rescue.
     const botPlayer = updated.players.find((p) => p.isBot);
     if (botPlayer) botDifficulties.set(botPlayer.socketId, randomDifficulty());
+    // Analytics: partida começou (bot entrou como guest → playing).
+    recordMatchStart(updated);
     console.log(`[botManager] rescue: ${botName} entrou em ${code}`);
     if (onBotRescueStarted) onBotRescueStarted(updated);
   }, delay);
@@ -306,6 +309,8 @@ const playBotMove = (room: ServerRoom, bot: ServerPlayer): void => {
     room.status = "finished";
     const payload: GameOverPayload = { winner: result.state.winner, reason: "goal" };
     io.to(room.code).emit("gameOver", payload);
+    // Analytics: bot venceu (peão do bot chegou na linha de chegada).
+    recordMatchFinish(room, result.state.winner, "goal");
     // Bot pode pedir revanche (chance pequena, delay 1.5-3.5s).
     maybeBotRequestRematch(room);
     scheduleBotLeave(room);
