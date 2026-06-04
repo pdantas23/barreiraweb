@@ -118,8 +118,50 @@ $$;
 
 GRANT EXECUTE ON FUNCTION public.player_activity() TO anon, authenticated;
 
+
+-- 3) daily_stats(p_days) — série por dia ------------------------
+-- novos jogadores (created_at), partidas (matches.created_at) e pico de
+-- online (max online_total) por dia, nos últimos p_days dias.
+
+CREATE OR REPLACE FUNCTION public.daily_stats(p_days int DEFAULT 30)
+RETURNS JSON
+LANGUAGE sql
+SECURITY DEFINER
+SET search_path = public, auth
+AS $$
+  WITH dias AS (
+    SELECT (CURRENT_DATE - g)::date AS dia
+    FROM generate_series(0, GREATEST(p_days, 1) - 1) g
+  ),
+  novos AS (
+    SELECT created_at::date AS dia, COUNT(*) AS n
+    FROM public.players GROUP BY 1
+  ),
+  parts AS (
+    SELECT created_at::date AS dia, COUNT(*) AS n
+    FROM public.matches GROUP BY 1
+  ),
+  onl AS (
+    SELECT taken_at::date AS dia, MAX(online_total) AS pico
+    FROM public.online_snapshots GROUP BY 1
+  )
+  SELECT COALESCE(json_agg(row_to_json(t) ORDER BY t.dia DESC), '[]'::json) FROM (
+    SELECT d.dia,
+           COALESCE(n.n, 0)    AS novos,
+           COALESCE(p.n, 0)    AS partidas,
+           COALESCE(o.pico, 0) AS pico_online
+    FROM dias d
+    LEFT JOIN novos n ON n.dia = d.dia
+    LEFT JOIN parts p ON p.dia = d.dia
+    LEFT JOIN onl   o ON o.dia = d.dia
+  ) t;
+$$;
+
+GRANT EXECUTE ON FUNCTION public.daily_stats(int) TO anon, authenticated;
+
 -- ============================================================
 -- VERIFICACAO:
 --   SELECT public.dashboard_stats();
 --   SELECT public.player_activity();
+--   SELECT public.daily_stats(30);
 -- ============================================================

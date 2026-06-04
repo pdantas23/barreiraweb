@@ -42,6 +42,18 @@ type PlayerRow = {
   ultima_partida: string;
 };
 
+type DailyRow = {
+  dia: string;
+  novos: number;
+  partidas: number;
+  pico_online: number;
+};
+
+const fmtDay = (iso: string): string => {
+  const d = new Date(`${iso}T00:00:00`);
+  return d.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" });
+};
+
 const fmtDate = (iso: string | null | undefined): string => {
   if (!iso) return "—";
   const d = new Date(iso);
@@ -79,19 +91,22 @@ export default function AdminStats() {
 
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [players, setPlayers] = useState<PlayerRow[]>([]);
+  const [daily, setDaily] = useState<DailyRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
     setError(null);
-    const [s, p] = await Promise.all([
+    const [s, p, d] = await Promise.all([
       supabase.rpc("dashboard_stats"),
       supabase.rpc("player_activity"),
+      supabase.rpc("daily_stats", { p_days: 30 }),
     ]);
     if (s.error) setError(s.error.message);
     else setStats(s.data as DashboardStats);
     if (!p.error) setPlayers((p.data as PlayerRow[]) ?? []);
+    if (!d.error) setDaily((d.data as DailyRow[]) ?? []);
     setLoading(false);
   }, []);
 
@@ -178,6 +193,34 @@ export default function AdminStats() {
         ) : (
           <p style={{ color: C.dim }}>Nenhuma plataforma registrada ainda.</p>
         )}
+      </Section>
+
+      <Section title="Por dia (últimos 30)">
+        <div style={{ width: "100%", overflowX: "auto" }}>
+          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 14 }}>
+            <thead>
+              <tr style={{ color: C.dim, textAlign: "left" }}>
+                <th style={th}>Dia</th>
+                <th style={{ ...th, textAlign: "right" }}>Novos jogadores</th>
+                <th style={{ ...th, textAlign: "right" }}>Partidas</th>
+                <th style={{ ...th, textAlign: "right" }}>Pico online</th>
+              </tr>
+            </thead>
+            <tbody>
+              {daily.map((d) => (
+                <tr key={d.dia} style={{ borderTop: `1px solid ${C.border}` }}>
+                  <td style={{ ...td, color: C.text }}>{fmtDay(d.dia)}</td>
+                  <td style={{ ...td, textAlign: "right", color: C.green }}>{d.novos}</td>
+                  <td style={{ ...td, textAlign: "right", color: C.text }}>{d.partidas}</td>
+                  <td style={{ ...td, textAlign: "right", color: C.amber }}>{d.pico_online}</td>
+                </tr>
+              ))}
+              {daily.length === 0 && !loading && (
+                <tr><td style={td} colSpan={4}><span style={{ color: C.dim }}>Sem dados diários ainda.</span></td></tr>
+              )}
+            </tbody>
+          </table>
+        </div>
       </Section>
 
       <Section title={`Por jogador (${players.length})`}>
