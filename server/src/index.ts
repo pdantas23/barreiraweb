@@ -58,6 +58,7 @@ import {
 } from "./profiles.js";
 import { resolveAuthUser } from "./auth.js";
 import { recordMatchStart, recordMatchFinish } from "./matches.js";
+import { recordOnlineSnapshot, type OnlineStats } from "./snapshots.js";
 import { awardCasualTrophy } from "./trophies.js";
 import {
   validateCreateRoom,
@@ -647,10 +648,64 @@ setOnBotRescueStarted((room) => {
   maybeScheduleBotMove(room);
 });
 
+// === Presença online (Fase 6) ===
+//
+// Computa a foto atual a partir dos sockets conectados em memória. Dedup por
+// clientId (mesma pessoa em 2 abas = 1). Bots não entram aqui — têm socketId
+// fake e nunca aparecem em io.sockets.sockets.
+const computeOnlineStats = (): OnlineStats => {
+  // clientId → { logado, em jogo }. Agrega múltiplos sockets do mesmo aparelho.
+  const byClient = new Map<string, { registered: boolean; inGame: boolean }>();
+  let anonNoClient = 0;
+  let anonNoClientInGame = 0;
+
+  for (const [, sock] of io.sockets.sockets) {
+    const cid = (sock.data.clientId as string | null) ?? null;
+    const auth = (sock.data.authUserId as string | null) ?? null;
+    const inGame = getRoomBySocket(sock.id)?.status === "playing";
+    if (cid) {
+      const prev = byClient.get(cid);
+      byClient.set(cid, {
+        registered: !!auth || (prev?.registered ?? false),
+        inGame: inGame || (prev?.inGame ?? false),
+      });
+    } else {
+      anonNoClient++;
+      if (inGame) anonNoClientInGame++;
+    }
+  }
+
+  let inGame = anonNoClientInGame;
+  let registered = 0;
+  for (const v of byClient.values()) {
+    if (v.inGame) inGame++;
+    if (v.registered) registered++;
+  }
+  const total = byClient.size + anonNoClient;
+  return {
+    online_total: total,
+    online_in_game: inGame,
+    online_in_lobby: total - inGame,
+    registered_online: registered,
+    anonymous_online: total - registered,
+  };
+};
+
+const SNAPSHOT_INTERVAL_MS = Number(process.env.SNAPSHOT_MS ?? 60_000);
+
 httpServer.listen(PORT, () => {
   console.log(`Barreira server rodando em http://localhost:${PORT}`);
   console.log(`Health:  http://localhost:${PORT}/health`);
   console.log(`Socket:  ws://localhost:${PORT}`);
   // Inicializa o bot manager — vai povoar o lobby com salas fantasmas.
   startBotManager(io);
+  // Snapshot periódico de presença online pro dashboard.
+  setInterval(() => {
+    try {
+      recordOnlineSnapshot(computeOnlineStats());
+    } catch (err) {
+      console.warn("[snapshots] falha ao computar:", err);
+    }
+  }, SNAPSHOT_INTERVAL_MS);
+  console.log(`Snapshots de presença a cada ${SNAPSHOT_INTERVAL_MS}ms`);
 });
