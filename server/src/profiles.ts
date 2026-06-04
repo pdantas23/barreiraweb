@@ -157,6 +157,38 @@ export const getUsernameForAuthUser = async (
   return username;
 };
 
+// Linka um aparelho anônimo (client_id) à conta Supabase (user_id) quando o
+// socket conecta autenticado. É o que separa "anônimo" de "cadastrado" nas
+// métricas: user_id NULL = nunca logou nesse aparelho. Latest-login-wins:
+// se outra conta logar no mesmo aparelho, o vínculo passa pra ela.
+//
+// Cache pra não escrever no DB a cada handshake. Fire-and-forget — não derruba
+// a sessão se falhar (é só métrica).
+const linkedCache = createLruCache<string>(MAX_CACHE_ENTRIES); // clientId → userId
+
+export const linkPlayerToUser = async (
+  clientId: string,
+  userId: string,
+): Promise<void> => {
+  if (linkedCache.get(clientId) === userId) return; // já linkado nesta sessão
+  try {
+    const { error } = await getSupabase()
+      .from("players")
+      .update({ user_id: userId })
+      .eq("client_id", clientId);
+    if (error) {
+      console.warn(
+        `[profiles] falha ao linkar ${clientId.slice(0, 8)}… → user:`,
+        error.message,
+      );
+      return;
+    }
+    linkedCache.set(clientId, userId);
+  } catch (err) {
+    console.warn("[profiles] erro inesperado ao linkar player→user:", err);
+  }
+};
+
 // Atualiza last_seen_at de forma fire-and-forget.
 const touchLastSeen = async (clientId: string): Promise<void> => {
   try {

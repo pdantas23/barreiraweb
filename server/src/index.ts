@@ -50,7 +50,11 @@ import {
   type ServerPlayer,
   type ServerRoom,
 } from "./lobby.js";
-import { getOrCreateProfile, getUsernameForAuthUser } from "./profiles.js";
+import {
+  getOrCreateProfile,
+  getUsernameForAuthUser,
+  linkPlayerToUser,
+} from "./profiles.js";
 import { resolveAuthUser } from "./auth.js";
 import { awardCasualTrophy } from "./trophies.js";
 import {
@@ -272,8 +276,14 @@ io.on("connection", (socket: TypedSocket) => {
   // o display_name fica null no cliente até a próxima conexão.
   if (clientId) {
     void getOrCreateProfile(clientId)
-      .then((profile) => {
+      .then(async (profile) => {
         socket.emit("profile", profile);
+        // Fase 2 (analytics): linka este aparelho à conta logada, se houver.
+        // Separa anônimo (user_id NULL) de cadastrado nas métricas.
+        // ensureAuthUserId aguarda o token resolver (cache-aware), evitando
+        // o race de linkar antes da linha do player existir.
+        const uid = await ensureAuthUserId(socket);
+        if (uid) void linkPlayerToUser(clientId, uid);
       })
       .catch((err) => {
         console.error(`[profile] falhou pra ${clientId.slice(0, 8)}…:`, err);
