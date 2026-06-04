@@ -19,6 +19,7 @@ import Profile from "./pages/Profile";
 import ForgotPassword from "./pages/ForgotPassword";
 import ResetPassword from "./pages/ResetPassword";
 import SalaRedirect from "./pages/SalaRedirect";
+import AdminStats from "./pages/AdminStats";
 
 // Bootstrap clientId synchronously (localStorage is sync)
 initClientId();
@@ -60,6 +61,7 @@ export const App = () => {
                 <Route path="/perfil" element={<Profile />} />
                 <Route path="/esqueci-senha" element={<ForgotPassword />} />
                 <Route path="/reset-password" element={<ResetPassword />} />
+                <Route path="/admin/stats" element={<AdminStats />} />
               </Routes>
               <DragOverlayRenderer />
             </ProfileProvider>
