@@ -81,14 +81,27 @@ export const getSocket = (): AppSocket => {
           const clientId = getClientId();
           const first = await supabase.auth.getSession();
           let session = first.data.session;
+          let refreshError: string | null = null;
           if (!session) {
             // Force load/refresh — em RN o AsyncStorage é async, então
             // getSession() pode voltar null antes do _loadSession() interno.
             try {
               const r = await supabase.auth.refreshSession();
+              if (r.error) refreshError = r.error.message;
               if (r.data.session) session = r.data.session;
+            } catch (err) {
+              refreshError = err instanceof Error ? err.message : String(err);
+            }
+          }
+          // Sessão morta (refresh token inválido/expirado): limpa o estado
+          // local pra o app mostrar DESLOGADO, em vez de jogar "logado" sem
+          // token (sem troféu e mostrado como anônimo). Só nesse erro
+          // específico — não desloga em falha transitória de rede.
+          if (!session && refreshError && /refresh token/i.test(refreshError)) {
+            try {
+              await supabase.auth.signOut({ scope: "local" });
             } catch {
-              // Sem sessão mesmo — segue anônimo.
+              /* ignora — só best-effort */
             }
           }
           const accessToken = session?.access_token ?? null;
@@ -151,6 +164,26 @@ export const reconnectSocket = () => {
   console.log("[reconnectSocket] forçando disconnect+connect");
   socket.disconnect();
   socket.connect();
+};
+
+// Garante que o socket está conectado com o token de auth ATUAL antes de uma
+// ação que depende de identidade (createRoom/joinRoom). Se o usuário tem
+// sessão mas o handshake foi feito SEM token (ou com token velho) — race de
+// cold-start —, força reconnect pra o server receber o token e identificar/
+// premiar o jogador. Sem isso, o vencedor entrava com authUserId=null (sem
+// troféu e mostrado como anônimo).
+export const ensureAuthedSocket = async (): Promise<void> => {
+  try {
+    const { data } = await supabase.auth.getSession();
+    const sessionToken = data.session?.access_token ?? null;
+    const hs = getHandshakeToken();
+    if (sessionToken && hs !== undefined && hs !== sessionToken) {
+      reconnectSocket();
+    }
+  } catch {
+    /* não bloqueia a ação se a checagem de sessão falhar */
+  }
+  await whenConnected();
 };
 
 export const getServerUrl = () => SERVER_URL;

@@ -74,6 +74,17 @@ export const getSocket = (): AppSocket => {
               refreshError = err instanceof Error ? err.message : String(err);
             }
           }
+          // Sessão morta (refresh token inválido/expirado): limpa o estado
+          // local pra o app mostrar DESLOGADO, em vez de jogar "logado" sem
+          // token (sem troféu e mostrado como anônimo). Só nesse erro
+          // específico — não desloga em falha transitória de rede.
+          if (!session && refreshError && /refresh token/i.test(refreshError)) {
+            try {
+              await supabase.auth.signOut({ scope: "local" });
+            } catch {
+              /* ignora — só best-effort */
+            }
+          }
           const accessToken = session?.access_token ?? null;
           // Log de diagnóstico SEM dados sensíveis (sem token, sem user id,
           // sem chaves do storage) — só sinais booleanos e tempo.
@@ -151,6 +162,28 @@ export const reconnectSocket = () => {
   });
   socket.disconnect();
   socket.connect();
+};
+
+// Garante que o socket está conectado com o token de auth ATUAL antes de uma
+// ação que depende de identidade (createRoom/joinRoom). Se o usuário tem
+// sessão mas o handshake foi feito SEM token (ou com token velho) — race de
+// cold-start —, força reconnect pra o server receber o token e identificar/
+// premiar o jogador. Sem isso, o vencedor entrava com authUserId=null (sem
+// troféu e mostrado como anônimo).
+export const ensureAuthedSocket = async (): Promise<void> => {
+  try {
+    const { data } = await supabase.auth.getSession();
+    const sessionToken = data.session?.access_token ?? null;
+    const hs = getHandshakeToken();
+    // hs === undefined: socket ainda não conectou — o 1º handshake já pega o
+    // token certo. Só reconecta se há sessão e o handshake atual está defasado.
+    if (sessionToken && hs !== undefined && hs !== sessionToken) {
+      reconnectSocket();
+    }
+  } catch {
+    /* não bloqueia a ação se a checagem de sessão falhar */
+  }
+  await whenConnected();
 };
 
 export const getServerUrl = () => SERVER_URL;

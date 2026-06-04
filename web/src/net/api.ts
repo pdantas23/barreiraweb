@@ -10,7 +10,7 @@ import type {
   RoomDetail,
   RpcResult,
 } from "@barreira/shared";
-import { connectSocket, whenConnected } from "./socket";
+import { connectSocket, ensureAuthedSocket, whenConnected } from "./socket";
 
 const RPC_TIMEOUT_MS = 8000;
 
@@ -42,12 +42,16 @@ function safeRpc<T>(fn: () => Promise<RpcResult<T>>): Promise<RpcResult<T>> {
 export const createRoom = (
   payload: CreateRoomPayload,
 ): Promise<RpcResult<RoomDetail>> =>
-  safeRpc(() => connectSocket().emitWithAck("createRoom", payload));
+  safeRpc(() =>
+    ensureAuthedSocket().then(() => connectSocket().emitWithAck("createRoom", payload)),
+  );
 
 export const joinRoom = (
   payload: JoinRoomPayload,
 ): Promise<RpcResult<RoomDetail>> =>
-  safeRpc(() => connectSocket().emitWithAck("joinRoom", payload));
+  safeRpc(() =>
+    ensureAuthedSocket().then(() => connectSocket().emitWithAck("joinRoom", payload)),
+  );
 
 export const listRooms = (): Promise<RpcResult<{ rooms: PublicRoom[] }>> =>
   safeRpc(() => connectSocket().emitWithAck("listRooms", {}));

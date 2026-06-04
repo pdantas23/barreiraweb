@@ -19,6 +19,7 @@ import {
 } from "react";
 import type { ProfilePayload } from "@barreira/shared";
 import { getSocket } from "../net/socket";
+import { useAuth } from "./auth";
 
 const STORAGE_KEY = "barreira.displayName";
 
@@ -63,10 +64,13 @@ export const ProfileProvider = ({ children }: { children: ReactNode }) => {
 
 export const useProfile = (): ProfileState => useContext(ProfileContext);
 
-// Helper pra usar em RPCs que precisam de um nome — usa o displayName
-// se já chegou, ou "Jogador" como fallback. Em produção (server online),
-// o fallback quase nunca é usado.
+// Prioridade do nome exibido (igual ao web):
+//   1. username escolhido no cadastro (se logado)
+//   2. displayName anônimo gerado pelo server (anonimoXXXX)
+//   3. "Jogador" como fallback enquanto o profile não respondeu
+// Sem o username aqui, a sala mostrava o nome anônimo mesmo pro usuário logado.
 export const usePlayerName = (): string => {
+  const { username } = useAuth();
   const { displayName } = useProfile();
-  return displayName ?? "Jogador";
+  return username ?? displayName ?? "Jogador";
 };
