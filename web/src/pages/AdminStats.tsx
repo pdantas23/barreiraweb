@@ -151,27 +151,27 @@ export default function AdminStats() {
       </Section>
 
       <Section title="Hoje">
-        <Stat label="Visitaram hoje" value={stats?.today.visited ?? "—"} accent={C.cyan} />
-        <Stat label="Novos hoje" value={stats?.today.new ?? "—"} accent={C.green} />
+        <Stat label="Visitaram hoje" value={stats?.today?.visited ?? "—"} accent={C.cyan} />
+        <Stat label="Novos hoje" value={stats?.today?.new ?? "—"} accent={C.green} />
       </Section>
 
       <Section title="Usuários">
-        <Stat label="Cadastrados" value={stats?.users.registered ?? "—"} accent={C.cyan} />
-        <Stat label="Anônimos reais" value={stats?.users.anonymous_real ?? "—"} />
-        <Stat label="Bots (em players)" value={stats?.users.bots ?? "—"} accent={C.dim} />
+        <Stat label="Cadastrados" value={stats?.users?.registered ?? "—"} accent={C.cyan} />
+        <Stat label="Anônimos reais" value={stats?.users?.anonymous_real ?? "—"} />
+        <Stat label="Bots (em players)" value={stats?.users?.bots ?? "—"} accent={C.dim} />
       </Section>
 
       <Section title="Partidas">
-        <Stat label="Total" value={stats?.matches.total ?? "—"} accent={C.cyan} />
-        <Stat label="Casual online" value={stats?.matches.casual_online ?? "—"} />
-        <Stat label="Sala privada" value={stats?.matches.private_online ?? "—"} />
-        <Stat label="Treino offline" value={stats?.matches.training_offline ?? "—"} />
-        <Stat label="Humano x humano" value={stats?.matches.human_vs_human ?? "—"} accent={C.green} />
-        <Stat label="Humano x bot" value={stats?.matches.human_vs_bot ?? "—"} accent={C.amber} />
+        <Stat label="Total" value={stats?.matches?.total ?? "—"} accent={C.cyan} />
+        <Stat label="Casual online" value={stats?.matches?.casual_online ?? "—"} />
+        <Stat label="Sala privada" value={stats?.matches?.private_online ?? "—"} />
+        <Stat label="Treino offline" value={stats?.matches?.training_offline ?? "—"} />
+        <Stat label="Humano x humano" value={stats?.matches?.human_vs_human ?? "—"} accent={C.green} />
+        <Stat label="Humano x bot" value={stats?.matches?.human_vs_bot ?? "—"} accent={C.amber} />
       </Section>
 
       <Section title="Plataformas">
-        {stats && Object.keys(stats.platforms).length > 0 ? (
+        {stats?.platforms && Object.keys(stats.platforms).length > 0 ? (
           Object.entries(stats.platforms).map(([plat, n]) => (
             <Stat key={plat} label={plat} value={n} />
           ))
