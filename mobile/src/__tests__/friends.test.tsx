@@ -45,13 +45,6 @@ describe("AddFriend (mobile)", () => {
     await waitFor(() => expect(onAdd).toHaveBeenCalledWith("bob"));
     expect(await screen.findByText("Pedido enviado!")).toBeTruthy();
   });
-
-  it("mostra o link de amizade com o próprio username", () => {
-    render(<AddFriend onAdd={jest.fn()} myUsername="alice" origin="https://barreirajogo.com" />);
-    expect(screen.getByLabelText("Seu link de amizade").props.children).toBe(
-      "https://barreirajogo.com/amigo/alice",
-    );
-  });
 });
 
 describe("FriendInviteBanner (mobile)", () => {

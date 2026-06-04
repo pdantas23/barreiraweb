@@ -73,6 +73,7 @@ import {
   validateGetFriends,
   validateSendGameInvite,
   validateRespondGameInvite,
+  validateRedeemFriendInvite,
   validateRegisterPushToken,
 } from "./validation.js";
 import { isAllowedOrigin } from "./cors.js";
@@ -748,6 +749,21 @@ io.on("connection", (socket: TypedSocket) => {
       validateGetFriends(p);
       const me = await requireUsername(socket);
       return friendService.getFriends(me);
+    })(payload, socket, ack),
+  );
+
+  socket.on("createFriendInviteLink", (payload, ack) =>
+    rpc(async () => {
+      const me = await requireUsername(socket);
+      return friendService.createFriendInviteLink(me);
+    })(payload, socket, ack),
+  );
+
+  socket.on("redeemFriendInvite", (payload, ack) =>
+    rpc(async (p: typeof payload) => {
+      validateRedeemFriendInvite(p);
+      const me = await requireUsername(socket);
+      return friendService.redeemFriendInvite(me, p.token);
     })(payload, socket, ack),
   );
 

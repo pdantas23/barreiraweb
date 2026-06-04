@@ -7,6 +7,7 @@
 // Erros viram LobbyError(<RpcError>) — o wrapper rpc() do index.ts converte
 // pro ack tipado, igual ao resto do projeto.
 
+import { randomBytes } from "node:crypto";
 import { LobbyError } from "./lobby.js";
 import { getSupabase } from "./db.js";
 import type { OnlineRegistry } from "./onlineRegistry.js";
@@ -46,9 +47,15 @@ export type FriendStore = {
   setCooldown(from: string, to: string, count: number, windowStart: number): Promise<void>;
   clearCooldown(from: string, to: string): Promise<void>;
   recordInvite(from: string, to: string, code: string | null, expiresAt: number): Promise<void>;
+  // --- Links de convite de amizade (token + expiração) ---
+  createInviteLink(token: string, owner: string, expiresAt: number): Promise<void>;
+  getInviteLink(token: string): Promise<{ owner: string; expiresAt: number } | null>;
+  /** Link ainda válido (expires_at > now) mais recente do dono, ou null. */
+  getActiveInviteLink(owner: string, now: number): Promise<{ token: string; expiresAt: number } | null>;
 };
 
-export const INVITE_TTL_MS = 30_000; // convite expira em 30s
+export const INVITE_TTL_MS = 30_000; // convite de partida expira em 30s
+export const INVITE_LINK_TTL_MS = 7 * 24 * 60 * 60 * 1000; // link de amizade: 7 dias
 export const COOLDOWN_WINDOW_MS = 5 * 60_000; // janela anti-spam: 5 min
 export const COOLDOWN_MAX = 2; // máx convites não aceitos por par na janela
 
@@ -167,6 +174,55 @@ export const createFriendService = (deps: FriendDeps) => {
     return { friends, incomingRequests: incoming, outgoingRequests: outgoing };
   };
 
+  // ---- Link de convite de amizade (token + expiração) ----
+
+  // Gera (ou reusa) o link de convite do usuário. Reusa o token ativo mais
+  // recente pra o link ser estável entre compartilhamentos e não inflar a
+  // tabela. Token opaco (hex), expira em INVITE_LINK_TTL_MS.
+  const createFriendInviteLink = async (
+    me: string,
+  ): Promise<{ token: string; expiresAt: number }> => {
+    const t = now();
+    const active = await store.getActiveInviteLink(me, t);
+    if (active) return active;
+    const token = randomBytes(9).toString("hex"); // 18 chars
+    const expiresAt = t + INVITE_LINK_TTL_MS;
+    await store.createInviteLink(token, me, expiresAt);
+    return { token, expiresAt };
+  };
+
+  // Resgata um link: cria um pedido pendente do DONO do link → quem abriu
+  // (me). Assim quem compartilhou é o requisitante e quem abre só precisa
+  // aceitar. Devolve o dono (pra UI mostrar o modal "X quer ser seu amigo").
+  const redeemFriendInvite = async (
+    me: string,
+    tokenRaw: string,
+  ): Promise<{ fromUsername: string; trofeus: number }> => {
+    const token = norm(tokenRaw);
+    const link = await store.getInviteLink(token);
+    if (!link) throw new LobbyError("invite-invalid", "Link de convite inválido.");
+    if (link.expiresAt <= now()) {
+      throw new LobbyError("invite-expired", "Este link de convite expirou.");
+    }
+    const owner = link.owner;
+    if (owner === me) throw new LobbyError("self-friend", "Esse é o seu próprio link.");
+    const existing = await store.getPair(owner, me);
+    if (existing?.status === "accepted") {
+      throw new LobbyError("already-friends", "Vocês já são amigos.");
+    }
+    // Garante o pedido pendente owner→me (sem recriar se já existe nesse sentido).
+    const alreadyFromOwner = existing?.status === "pending" && existing.requester === owner;
+    if (!alreadyFromOwner) {
+      await store.upsertRequest(owner, me);
+    }
+    // Atualiza a lista do dono em tempo real, se online (pedido enviado).
+    if (registry.isOnline(owner)) {
+      emitToUser(owner, "friendRequestReceived", { fromUsername: me });
+    }
+    const trofeus = (await store.getTrophies([owner]))[owner] ?? 0;
+    return { fromUsername: owner, trofeus };
+  };
+
   // ---- Convite de partida ----
 
   const sendGameInvite = async (me: string, targetRaw: string): Promise<null> => {
@@ -272,6 +328,8 @@ export const createFriendService = (deps: FriendDeps) => {
     declineFriendRequest,
     removeFriend,
     getFriends,
+    createFriendInviteLink,
+    redeemFriendInvite,
     sendGameInvite,
     respondGameInvite,
     notifyFriendsOfStatus,
@@ -293,6 +351,7 @@ export const createInMemoryFriendStore = (
   let pairs: FriendPair[] = [];
   const cooldowns = new Map<string, { count: number; windowStart: number }>();
   const invites: { from: string; to: string; code: string | null; expiresAt: number }[] = [];
+  const inviteLinks = new Map<string, { owner: string; expiresAt: number }>();
   const ck = (a: string, b: string) => `${a}->${b}`;
 
   const findPair = (a: string, b: string) =>
@@ -360,6 +419,22 @@ export const createInMemoryFriendStore = (
     },
     async recordInvite(from, to, code, expiresAt) {
       invites.push({ from, to, code, expiresAt });
+    },
+    async createInviteLink(token, owner, expiresAt) {
+      inviteLinks.set(token, { owner, expiresAt });
+    },
+    async getInviteLink(token) {
+      const l = inviteLinks.get(token);
+      return l ? { ...l } : null;
+    },
+    async getActiveInviteLink(owner, nowTs) {
+      let best: { token: string; expiresAt: number } | null = null;
+      for (const [token, l] of inviteLinks) {
+        if (l.owner === owner && l.expiresAt > nowTs) {
+          if (!best || l.expiresAt > best.expiresAt) best = { token, expiresAt: l.expiresAt };
+        }
+      }
+      return best;
     },
   };
 };
@@ -498,6 +573,35 @@ export const createSupabaseFriendStore = (): FriendStore => {
         room_code: code,
         expires_at: new Date(expiresAt).toISOString(),
       });
+    },
+    async createInviteLink(token, owner, expiresAt) {
+      const { error } = await sb().from("friend_invite_links").insert({
+        token,
+        owner_username: owner,
+        expires_at: new Date(expiresAt).toISOString(),
+      });
+      if (error) throw new Error(`friend_invite_links insert: ${error.message}`);
+    },
+    async getInviteLink(token) {
+      const { data } = await sb()
+        .from("friend_invite_links")
+        .select("owner_username, expires_at")
+        .eq("token", token)
+        .maybeSingle();
+      if (!data) return null;
+      return { owner: data.owner_username, expiresAt: new Date(data.expires_at).getTime() };
+    },
+    async getActiveInviteLink(owner, nowTs) {
+      const { data } = await sb()
+        .from("friend_invite_links")
+        .select("token, expires_at")
+        .eq("owner_username", owner)
+        .gt("expires_at", new Date(nowTs).toISOString())
+        .order("expires_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (!data) return null;
+      return { token: data.token, expiresAt: new Date(data.expires_at).getTime() };
     },
   };
 };

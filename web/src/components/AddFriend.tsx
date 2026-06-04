@@ -1,30 +1,22 @@
 // === AddFriend ===
 //
-// Adiciona amigo por username e/ou mostra o link compartilhável
-// (dominio/amigo/MEU_USERNAME) com botão de copiar. Feedback de "pedido
-// enviado" ou erro. Sem rede própria — o envio vem por callback (onAdd).
+// Adiciona amigo por username. Feedback de "pedido enviado" ou erro. Sem rede
+// própria — o envio vem por callback (onAdd). O compartilhamento por link
+// (token) é tratado pelo FriendsHub, não aqui.
 
 import { useState } from "react";
-import { IoCopyOutline, IoPersonAddOutline } from "react-icons/io5";
+import { IoPersonAddOutline } from "react-icons/io5";
 
 type AddResult = { ok: boolean; error?: string };
 
 type Props = {
   onAdd: (username: string) => Promise<AddResult>;
-  // username do próprio usuário (pra montar o link de convite).
-  myUsername?: string | null;
-  // origem da URL; default window.location.origin.
-  origin?: string;
 };
 
-export const AddFriend = ({ onAdd, myUsername, origin }: Props) => {
+export const AddFriend = ({ onAdd }: Props) => {
   const [value, setValue] = useState("");
   const [busy, setBusy] = useState(false);
   const [feedback, setFeedback] = useState<{ kind: "ok" | "error"; text: string } | null>(null);
-  const [copied, setCopied] = useState(false);
-
-  const base = origin ?? (typeof window !== "undefined" ? window.location.origin : "");
-  const link = myUsername ? `${base}/amigo/${myUsername}` : null;
 
   const submit = async () => {
     const username = value.trim();
@@ -38,17 +30,6 @@ export const AddFriend = ({ onAdd, myUsername, origin }: Props) => {
       setValue("");
     } else {
       setFeedback({ kind: "error", text: res.error ?? "Não foi possível enviar o pedido." });
-    }
-  };
-
-  const copyLink = async () => {
-    if (!link) return;
-    try {
-      await navigator.clipboard.writeText(link);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 1800);
-    } catch {
-      /* clipboard pode falhar em http — ignora */
     }
   };
 
@@ -84,24 +65,6 @@ export const AddFriend = ({ onAdd, myUsername, origin }: Props) => {
             className={`text-[12px] font-semibold ${feedback.kind === "ok" ? "text-[#16A34A]" : "text-[#E04256]"}`}
           >
             {feedback.text}
-          </div>
-        )}
-
-        {link && (
-          <div className="flex gap-2 items-center">
-            <input
-              aria-label="Seu link de amizade"
-              readOnly
-              value={link}
-              className="flex-1 px-3 py-2 rounded-lg border border-[#F0F4FF] bg-[#F5F8FF] text-[11px] text-muted outline-none"
-            />
-            <button
-              aria-label="Copiar link"
-              onClick={copyLink}
-              className="flex items-center gap-1 px-2.5 py-2 rounded-lg bg-[#F0F4FF] text-navy text-[11px] font-bold cursor-pointer hover:opacity-80 border-none"
-            >
-              <IoCopyOutline size={14} /> {copied ? "Copiado!" : "Copiar"}
-            </button>
           </div>
         )}
       </div>

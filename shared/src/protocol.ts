@@ -141,6 +141,16 @@ export type SendFriendRequestPayload = { targetUsername: string };
 export type RespondFriendRequestPayload = { requesterUsername: string };
 export type RemoveFriendPayload = { targetUsername: string };
 export type GetFriendsPayload = Record<string, never>;
+
+// Link de convite de amizade (token com expiração). Diferente do
+// /amigo/USERNAME antigo: quem compartilha vira o REQUISITANTE, e quem
+// abre o link só precisa aceitar (vê um modal). O token expira.
+export type CreateFriendInviteLinkPayload = Record<string, never>;
+export type CreateFriendInviteLinkResult = { token: string; expiresAt: number };
+export type RedeemFriendInvitePayload = { token: string };
+// Devolvido ao resgatar: quem te convidou (pra mostrar no modal de aceitar).
+export type RedeemFriendInviteResult = { fromUsername: string; trofeus: number };
+
 export type SendGameInvitePayload = { targetUsername: string };
 export type RespondGameInvitePayload = { fromUsername: string; accept: boolean };
 export type RegisterPushTokenPayload = { token: string; platform: "ios" | "android" };
@@ -194,6 +204,8 @@ export type RpcError =
   | "friend-in-game"
   | "invite-cooldown" // anti-spam de convites
   | "no-invite-pending"
+  | "invite-invalid" // link de amizade inexistente/inválido
+  | "invite-expired" // link de amizade expirado
   | "invalid-payload"
   | "internal-error";
 
@@ -265,6 +277,14 @@ export type ClientToServerEvents = {
   respondGameInvite: (
     payload: RespondGameInvitePayload,
     ack: (res: RpcResult<InviteAcceptResult | null>) => void,
+  ) => void;
+  createFriendInviteLink: (
+    payload: CreateFriendInviteLinkPayload,
+    ack: (res: RpcResult<CreateFriendInviteLinkResult>) => void,
+  ) => void;
+  redeemFriendInvite: (
+    payload: RedeemFriendInvitePayload,
+    ack: (res: RpcResult<RedeemFriendInviteResult>) => void,
   ) => void;
   registerPushToken: (
     payload: RegisterPushTokenPayload,

@@ -126,6 +126,73 @@ describe("removeFriend", () => {
   });
 });
 
+// --- links de convite de amizade (token + expiração) -----------------------
+
+describe("createFriendInviteLink / redeemFriendInvite", () => {
+  it("gera token e reusa o mesmo link enquanto válido", async () => {
+    const { service } = setup({ usernames: ["alice"] });
+    const a = await service.createFriendInviteLink("alice");
+    const b = await service.createFriendInviteLink("alice");
+    expect(a.token).toBeTruthy();
+    expect(b.token).toBe(a.token); // reuso, não cria outro
+    expect(a.expiresAt).toBeGreaterThan(Date.now());
+  });
+
+  it("resgatar cria pedido DONO→quem abriu e devolve o dono", async () => {
+    const { store, service } = setup({ usernames: ["alice", "bob"], online: { alice: true } });
+    const { token } = await service.createFriendInviteLink("alice");
+    const res = await service.redeemFriendInvite("bob", token);
+    expect(res.fromUsername).toBe("alice");
+    // Pedido pendente na direção alice→bob (alice é a requisitante).
+    expect(await store.getDirected("alice", "bob")).toMatchObject({ status: "pending" });
+    // bob aceita pelo modal → vira amizade.
+    await service.acceptFriendRequest("bob", "alice");
+    expect(await store.getDirected("alice", "bob")).toMatchObject({ status: "accepted" });
+  });
+
+  it("erro ao resgatar o próprio link", async () => {
+    const { service } = setup({ usernames: ["alice"] });
+    const { token } = await service.createFriendInviteLink("alice");
+    await expect(service.redeemFriendInvite("alice", token)).rejects.toMatchObject({
+      code: "self-friend",
+    });
+  });
+
+  it("erro se já são amigos", async () => {
+    const { store, service } = setup({ usernames: ["alice", "bob"] });
+    await seedAccepted(store, "alice", "bob");
+    const { token } = await service.createFriendInviteLink("alice");
+    await expect(service.redeemFriendInvite("bob", token)).rejects.toMatchObject({
+      code: "already-friends",
+    });
+  });
+
+  it("erro se o token não existe", async () => {
+    const { service } = setup({ usernames: ["alice", "bob"] });
+    await expect(service.redeemFriendInvite("bob", "naoexiste")).rejects.toMatchObject({
+      code: "invite-invalid",
+    });
+  });
+
+  it("erro se o link expirou", async () => {
+    let clock = 1_000_000;
+    const store = createInMemoryFriendStore(["alice", "bob"]);
+    const service = createFriendService({
+      store,
+      registry: makeRegistry({}),
+      emitToUser: vi.fn(),
+      isInGame: () => false,
+      createInviteRoom: () => null,
+      now: () => clock,
+    });
+    const { token, expiresAt } = await service.createFriendInviteLink("alice");
+    clock = expiresAt + 1; // avança além da expiração
+    await expect(service.redeemFriendInvite("bob", token)).rejects.toMatchObject({
+      code: "invite-expired",
+    });
+  });
+});
+
 // --- getFriends ------------------------------------------------------------
 
 describe("getFriends", () => {

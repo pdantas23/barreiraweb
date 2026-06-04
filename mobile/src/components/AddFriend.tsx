@@ -1,6 +1,6 @@
 // === AddFriend (mobile) ===
-// Input de username + envio (onAdd) com feedback. Mostra o link de amizade
-// (dominio/amigo/MEU_USERNAME) pra compartilhar.
+// Input de username + envio (onAdd) com feedback. O compartilhamento por link
+// (token) é tratado pelo FriendsButton, não aqui.
 
 import { useState } from "react";
 import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
@@ -12,16 +12,12 @@ type AddResult = { ok: boolean; error?: string };
 
 type Props = {
   onAdd: (username: string) => Promise<AddResult>;
-  myUsername?: string | null;
-  origin?: string;
 };
 
-export const AddFriend = ({ onAdd, myUsername, origin = "https://barreirajogo.com" }: Props) => {
+export const AddFriend = ({ onAdd }: Props) => {
   const [value, setValue] = useState("");
   const [busy, setBusy] = useState(false);
   const [feedback, setFeedback] = useState<{ ok: boolean; text: string } | null>(null);
-
-  const link = myUsername ? `${origin}/amigo/${myUsername}` : null;
 
   const submit = async () => {
     const username = value.trim();
@@ -69,11 +65,6 @@ export const AddFriend = ({ onAdd, myUsername, origin = "https://barreirajogo.co
             {feedback.text}
           </Text>
         )}
-        {link && (
-          <Text accessibilityLabel="Seu link de amizade" style={styles.link} numberOfLines={1}>
-            {link}
-          </Text>
-        )}
       </View>
     </View>
   );
@@ -89,5 +80,4 @@ const styles = StyleSheet.create({
   addBtn: { backgroundColor: C.blue, paddingHorizontal: 14, justifyContent: "center", borderRadius: 10 },
   addText: { color: C.white, fontSize: 13, fontWeight: "800" },
   feedback: { fontSize: 12, fontWeight: "700" },
-  link: { fontSize: 11, color: C.muted, backgroundColor: "#F5F8FF", paddingHorizontal: 10, paddingVertical: 8, borderRadius: 8 },
 });

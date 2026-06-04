@@ -98,6 +98,15 @@ export const validateRespondGameInvite = (p: unknown): void => {
   if (typeof o.accept !== "boolean") fail();
 };
 
+// Tokens de link de amizade são gerados pelo server (hex), mas validamos
+// tamanho/forma do que volta do cliente mesmo assim.
+const MAX_INVITE_TOKEN = 100;
+
+export const validateRedeemFriendInvite = (p: unknown): void => {
+  const o = asObj(p);
+  if (!isNonEmptyStr(o.token, MAX_INVITE_TOKEN)) fail();
+};
+
 export const validateRegisterPushToken = (p: unknown): void => {
   const o = asObj(p);
   if (!isNonEmptyStr(o.token, MAX_TOKEN)) fail();

@@ -21,10 +21,4 @@ describe("AddFriend", () => {
     fireEvent.click(screen.getByText("Adicionar"));
     expect(await screen.findByText("Usuário não encontrado.")).toBeInTheDocument();
   });
-
-  it("gera o link de amizade com o próprio username", () => {
-    render(<AddFriend onAdd={vi.fn()} myUsername="alice" origin="https://barreirajogo.com" />);
-    const linkInput = screen.getByLabelText("Seu link de amizade") as HTMLInputElement;
-    expect(linkInput.value).toBe("https://barreirajogo.com/amigo/alice");
-  });
 });

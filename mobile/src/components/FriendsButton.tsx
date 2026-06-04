@@ -16,6 +16,7 @@ import { useAuth } from "../state/auth";
 import { connectSocket, getSocket } from "../net/socket";
 import {
   acceptFriendRequest,
+  createFriendInviteLink,
   declineFriendRequest,
   getFriends,
   removeFriend,
@@ -43,7 +44,7 @@ type Props = {
 };
 
 export const FriendsButton = ({ color = C.blue }: Props) => {
-  const { user, username } = useAuth();
+  const { user } = useAuth();
   const [open, setOpen] = useState(false);
   const [addOpen, setAddOpen] = useState(false);
   const [data, setData] = useState<FriendsData>(EMPTY);
@@ -93,10 +94,22 @@ export const FriendsButton = ({ color = C.blue }: Props) => {
     ]);
   };
 
+  const [sharing, setSharing] = useState(false);
+
   const shareLink = async () => {
-    const link = `${SHARE_BASE}/amigo/${username}`;
+    if (sharing) return;
+    setSharing(true);
+    const res = await createFriendInviteLink();
+    setSharing(false);
+    if (!res.ok) {
+      Alert.alert("Convite", "Não foi possível gerar o link agora.");
+      return;
+    }
+    const link = `${SHARE_BASE}/amigo/${res.data.token}`;
     try {
-      await Share.share({ message: `Me adiciona no Barreira! ${link}`, url: link });
+      // Só `message` (com o link dentro) — passar `url` junto faz o iOS
+      // anexar o link de novo no fim, duplicando-o no compartilhamento.
+      await Share.share({ message: `Bora jogar Barreira? 🧱 Me adiciona como amigo: ${link}` });
     } catch {
       /* cancelado — ignora */
     }

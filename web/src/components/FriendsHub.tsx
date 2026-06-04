@@ -18,6 +18,7 @@ import { usePlayerName } from "../state/profile";
 import { connectSocket, getSocket } from "../net/socket";
 import {
   acceptFriendRequest,
+  createFriendInviteLink,
   declineFriendRequest,
   getFriends,
   joinRoom,
@@ -33,7 +34,7 @@ import { FriendInviteDropdown, type GameInvite } from "./FriendInviteDropdown";
 const EMPTY: FriendsData = { friends: [], incomingRequests: [], outgoingRequests: [] };
 
 export const FriendsHub = () => {
-  const { user, username } = useAuth();
+  const { user } = useAuth();
   const playerName = usePlayerName();
   const navigate = useNavigate();
   const [open, setOpen] = useState(false);
@@ -41,6 +42,9 @@ export const FriendsHub = () => {
   const [pendingRemove, setPendingRemove] = useState<string | null>(null); // confirmação de exclusão
   const [data, setData] = useState<FriendsData>(EMPTY);
   const [invite, setInvite] = useState<GameInvite | null>(null);
+  const [linkInvite, setLinkInvite] = useState<string | null>(null); // "X quer ser seu amigo"
+  const [acceptingLink, setAcceptingLink] = useState(false);
+  const [inviteLink, setInviteLink] = useState<string | null>(null); // link de convite (token) pré-gerado
   const [toast, setToast] = useState<string | null>(null);
   const [inviting, setInviting] = useState<string | null>(null);
   const [searchParams, setSearchParams] = useSearchParams();
@@ -58,13 +62,24 @@ export const FriendsHub = () => {
     if (res.ok) setData(res.data);
   }, [user]);
 
-  // Feedback do deep link /amigo (?friend=sent:USER | error:CODE).
+  // Deep link /amigo: abre o modal "X quer ser seu amigo" (?friendInvite=USER)
+  // ou mostra um toast de erro (?friend=expired|already|self|invalid).
   useEffect(() => {
+    const fromUser = searchParams.get("friendInvite");
     const fb = searchParams.get("friend");
-    if (!fb) return;
-    const [kind, rest] = fb.split(":");
-    if (kind === "sent") showToast(`Pedido de amizade enviado para ${rest}.`);
-    else if (kind === "error") showToast("Não foi possível enviar o pedido de amizade.");
+    if (!fromUser && !fb) return;
+    if (fromUser) {
+      setLinkInvite(fromUser);
+    } else if (fb === "expired") {
+      showToast("Este link de convite expirou.");
+    } else if (fb === "already") {
+      showToast("Vocês já são amigos.");
+    } else if (fb === "self") {
+      showToast("Esse é o seu próprio link de convite.");
+    } else if (fb === "invalid") {
+      showToast("Link de convite inválido.");
+    }
+    searchParams.delete("friendInvite");
     searchParams.delete("friend");
     setSearchParams(searchParams, { replace: true });
   }, [searchParams, setSearchParams, showToast]);
@@ -131,19 +146,65 @@ export const FriendsHub = () => {
     else showToast(`Convite enviado para ${target}.`);
   };
 
-  // Compartilha o link de amizade (nativo se disponível, senão copia).
+  // Pré-gera o link de convite (token) ao abrir o painel, pra o botão de
+  // compartilhar não precisar de await (preserva o gesto do usuário no
+  // navigator.share, que o Safari invalida após um await).
+  const ensureInviteLink = useCallback(async (): Promise<string | null> => {
+    if (inviteLink) return inviteLink;
+    const res = await createFriendInviteLink();
+    if (!res.ok) return null;
+    const link = `${window.location.origin}/amigo/${res.data.token}`;
+    setInviteLink(link);
+    return link;
+  }, [inviteLink]);
+
+  useEffect(() => {
+    if (open && !inviteLink) void ensureInviteLink();
+  }, [open, inviteLink, ensureInviteLink]);
+
+  // Compartilha o link de amizade com mensagem personalizada. O link vai
+  // DENTRO do texto (e não no campo `url`) — assim apps como WhatsApp não
+  // duplicam o link (texto + url anexada).
   const shareLink = async () => {
-    const link = `${window.location.origin}/amigo/${username}`;
+    const link = inviteLink ?? (await ensureInviteLink());
+    if (!link) {
+      showToast("Não foi possível gerar o link agora.");
+      return;
+    }
+    const message = `Bora jogar Barreira? 🧱 Me adiciona como amigo: ${link}`;
     try {
       if (navigator.share) {
-        await navigator.share({ title: "Barreira", text: "Me adiciona no Barreira!", url: link });
+        await navigator.share({ title: "Barreira", text: message });
       } else {
-        await navigator.clipboard.writeText(link);
-        showToast("Link copiado!");
+        await navigator.clipboard.writeText(message);
+        showToast("Convite copiado!");
       }
     } catch {
       /* compartilhamento cancelado ou clipboard indisponível — ignora */
     }
+  };
+
+  // Modal "X quer ser seu amigo": aceita (vira amizade) ou recusa o pedido
+  // que o link criou (dono do link → este usuário).
+  const onAcceptLinkInvite = async () => {
+    const from = linkInvite;
+    if (!from) return;
+    setAcceptingLink(true);
+    const res = await acceptFriendRequest(from);
+    setAcceptingLink(false);
+    setLinkInvite(null);
+    if (res.ok) {
+      void refresh();
+      showToast(`Vocês agora são amigos! 🎉`);
+    } else {
+      showToast(res.message ?? "Não foi possível aceitar.");
+    }
+  };
+
+  const onDeclineLinkInvite = async () => {
+    const from = linkInvite;
+    setLinkInvite(null);
+    if (from) await declineFriendRequest(from);
   };
 
   // Confirma exclusão de amigo (o ícone de lixo só abre o diálogo).
@@ -270,6 +331,40 @@ export const FriendsHub = () => {
                 className="flex-1 py-3 rounded-xl bg-[#FF3D6F] border-none text-white font-black text-[15px] cursor-pointer hover:opacity-90"
               >
                 Remover
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Convite de amizade por link: "X quer ser seu amigo". Clicar fora só
+          fecha (o pedido fica na lista de recebidos); "Recusar" recusa. */}
+      {linkInvite && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center p-6 z-[1040]" onClick={() => setLinkInvite(null)}>
+          <div className="w-full max-w-[340px] bg-white rounded-2xl p-6 flex flex-col items-center shadow-[0_8px_20px_rgba(61,111,255,0.15)]" onClick={(e) => e.stopPropagation()}>
+            <div className="w-14 h-14 rounded-full bg-brand/10 flex items-center justify-center mb-3">
+              <IoPersonAddOutline size={26} color="#3D6FFF" />
+            </div>
+            <span className="text-[17px] font-extrabold text-navy text-center">
+              <b className="text-brand">{linkInvite}</b> quer ser seu amigo!
+            </span>
+            <span className="text-[13px] text-muted text-center mt-2">
+              Aceite o convite para adicionar <b className="text-navy">{linkInvite}</b> à sua lista de amigos.
+            </span>
+            <div className="flex gap-2.5 mt-5 w-full">
+              <button
+                onClick={onDeclineLinkInvite}
+                disabled={acceptingLink}
+                className="flex-1 py-3 rounded-xl bg-cell-bg border-none text-muted font-bold text-sm cursor-pointer hover:opacity-80 disabled:opacity-50"
+              >
+                Recusar
+              </button>
+              <button
+                onClick={onAcceptLinkInvite}
+                disabled={acceptingLink}
+                className="flex-1 py-3 rounded-xl bg-brand border-none text-white font-black text-[15px] cursor-pointer hover:opacity-90 disabled:opacity-50"
+              >
+                {acceptingLink ? "..." : "Aceitar"}
               </button>
             </div>
           </div>

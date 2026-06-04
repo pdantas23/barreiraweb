@@ -51,7 +51,7 @@ export const App = () => {
             <ProfileProvider>
               <Routes>
                 <Route path="/" element={<Home />} />
-                <Route path="/amigo/:username" element={<AmigoRedirect />} />
+                <Route path="/amigo/:token" element={<AmigoRedirect />} />
                 <Route path="/sala/:codigo" element={<SalaRedirect />} />
                 <Route path="/game" element={<Game />} />
                 <Route path="/online-game" element={<OnlineGame />} />

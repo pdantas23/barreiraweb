@@ -2,6 +2,7 @@
 // componente lida com sucesso/falha sem se preocupar com socket internals.
 
 import type {
+  CreateFriendInviteLinkResult,
   CreateRoomPayload,
   FriendsData,
   InviteAcceptResult,
@@ -84,6 +85,11 @@ export const removeFriend = (targetUsername: string): Promise<RpcResult<null>> =
 
 export const getFriends = (): Promise<RpcResult<FriendsData>> =>
   safeRpc(() => connectSocket().emitWithAck("getFriends", {}));
+
+// Gera/reusa o link de convite de amizade (token com expiração). O resgate
+// acontece na web (quem abre o link), então o mobile só precisa gerar.
+export const createFriendInviteLink = (): Promise<RpcResult<CreateFriendInviteLinkResult>> =>
+  safeRpc(() => connectSocket().emitWithAck("createFriendInviteLink", {}));
 
 export const sendGameInvite = (targetUsername: string): Promise<RpcResult<null>> =>
   safeRpc(() => connectSocket().emitWithAck("sendGameInvite", { targetUsername }));

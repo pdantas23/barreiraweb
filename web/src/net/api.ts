@@ -1,10 +1,12 @@
 import type {
+  CreateFriendInviteLinkResult,
   CreateRoomPayload,
   FriendsData,
   InviteAcceptResult,
   JoinRoomPayload,
   Move,
   PublicRoom,
+  RedeemFriendInviteResult,
   RoomDetail,
   RpcResult,
 } from "@barreira/shared";
@@ -83,6 +85,14 @@ export const removeFriend = (targetUsername: string): Promise<RpcResult<null>> =
 
 export const getFriends = (): Promise<RpcResult<FriendsData>> =>
   safeRpc(() => connectSocket().emitWithAck("getFriends", {}));
+
+// Gera/reusa o link de convite de amizade (token com expiração).
+export const createFriendInviteLink = (): Promise<RpcResult<CreateFriendInviteLinkResult>> =>
+  safeRpc(() => connectSocket().emitWithAck("createFriendInviteLink", {}));
+
+// Resgata um link: cria pedido do dono→eu e devolve quem me convidou.
+export const redeemFriendInvite = (token: string): Promise<RpcResult<RedeemFriendInviteResult>> =>
+  safeRpc(() => connectSocket().emitWithAck("redeemFriendInvite", { token }));
 
 export const sendGameInvite = (targetUsername: string): Promise<RpcResult<null>> =>
   safeRpc(() => connectSocket().emitWithAck("sendGameInvite", { targetUsername }));
