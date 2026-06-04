@@ -54,6 +54,7 @@ import {
   getOrCreateProfile,
   getUsernameForAuthUser,
   linkPlayerToUser,
+  updatePlayerPlatform,
 } from "./profiles.js";
 import { resolveAuthUser } from "./auth.js";
 import { recordMatchStart, recordMatchFinish } from "./matches.js";
@@ -270,9 +271,17 @@ io.on("connection", (socket: TypedSocket) => {
   // accessToken: JWT do Supabase Auth (so existe se o user esta logado).
   // Usado pra premiar trofeus_casual no fim da partida.
   const accessToken = (socket.handshake.auth?.accessToken as string | undefined) ?? null;
+  // platform: de onde o cliente está jogando (web/ios/android). Validado pra
+  // não confiar cegamente no que vem do socket. null = cliente antigo/inválido.
+  const rawPlatform = socket.handshake.auth?.platform as string | undefined;
+  const platform =
+    rawPlatform === "web" || rawPlatform === "ios" || rawPlatform === "android"
+      ? rawPlatform
+      : null;
   socket.data.clientId = clientId;
   socket.data.accessToken = accessToken;
   socket.data.authUserId = null;
+  socket.data.platform = platform;
   console.log(`[+] conectou: ${socket.id}${clientId ? ` (clientId ${clientId.slice(0, 8)}…)` : ""}`);
 
   // Resolve identidade persistente via Supabase (fire-and-forget — não
@@ -289,6 +298,8 @@ io.on("connection", (socket: TypedSocket) => {
         // o race de linkar antes da linha do player existir.
         const uid = await ensureAuthUserId(socket);
         if (uid) void linkPlayerToUser(clientId, uid);
+        // Fase 4 (analytics): registra a plataforma de origem do aparelho.
+        if (platform) void updatePlayerPlatform(clientId, platform);
       })
       .catch((err) => {
         console.error(`[profile] falhou pra ${clientId.slice(0, 8)}…:`, err);
@@ -342,6 +353,7 @@ io.on("connection", (socket: TypedSocket) => {
         hostName,
         color: p.color,
         isPrivate: p.isPrivate,
+        hostPlatform: socket.data.platform ?? null,
       });
       socket.join(room.code);
       console.log(`[room] criada ${room.code} por ${hostName} (${socket.id})`);
@@ -367,6 +379,7 @@ io.on("connection", (socket: TypedSocket) => {
         playerName,
         code: p.code,
         password: p.password,
+        platform: socket.data.platform ?? null,
       });
       socket.join(room.code);
       console.log(`[room] ${playerName} entrou em ${room.code}`);

@@ -88,7 +88,8 @@ export const getSocket = (): AppSocket => {
           // futuro auth-state-change realmente muda o token (e só então
           // reconectar).
           currentHandshakeToken = accessToken;
-          cb({ clientId, accessToken });
+          // platform: analytics — identifica de onde a partida veio.
+          cb({ clientId, accessToken, platform: "web" });
         })();
       },
     });

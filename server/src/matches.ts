@@ -33,13 +33,14 @@ export const recordMatchStart = (room: ServerRoom): void => {
     id,
     room_code: room.code,
     mode: room.isPrivate ? "private_online" : "casual_online",
-    // platform fica null até a Fase 4 (handshake propaga a plataforma).
     p1_client_id: p1?.clientId ?? null,
     p1_user_id: p1?.authUserId ?? null,
     p1_is_bot: p1?.isBot ?? false,
+    p1_platform: p1?.platform ?? null,
     p2_client_id: p2?.clientId ?? null,
     p2_user_id: p2?.authUserId ?? null,
     p2_is_bot: p2?.isBot ?? false,
+    p2_platform: p2?.platform ?? null,
   };
 
   void (async () => {

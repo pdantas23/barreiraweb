@@ -189,6 +189,34 @@ export const linkPlayerToUser = async (
   }
 };
 
+// Atualiza players.last_platform (analytics — Fase 4) quando o cliente informa
+// de onde está jogando no handshake. Cache pra não escrever a cada conexão;
+// só faz UPDATE quando muda (mesmo aparelho pode trocar de plataforma, raro).
+const platformCache = createLruCache<string>(MAX_CACHE_ENTRIES); // clientId → platform
+
+export const updatePlayerPlatform = async (
+  clientId: string,
+  platform: "web" | "ios" | "android",
+): Promise<void> => {
+  if (platformCache.get(clientId) === platform) return;
+  try {
+    const { error } = await getSupabase()
+      .from("players")
+      .update({ last_platform: platform })
+      .eq("client_id", clientId);
+    if (error) {
+      console.warn(
+        `[profiles] falha ao gravar last_platform de ${clientId.slice(0, 8)}…:`,
+        error.message,
+      );
+      return;
+    }
+    platformCache.set(clientId, platform);
+  } catch (err) {
+    console.warn("[profiles] erro inesperado ao gravar last_platform:", err);
+  }
+};
+
 // Atualiza last_seen_at de forma fire-and-forget.
 const touchLastSeen = async (clientId: string): Promise<void> => {
   try {

@@ -6,6 +6,7 @@
 // o usuário sai. Evita conexão fantasma quando o usuário nunca abre o online.
 
 import { io, type Socket } from "socket.io-client";
+import { Platform } from "react-native";
 import Constants from "expo-constants";
 import type {
   ClientToServerEvents,
@@ -98,7 +99,8 @@ export const getSocket = (): AppSocket => {
           // Registra o token deste handshake pra o AuthProvider só reconectar
           // quando ele realmente mudar.
           currentHandshakeToken = accessToken;
-          cb({ clientId, accessToken });
+          // platform: analytics — iOS ou Android (RN não roda na web aqui).
+          cb({ clientId, accessToken, platform: Platform.OS === "ios" ? "ios" : "android" });
         })();
       },
     });
