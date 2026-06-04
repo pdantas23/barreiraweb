@@ -1,12 +1,12 @@
 // Testes da rota de deep link app/sala/[codigo].tsx.
 //
-// Tanto barreira://sala/CODIGO (scheme custom) quanto
-// https://barreirajogo.com/sala/CODIGO (Universal/App Link) são resolvidos
-// pelo Expo Router para o MESMO param `codigo` desta tela — então o handler é
-// o mesmo. Aqui simulamos os params e verificamos: entra na sala (joinRoom) e
-// navega pra /online-game; código vazio cai no lobby; erro de join avisa.
+// Universal/App Links resolvem https://barreirajogo.com/sala/CODIGO para o
+// param `codigo` desta tela. A tela NÃO entra sozinha: mostra um card com o
+// botão "Entrar na partida". Aqui simulamos os params, pressionamos o botão e
+// verificamos: entra na sala (joinRoom) e navega pra /online-game; código
+// vazio cai no lobby; erro de join avisa.
 
-import { render, waitFor } from "@testing-library/react-native";
+import { render, screen, fireEvent, waitFor } from "@testing-library/react-native";
 import { Alert } from "react-native";
 
 jest.mock("expo-router", () => ({
@@ -41,11 +41,12 @@ afterEach(() => {
 });
 
 describe("sala deep link", () => {
-  it("scheme custom (barreira://sala/ABCD): entra como convidado e vai pra /online-game", async () => {
-    params.mockReturnValue({ codigo: "abcd" }); // expo-router resolve barreira://sala/abcd
+  it("ao tocar em 'Entrar na partida': entra como convidado e vai pra /online-game", async () => {
+    params.mockReturnValue({ codigo: "abcd" });
     mockJoinRoom.mockResolvedValue({ ok: true, data: {} });
 
     render(<SalaDeepLink />);
+    fireEvent.press(screen.getByLabelText("Entrar na partida"));
 
     await waitFor(() =>
       expect(mockJoinRoom).toHaveBeenCalledWith({
@@ -62,19 +63,13 @@ describe("sala deep link", () => {
     );
   });
 
-  it("universal link (https://barreirajogo.com/sala/ABCD): mesmo fluxo", async () => {
-    // Universal Link resolve para o mesmo param `codigo` que o scheme custom.
+  it("não entra sozinho: sem tocar no botão, joinRoom não é chamado", () => {
     params.mockReturnValue({ codigo: "ABCD" });
     mockJoinRoom.mockResolvedValue({ ok: true, data: {} });
 
     render(<SalaDeepLink />);
 
-    await waitFor(() =>
-      expect(replace).toHaveBeenCalledWith({
-        pathname: "/online-game",
-        params: { role: "guest", code: "ABCD" },
-      }),
-    );
+    expect(mockJoinRoom).not.toHaveBeenCalled();
   });
 
   it("propaga a senha (?pw=) no join e nos params da partida", async () => {
@@ -82,6 +77,7 @@ describe("sala deep link", () => {
     mockJoinRoom.mockResolvedValue({ ok: true, data: {} });
 
     render(<SalaDeepLink />);
+    fireEvent.press(screen.getByLabelText("Entrar na partida"));
 
     await waitFor(() =>
       expect(mockJoinRoom).toHaveBeenCalledWith({
@@ -112,10 +108,10 @@ describe("sala deep link", () => {
     mockJoinRoom.mockResolvedValue({ ok: false, error: "room-full" });
 
     render(<SalaDeepLink />);
+    fireEvent.press(screen.getByLabelText("Entrar na partida"));
 
     await waitFor(() => expect(Alert.alert).toHaveBeenCalled());
     expect(replace).toHaveBeenCalledWith("/online");
-    // Não navega pra partida em caso de erro.
     expect(replace).not.toHaveBeenCalledWith(
       expect.objectContaining({ pathname: "/online-game" }),
     );
