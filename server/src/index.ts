@@ -227,6 +227,10 @@ setOnPlayerTimeout(async (_clientId, room, remaining) => {
     // do emit, pra refreshTrofeus do cliente não ler valor stale.
     if (remaining[0].authUserId) {
       await awardCasualTrophy(remaining[0].authUserId, 1);
+    } else {
+      console.warn(
+        `[timeout] sala ${room.code}: vencedor sem authUserId (race de cold-start / sessão sem token) — troféu NÃO concedido`,
+      );
     }
     io.to(room.code).emit("gameOver", { winner, reason: "abandon" });
     io.to(room.code).emit("opponentLeft");
@@ -516,6 +520,10 @@ io.on("connection", (socket: TypedSocket) => {
           // valor stale (mesmo motivo da vitória normal).
           if (winner.authUserId) {
             await awardCasualTrophy(winner.authUserId, 1);
+          } else {
+            console.warn(
+              `[leave-wo] sala ${room.code}: ${winner.enginePlayer} venceu por saída do oponente mas está sem authUserId (race de cold-start / sessão sem token) — troféu NÃO concedido`,
+            );
           }
           io.to(room.code).emit("gameOver", {
             winner: winner.enginePlayer,
@@ -813,9 +821,22 @@ io.on("connection", (socket: TypedSocket) => {
       const wasPlaying = room.status === "playing";
       const left = leaveRoom(socket.id);
       io.to(room.code).emit("opponentLeft");
-      // Analytics: se a partida estava rolando, quem ficou vence por W.O.
+      // Se a partida estava rolando, quem ficou vence por W.O. — premia e
+      // emite gameOver (antes esse caminho só registrava analytics e o
+      // vencedor ficava sem troféu nem fim de partida).
       if (wasPlaying && left && left.gameState) {
-        recordMatchFinish(left, left.players[0]?.enginePlayer ?? null, "leave_wo");
+        const winner = left.players[0];
+        if (winner?.authUserId) {
+          void awardCasualTrophy(winner.authUserId, 1);
+        } else if (winner) {
+          console.warn(
+            `[disconnect-wo volátil] sala ${left.code}: vencedor sem authUserId — troféu NÃO concedido`,
+          );
+        }
+        if (winner) {
+          io.to(left.code).emit("gameOver", { winner: winner.enginePlayer, reason: "abandon" });
+        }
+        recordMatchFinish(left, winner?.enginePlayer ?? null, "leave_wo");
       }
     }
   });
