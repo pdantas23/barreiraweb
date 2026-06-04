@@ -170,6 +170,66 @@ export const markPlayed = async (authUserId: string): Promise<void> => {
   }
 };
 
+// Linka um aparelho anônimo (client_id) à conta Supabase (user_id) quando o
+// socket conecta autenticado. É o que separa "anônimo" de "cadastrado" nas
+// métricas: user_id NULL = nunca logou nesse aparelho. Latest-login-wins:
+// se outra conta logar no mesmo aparelho, o vínculo passa pra ela.
+//
+// Cache pra não escrever no DB a cada handshake. Fire-and-forget — não derruba
+// a sessão se falhar (é só métrica).
+const linkedCache = createLruCache<string>(MAX_CACHE_ENTRIES); // clientId → userId
+
+export const linkPlayerToUser = async (
+  clientId: string,
+  userId: string,
+): Promise<void> => {
+  if (linkedCache.get(clientId) === userId) return; // já linkado nesta sessão
+  try {
+    const { error } = await getSupabase()
+      .from("players")
+      .update({ user_id: userId })
+      .eq("client_id", clientId);
+    if (error) {
+      console.warn(
+        `[profiles] falha ao linkar ${clientId.slice(0, 8)}… → user:`,
+        error.message,
+      );
+      return;
+    }
+    linkedCache.set(clientId, userId);
+  } catch (err) {
+    console.warn("[profiles] erro inesperado ao linkar player→user:", err);
+  }
+};
+
+// Atualiza players.last_platform (analytics — Fase 4) quando o cliente informa
+// de onde está jogando no handshake. Cache pra não escrever a cada conexão;
+// só faz UPDATE quando muda (mesmo aparelho pode trocar de plataforma, raro).
+const platformCache = createLruCache<string>(MAX_CACHE_ENTRIES); // clientId → platform
+
+export const updatePlayerPlatform = async (
+  clientId: string,
+  platform: "web" | "ios" | "android",
+): Promise<void> => {
+  if (platformCache.get(clientId) === platform) return;
+  try {
+    const { error } = await getSupabase()
+      .from("players")
+      .update({ last_platform: platform })
+      .eq("client_id", clientId);
+    if (error) {
+      console.warn(
+        `[profiles] falha ao gravar last_platform de ${clientId.slice(0, 8)}…:`,
+        error.message,
+      );
+      return;
+    }
+    platformCache.set(clientId, platform);
+  } catch (err) {
+    console.warn("[profiles] erro inesperado ao gravar last_platform:", err);
+  }
+};
+
 // Atualiza last_seen_at de forma fire-and-forget.
 const touchLastSeen = async (clientId: string): Promise<void> => {
   try {

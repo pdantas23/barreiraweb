@@ -30,6 +30,10 @@ import {
 
 export type RoomStatus = "waiting" | "playing" | "finished";
 
+// Plataforma de origem do cliente (analytics). null = desconhecida (cliente
+// antigo que ainda não envia, ou bot).
+export type Platform = "web" | "ios" | "android";
+
 export type ServerPlayer = {
   // null = socket "volátil" (não reconectável). Atribuído quando o cliente
   // passa `auth.clientId` no handshake.
@@ -46,6 +50,9 @@ export type ServerPlayer = {
   // ID do user no Supabase Auth (auth.users.id), null se anonimo.
   // Usado pra premiar trofeus_casual no fim da partida.
   authUserId: string | null;
+  // Plataforma de origem (web/ios/android), null se desconhecida ou bot.
+  // Propaga pro matches.pN_platform no recordMatchStart.
+  platform: Platform | null;
 };
 
 export type RematchState = {
@@ -84,6 +91,10 @@ export type ServerRoom = {
   timeUsedMs: { 1: number; 2: number };
   // Quando o turno atual começou a contar (ms). null = relógio parado.
   turnStartedAt: number | null;
+  // ID da linha em `matches` (analytics). Setado em recordMatchStart quando a
+  // partida começa; limpo em recordMatchFinish no fim. null = sem partida
+  // registrada (sala em waiting, ou já finalizada).
+  matchId: string | null;
 };
 
 // === Estado global ===
@@ -222,6 +233,7 @@ export type CreateInput = {
   hostName: string;
   color: ColorChoice;
   isPrivate: boolean;
+  hostPlatform?: Platform | null;
 };
 
 export const createRoom = (input: CreateInput): ServerRoom => {
@@ -249,6 +261,7 @@ export const createRoom = (input: CreateInput): ServerRoom => {
         disconnectedAt: null,
         isBot: false,
         authUserId: input.hostAuthUserId,
+        platform: input.hostPlatform ?? null,
       },
     ],
     gameState: null,
@@ -258,6 +271,7 @@ export const createRoom = (input: CreateInput): ServerRoom => {
     countdownEndsAt: null,
     timeUsedMs: { 1: 0, 2: 0 },
     turnStartedAt: null,
+    matchId: null,
   };
   rooms.set(code, room);
   socketToRoom.set(input.hostSocketId, code);
@@ -273,6 +287,7 @@ export type JoinInput = {
   playerName: string;
   code: string;
   password?: string;
+  platform?: Platform | null;
 };
 
 export const joinRoom = (input: JoinInput): ServerRoom => {
@@ -313,6 +328,7 @@ export const joinRoom = (input: JoinInput): ServerRoom => {
     disconnectedAt: null,
     isBot: false,
     authUserId: input.authUserId,
+    platform: input.platform ?? null,
   });
   room.status = "playing";
   room.gameState = initialState(randomFirstTurn());
@@ -728,6 +744,7 @@ export const createBotHostRoom = (input: BotHostInput): ServerRoom => {
         disconnectedAt: null,
         isBot: true,
         authUserId: null,
+        platform: null,
       },
     ],
     gameState: null,
@@ -737,6 +754,7 @@ export const createBotHostRoom = (input: BotHostInput): ServerRoom => {
     countdownEndsAt: null,
     timeUsedMs: { 1: 0, 2: 0 },
     turnStartedAt: null,
+    matchId: null,
   };
   rooms.set(code, room);
   // NÃO seta socketToRoom — o socketId é fake, não tem socket.io listener.
@@ -805,6 +823,7 @@ export const addBotGuest = (input: AddBotGuestInput): ServerRoom | null => {
     disconnectedAt: null,
     isBot: true,
     authUserId: null,
+    platform: null,
   });
   room.status = "playing";
   room.gameState = initialState(randomFirstTurn());

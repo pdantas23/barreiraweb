@@ -50,9 +50,17 @@ import {
   type ServerPlayer,
   type ServerRoom,
 } from "./lobby.js";
-import { getOrCreateProfile, getUsernameForAuthUser, markPlayed } from "./profiles.js";
+import {
+  getOrCreateProfile,
+  getUsernameForAuthUser,
+  linkPlayerToUser,
+  markPlayed,
+  updatePlayerPlatform,
+} from "./profiles.js";
 import { startReengagementCron } from "./reengagement.js";
 import { resolveAuthUser } from "./auth.js";
+import { recordMatchStart, recordMatchFinish } from "./matches.js";
+import { recordOnlineSnapshot, type OnlineStats } from "./snapshots.js";
 import { awardCasualTrophy } from "./trophies.js";
 import {
   validateCreateRoom,
@@ -221,6 +229,8 @@ setOnPlayerTimeout(async (_clientId, room, remaining) => {
     }
     io.to(room.code).emit("gameOver", { winner, reason: "abandon" });
     io.to(room.code).emit("opponentLeft");
+    // Analytics: oponente não voltou dentro do timeout (W.O. por abandono).
+    recordMatchFinish(room, winner, "abandoned");
     // Sala vs bot: bot pode pedir revanche.
     maybeBotRequestRematch(room);
   }
@@ -232,8 +242,10 @@ setOnRematchExpired((room) => {
   io.to(room.code).emit("rematchExpired", {});
 });
 
-setOnRematchAccepted((_room) => {
+setOnRematchAccepted((room) => {
   // broadcastGameStart já foi chamado dentro do respondRematch.
+  // Analytics: revanche é uma partida nova (cobre humano e bot).
+  recordMatchStart(room);
 });
 
 // Avisa todos os sockets sempre que o conjunto de salas "waiting" muda.
@@ -341,9 +353,17 @@ io.on("connection", (socket: TypedSocket) => {
   // accessToken: JWT do Supabase Auth (so existe se o user esta logado).
   // Usado pra premiar trofeus_casual no fim da partida.
   const accessToken = (socket.handshake.auth?.accessToken as string | undefined) ?? null;
+  // platform: de onde o cliente está jogando (web/ios/android). Validado pra
+  // não confiar cegamente no que vem do socket. null = cliente antigo/inválido.
+  const rawPlatform = socket.handshake.auth?.platform as string | undefined;
+  const platform =
+    rawPlatform === "web" || rawPlatform === "ios" || rawPlatform === "android"
+      ? rawPlatform
+      : null;
   socket.data.clientId = clientId;
   socket.data.accessToken = accessToken;
   socket.data.authUserId = null;
+  socket.data.platform = platform;
   console.log(`[+] conectou: ${socket.id}${clientId ? ` (clientId ${clientId.slice(0, 8)}…)` : ""}`);
 
   // Resolve identidade persistente via Supabase (fire-and-forget — não
@@ -352,8 +372,16 @@ io.on("connection", (socket: TypedSocket) => {
   // o display_name fica null no cliente até a próxima conexão.
   if (clientId) {
     void getOrCreateProfile(clientId)
-      .then((profile) => {
+      .then(async (profile) => {
         socket.emit("profile", profile);
+        // Fase 2 (analytics): linka este aparelho à conta logada, se houver.
+        // Separa anônimo (user_id NULL) de cadastrado nas métricas.
+        // ensureAuthUserId aguarda o token resolver (cache-aware), evitando
+        // o race de linkar antes da linha do player existir.
+        const uid = await ensureAuthUserId(socket);
+        if (uid) void linkPlayerToUser(clientId, uid);
+        // Fase 4 (analytics): registra a plataforma de origem do aparelho.
+        if (platform) void updatePlayerPlatform(clientId, platform);
       })
       .catch((err) => {
         console.error(`[profile] falhou pra ${clientId.slice(0, 8)}…:`, err);
@@ -416,6 +444,7 @@ io.on("connection", (socket: TypedSocket) => {
         hostName,
         color: p.color,
         isPrivate: p.isPrivate,
+        hostPlatform: socket.data.platform ?? null,
       });
       socket.join(room.code);
       console.log(`[room] criada ${room.code} por ${hostName} (${socket.id})`);
@@ -441,9 +470,13 @@ io.on("connection", (socket: TypedSocket) => {
         playerName,
         code: p.code,
         password: p.password,
+        platform: socket.data.platform ?? null,
       });
       socket.join(room.code);
       console.log(`[room] ${playerName} entrou em ${room.code}`);
+
+      // Analytics: partida começou (humano entrou numa sala → playing).
+      recordMatchStart(room);
 
       broadcastGameStart(room);
       // Se a sala era de bot, ele é P1 e começa (50% das vezes via random).
@@ -487,6 +520,8 @@ io.on("connection", (socket: TypedSocket) => {
             winner: winner.enginePlayer,
             reason: "abandon",
           });
+          // Analytics: oponente saiu no meio da partida (W.O. por saída).
+          recordMatchFinish(room, winner.enginePlayer, "leave_wo");
         }
         socket.to(room.code).emit("opponentLeft");
       }
@@ -550,6 +585,8 @@ io.on("connection", (socket: TypedSocket) => {
           await awardCasualTrophy(winnerPlayer.authUserId, 1);
         }
         io.to(room.code).emit("gameOver", { winner: result.state.winner, reason: "goal" });
+        // Analytics: vitória normal (peão chegou na linha de chegada).
+        recordMatchFinish(room, result.state.winner, "goal");
         // Sala vs bot: bot pode pedir revanche.
         maybeBotRequestRematch(room);
       }
@@ -601,6 +638,8 @@ io.on("connection", (socket: TypedSocket) => {
         await awardCasualTrophy(winnerPlayer.authUserId, 1);
       }
       io.to(room.code).emit("gameOver", { winner, reason: "timeout" });
+      // Analytics: relógio do perdedor estourou (derrota por tempo).
+      recordMatchFinish(room, winner, "timeout_wo");
       // Sala vs bot: bot pode pedir revanche.
       maybeBotRequestRematch(room);
       return null;
@@ -755,8 +794,13 @@ io.on("connection", (socket: TypedSocket) => {
       markDisconnected(socket.id);
     } else {
       // Modo volátil: leaveRoom imediato, oponente recebe opponentLeft.
-      leaveRoom(socket.id);
+      const wasPlaying = room.status === "playing";
+      const left = leaveRoom(socket.id);
       io.to(room.code).emit("opponentLeft");
+      // Analytics: se a partida estava rolando, quem ficou vence por W.O.
+      if (wasPlaying && left && left.gameState) {
+        recordMatchFinish(left, left.players[0]?.enginePlayer ?? null, "leave_wo");
+      }
     }
   });
 });
@@ -768,6 +812,51 @@ setOnBotRescueStarted((room) => {
   maybeScheduleBotMove(room);
 });
 
+// === Presença online (Fase 6) ===
+//
+// Computa a foto atual a partir dos sockets conectados em memória. Dedup por
+// clientId (mesma pessoa em 2 abas = 1). Bots não entram aqui — têm socketId
+// fake e nunca aparecem em io.sockets.sockets.
+const computeOnlineStats = (): OnlineStats => {
+  // clientId → { logado, em jogo }. Agrega múltiplos sockets do mesmo aparelho.
+  const byClient = new Map<string, { registered: boolean; inGame: boolean }>();
+  let anonNoClient = 0;
+  let anonNoClientInGame = 0;
+
+  for (const [, sock] of io.sockets.sockets) {
+    const cid = (sock.data.clientId as string | null) ?? null;
+    const auth = (sock.data.authUserId as string | null) ?? null;
+    const inGame = getRoomBySocket(sock.id)?.status === "playing";
+    if (cid) {
+      const prev = byClient.get(cid);
+      byClient.set(cid, {
+        registered: !!auth || (prev?.registered ?? false),
+        inGame: inGame || (prev?.inGame ?? false),
+      });
+    } else {
+      anonNoClient++;
+      if (inGame) anonNoClientInGame++;
+    }
+  }
+
+  let inGame = anonNoClientInGame;
+  let registered = 0;
+  for (const v of byClient.values()) {
+    if (v.inGame) inGame++;
+    if (v.registered) registered++;
+  }
+  const total = byClient.size + anonNoClient;
+  return {
+    online_total: total,
+    online_in_game: inGame,
+    online_in_lobby: total - inGame,
+    registered_online: registered,
+    anonymous_online: total - registered,
+  };
+};
+
+const SNAPSHOT_INTERVAL_MS = Number(process.env.SNAPSHOT_MS ?? 60_000);
+
 httpServer.listen(PORT, () => {
   console.log(`Barreira server rodando em http://localhost:${PORT}`);
   console.log(`Health:  http://localhost:${PORT}/health`);
@@ -776,4 +865,13 @@ httpServer.listen(PORT, () => {
   startBotManager(io);
   // Cron diário de reengajamento (18h BRT): push pra quem sumiu há 48h+.
   startReengagementCron();
+  // Snapshot periódico de presença online pro dashboard.
+  setInterval(() => {
+    try {
+      recordOnlineSnapshot(computeOnlineStats());
+    } catch (err) {
+      console.warn("[snapshots] falha ao computar:", err);
+    }
+  }, SNAPSHOT_INTERVAL_MS);
+  console.log(`Snapshots de presença a cada ${SNAPSHOT_INTERVAL_MS}ms`);
 });

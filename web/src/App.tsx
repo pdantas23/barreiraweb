@@ -20,6 +20,9 @@ import ForgotPassword from "./pages/ForgotPassword";
 import ResetPassword from "./pages/ResetPassword";
 import AmigoRedirect from "./pages/AmigoRedirect";
 import SalaRedirect from "./pages/SalaRedirect";
+import AdminStats from "./pages/AdminStats";
+// Replay Builder: ferramenta interna, rota registrada só em dev.
+import ReplayBuilder from "./pages/ReplayBuilder";
 
 // Bootstrap clientId synchronously (localStorage is sync)
 initClientId();
@@ -62,6 +65,10 @@ export const App = () => {
                 <Route path="/perfil" element={<Profile />} />
                 <Route path="/esqueci-senha" element={<ForgotPassword />} />
                 <Route path="/reset-password" element={<ResetPassword />} />
+                <Route path="/admin/stats" element={<AdminStats />} />
+                {import.meta.env.DEV && (
+                  <Route path="/replay-builder" element={<ReplayBuilder />} />
+                )}
               </Routes>
               <DragOverlayRenderer />
             </ProfileProvider>
