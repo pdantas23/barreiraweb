@@ -9,6 +9,7 @@ import type {
   JoinRoomPayload,
   Move,
   PublicRoom,
+  RedeemFriendInviteResult,
   RoomDetail,
   RpcResult,
 } from "@barreira/shared";
@@ -86,10 +87,14 @@ export const removeFriend = (targetUsername: string): Promise<RpcResult<null>> =
 export const getFriends = (): Promise<RpcResult<FriendsData>> =>
   safeRpc(() => connectSocket().emitWithAck("getFriends", {}));
 
-// Gera/reusa o link de convite de amizade (token com expiração). O resgate
-// acontece na web (quem abre o link), então o mobile só precisa gerar.
+// Gera/reusa o link de convite de amizade (token com expiração).
 export const createFriendInviteLink = (): Promise<RpcResult<CreateFriendInviteLinkResult>> =>
   safeRpc(() => connectSocket().emitWithAck("createFriendInviteLink", {}));
+
+// Resgata um link (deep link barreira://amigo/TOKEN): cria pedido dono→eu e
+// devolve quem me convidou (pra mostrar o "X quer ser seu amigo").
+export const redeemFriendInvite = (token: string): Promise<RpcResult<RedeemFriendInviteResult>> =>
+  safeRpc(() => connectSocket().emitWithAck("redeemFriendInvite", { token }));
 
 export const sendGameInvite = (targetUsername: string): Promise<RpcResult<null>> =>
   safeRpc(() => connectSocket().emitWithAck("sendGameInvite", { targetUsername }));

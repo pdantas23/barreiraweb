@@ -36,6 +36,11 @@
               "scheme": "https",
               "host": "barreirajogo.com",
               "pathPrefix": "/sala"
+            },
+            {
+              "scheme": "https",
+              "host": "barreirajogo.com",
+              "pathPrefix": "/amigo"
             }
           ],
           "category": ["BROWSABLE", "DEFAULT"]
