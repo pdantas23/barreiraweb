@@ -17,7 +17,6 @@ import { getClientId } from "../net/clientId";
 import { playButtonSound } from "../hooks/useButtonSound";
 import { useAuth } from "../state/auth";
 import { FriendsButton } from "./FriendsButton";
-import { LeaderboardButton } from "./LeaderboardButton";
 
 const C = {
   blue: "#3D6FFF",
@@ -89,8 +88,6 @@ export const TopBar = ({ onSettingsPress }: Props) => {
 
       {/* Auth + settings */}
       <View style={styles.right}>
-        {/* Troféu (leaderboard) — à esquerda do nome do usuário. */}
-        <LeaderboardButton />
         <Pressable
           onPress={onProfilePress}
           style={({ pressed }) => [styles.profileBtn, pressed && styles.btnPressed]}
