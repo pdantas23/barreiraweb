@@ -15,13 +15,18 @@ Backlog vivo do Barreira. A ordem reflete prioridade — o que está no topo é 
 ## Futuro (nice-to-have)
 
 - Cache/memoização de `shortestPathDistance` no `bot.ts` — ainda é BFS puro recomputado a cada chamada (`shared/src/bot.ts:110`), inclusive no loop de avaliação de paredes. Já há otimização parcial (`distFieldToGoal` reaproveita 1 BFS entre candidatas, `bot.ts:258`), mas a função em si não é memoizada.
-- Acessibilidade: faltam `accessibilityLabel` no **tabuleiro** (`Square.tsx`, `Piece.tsx`, `Wall.tsx` têm zero); botões/modais já têm. Padronizar alvos de toque mínimos (48dp) — hoje inconsistentes (ex.: `FriendsButton` com `minWidth:16`).
 - AdMob real no mobile — hoje **inexistente** (sem lib, sem placeholder). Precisa integrar `react-native-google-mobile-ads` do zero e decidir onde mostrar (o antigo `adContainer` em `game.tsx` não existe mais).
 - Tutorial / primeira partida guiada — nada interativo hoje (só as páginas de texto `Regras.tsx` / `Estrategias.tsx` no web).
 
 ---
 
 ## Histórico
+
+### 2026-06-05 — Acessibilidade do tabuleiro (mobile)
+
+- **Tabuleiro com leitor de tela** (`Square.tsx`, `Board.tsx`/`AnimatedPawn`, `Wall.tsx`): casas que são jogada válida viram botões com label "Mover para coluna X, linha Y"; casas inertes saem do foco (`importantForAccessibility="no-hide-descendants"`) pra não virar 81 células de ruído. Peões expostos como imagem ("Peão azul/vermelho, coluna X, linha Y"). Paredes colocadas ganham label ("Parede horizontal/vertical do jogador azul/vermelho"); o ghost (preview de arraste) fica oculto do leitor.
+- **Labels em botões só-ícone**: voltar (`game.tsx`, `online-game.tsx`), denunciar jogador, configurações (`TopBar.tsx`), perfil (`ProfileButton.tsx`).
+- **Alvos de toque**: `hitSlop` nos botões pequenos (`FriendsButton` 36→~48, back/report/settings). *Obs: a auditoria tinha apontado "`FriendsButton` minWidth:16" — era o badge de notificação, não o botão (que já é 36×36).* Casas do tabuleiro ficam sem hitSlop de propósito (são adjacentes — expandir causaria toque na casa errada).
 
 ### 2026-06-05 — Limpeza do backlog (itens já concluídos)
 

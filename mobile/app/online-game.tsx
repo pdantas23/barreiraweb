@@ -495,7 +495,13 @@ export default function OnlineGameScreen() {
       <LinearGradient colors={[L.bgTop, L.bgBottom]} style={styles.root}>
         <View style={[styles.container, { paddingTop: insets.top + 10, paddingBottom: insets.bottom + 16 }]}>
           <View style={styles.topBar}>
-            <Pressable onPress={onLeave} style={styles.backButton}>
+            <Pressable
+              onPress={onLeave}
+              accessibilityLabel="Voltar"
+              accessibilityRole="button"
+              hitSlop={8}
+              style={styles.backButton}
+            >
               <Ionicons name="chevron-back" size={28} color={L.navy} />
             </Pressable>
             <Text style={styles.topTitle}>Sala {code}</Text>
@@ -556,7 +562,13 @@ export default function OnlineGameScreen() {
     >
       {/* Top bar */}
       <View style={styles.topBar}>
-        <Pressable onPress={onLeave} style={styles.backButton}>
+        <Pressable
+          onPress={onLeave}
+          accessibilityLabel="Voltar"
+          accessibilityRole="button"
+          hitSlop={8}
+          style={styles.backButton}
+        >
           <Ionicons name="chevron-back" size={24} color={gc.textDark} />
         </Pressable>
         <View style={styles.opponentChip}>
@@ -564,7 +576,13 @@ export default function OnlineGameScreen() {
             vs {meta.opponentName}
           </Text>
         </View>
-        <Pressable onPress={onReportPlayer} style={styles.reportBtn}>
+        <Pressable
+          onPress={onReportPlayer}
+          accessibilityLabel="Denunciar jogador"
+          accessibilityRole="button"
+          hitSlop={8}
+          style={styles.reportBtn}
+        >
           <Ionicons name="flag-outline" size={18} color={L.muted} />
         </Pressable>
       </View>

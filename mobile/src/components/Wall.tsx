@@ -23,6 +23,18 @@ export const Wall = ({ placement, layout, ghost = false, ghostInvalid = false }:
       : gc.blue
     : colorFor(placement);
 
+  // Paredes colocadas viram um elemento descritível ("Parede horizontal do
+  // jogador azul"); o ghost (preview de arraste) fica fora do leitor de tela.
+  const a11y = ghost
+    ? { accessibilityElementsHidden: true, importantForAccessibility: "no-hide-descendants" as const }
+    : {
+        accessible: true,
+        accessibilityRole: "image" as const,
+        accessibilityLabel: `Parede ${type === "h" ? "horizontal" : "vertical"} do jogador ${
+          placement.owner === 1 ? "azul" : "vermelho"
+        }`,
+      };
+
   const common = {
     position: "absolute" as const,
     backgroundColor: baseColor,
@@ -40,6 +52,7 @@ export const Wall = ({ placement, layout, ghost = false, ghostInvalid = false }:
     return (
       <View
         pointerEvents="none"
+        {...a11y}
         style={{
           ...common,
           left: padding + ic * cellSize,
@@ -54,6 +67,7 @@ export const Wall = ({ placement, layout, ghost = false, ghostInvalid = false }:
   return (
     <View
       pointerEvents="none"
+      {...a11y}
       style={{
         ...common,
         left: padding + (ic + 1) * cellSize - gap / 2 - wallThickness / 2,

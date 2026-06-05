@@ -206,7 +206,13 @@ export default function GameScreen() {
     >
       {/* Top bar */}
       <View style={styles.topBar}>
-        <Pressable onPress={confirmLeave} style={styles.backButton}>
+        <Pressable
+          onPress={confirmLeave}
+          accessibilityLabel="Voltar"
+          accessibilityRole="button"
+          hitSlop={8}
+          style={styles.backButton}
+        >
           <Ionicons name="chevron-back" size={24} color={gc.textDark} />
         </Pressable>
         <View style={styles.difficultyChip}>
