@@ -251,7 +251,14 @@ export default function OnlineScreen() {
             <Ionicons name="chevron-back" size={28} color={C.navy} />
           </Pressable>
           <Text style={styles.topTitle}>Lobby</Text>
-          <View style={[styles.backButton, { alignItems: "center" }]}>
+          <View style={styles.topRight}>
+            <Pressable
+              onPress={() => { playButtonSound(); setShowLeaderboard(true); }}
+              style={({ pressed }) => [styles.headerTrophyBtn, pressed && styles.pressed]}
+              accessibilityLabel="Ver leaderboard"
+            >
+              <Ionicons name="trophy" size={16} color={C.gold} />
+            </Pressable>
             <FriendsButton />
           </View>
         </View>
@@ -346,20 +353,6 @@ export default function OnlineScreen() {
           requirePassword={joinPrivate !== null}
         />
 
-        {/* Botão flutuante do leaderboard — abaixo da seta de voltar. Abre o
-            ranking num modal (antes o leaderboard ficava no topo da lista). */}
-        <Pressable
-          onPress={() => { playButtonSound(); setShowLeaderboard(true); }}
-          style={({ pressed }) => [
-            styles.lbFab,
-            { top: insets.top + 56 },
-            pressed && styles.pressed,
-          ]}
-          accessibilityLabel="Ver leaderboard"
-        >
-          <Ionicons name="trophy" size={20} color={C.gold} />
-        </Pressable>
-
         <Modal
           transparent
           visible={showLeaderboard}
@@ -398,8 +391,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
   },
   backButton: {
-    width: 40,
+    // Mesma largura do grupo da direita (troféu + amigos = ~80) pra o
+    // título "Lobby" ficar centralizado de verdade. Seta encostada à esquerda.
+    width: 80,
     height: 40,
+    alignItems: "flex-start",
     justifyContent: "center",
   },
   topTitle: {
@@ -437,9 +433,7 @@ const styles = StyleSheet.create({
   listContent: {
     paddingHorizontal: 20,
     paddingBottom: 8,
-    // Folga no topo pro FAB do leaderboard (flutuante à esquerda) não cobrir
-    // a subRow ("X salas disponíveis").
-    paddingTop: 44,
+    paddingTop: 8,
   },
   listEmpty: {
     flexGrow: 1,
@@ -594,25 +588,23 @@ const styles = StyleSheet.create({
   disabled: {
     opacity: 0.5,
   },
-  // ─── Leaderboard FAB + modal ───
-  lbFab: {
-    position: "absolute",
-    left: 16,
-    width: 44,
-    height: 44,
-    borderRadius: 22,
+  // ─── Troféu (leaderboard) + amigos no header ───
+  topRight: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  headerTrophyBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     backgroundColor: C.white,
     borderWidth: 1,
-    borderColor: C.border,
+    borderColor: "#EEF2FF",
     alignItems: "center",
     justifyContent: "center",
-    shadowColor: C.blue,
-    shadowOpacity: 0.15,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 2 },
-    elevation: 4,
-    zIndex: 10,
   },
+  // ─── Leaderboard modal ───
   lbBackdrop: {
     flex: 1,
     backgroundColor: "rgba(0,0,0,0.4)",
