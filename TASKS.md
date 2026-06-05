@@ -26,6 +26,36 @@ Backlog vivo do Barreira. A ordem reflete prioridade — o que está no topo é 
 
 ## Histórico
 
+### 2026-06-05 — Analytics + observabilidade + dashboard admin + UX lobby
+
+> Trabalho do Paulo (pdantas23) feito em cima do `777cb93`. O sistema de amizade
+> do sócio veio depois, por cima disso. Resumo aqui pra contexto.
+
+**Analytics — schema (Supabase, SQL em `docs/analytics-fase1.sql` e `docs/analytics-fase7.sql`):**
+- `players` ganhou `is_bot`, `user_id` (FK `auth.users`), `last_platform`.
+- Tabela nova `matches` — registro de partidas: `mode` (casual_online / private_online / training_offline), `winner`, `finish_reason` (goal / timeout_wo / leave_wo / abandoned), e p1/p2 com `client_id` / `user_id` / `is_bot` / `platform`.
+- Tabela nova `online_snapshots` — foto da presença ao longo do tempo (podada > 30 dias).
+- RLS: leitura pública (dashboards via anon key), escrita só service_role. RPCs `dashboard_stats()`, `player_activity()`, `daily_stats(p_days)`.
+- ⚠️ **Bots NÃO entram em `players`** (clientId null) → `players.is_bot` fica sempre false; a contagem de bot que vale é `matches.pN_is_bot`.
+
+**Server — vínculo de identidade + registro de partidas:**
+- `profiles.ts`: `linkPlayerToUser(clientId, userId)` grava `players.user_id` no handshake do socket logado (separa anônimo de cadastrado nas métricas). `updatePlayerPlatform()` grava `last_platform`. Ambos fire-and-forget com cache LRU.
+- Novo `matches.ts`: `recordMatchStart` / `recordMatchFinish` (UUID gerado no server, fire-and-forget). Wiring nos *callers* (`index.ts`, `botManager.ts`) pra `lobby.ts` ficar sem acoplamento com o DB. `ServerRoom.matchId` + `ServerPlayer.platform` novos.
+- Novo `snapshots.ts` + loop a cada 60s (`SNAPSHOT_MS`) no `index.ts`: `computeOnlineStats()` lê `io.sockets.sockets` (dedup por clientId; bots fora) e grava `online_snapshots`.
+- Handshake (`index.ts`) lê/valida `platform` do socket e propaga pra players e matches.
+
+**Cliente — plataforma no handshake:**
+- web e mobile `net/socket.ts` enviam `platform` no `auth` (`'web'` / `Platform.OS === 'ios' ? 'ios' : 'android'`).
+
+**Web — dashboard admin (`web/src/pages/AdminStats.tsx`, rota `/admin/stats`):**
+- Gate por email (`ADMIN_EMAILS`). Lê as 3 RPCs via anon key. Mostra: online agora, visitas/novos do dia, cards de agregados (cadastrados / anônimos / partidas / plataformas), tabela por jogador e tabela por dia (últimos 30).
+
+**Web — Replay Builder recuperado:**
+- `web/src/pages/ReplayBuilder.tsx` (+ `replayBuilder/coord.ts`, `parser.ts`, áudios em `web/public/audio/replay-builder/`) estava só numa stash e havia sumido do working tree — recuperado e commitado. Rota `/replay-builder` registrada **só em dev** (`import.meta.env.DEV`), não vai pro build de produção.
+
+**Mobile — UX do lobby (`mobile/app/online.tsx`):**
+- Troféu (leaderboard) movido do FAB flutuante (canto esquerdo) pra **dentro do header, ao lado do ícone de amigos**. Removida a folga `paddingTop: 44` que era reservada pro FAB (a lista de salas subiu); botão voltar alargado pra recentralizar o título "Lobby".
+
 ### 2026-05-28 — Auth nativa mobile + Replay web + bugs do lobby + UX
 
 **Mobile — autenticação via deep link (sem signUp/signIn no app):**
