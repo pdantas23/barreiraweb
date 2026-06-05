@@ -56,6 +56,8 @@ export function MatchmakingModal({
   const [found, setFound] = useState(false);
   const matchedRef = useRef(false);
   const deadlineRef = useRef<number | null>(null);
+  // Jitter no tempo exibido pra não bater exato com o prazo do bot (natural).
+  const jitterRef = useRef(1);
 
   const pulse = useSharedValue(1);
   const rot = useSharedValue(0);
@@ -66,6 +68,7 @@ export function MatchmakingModal({
     if (!visible) return;
     matchedRef.current = false;
     deadlineRef.current = null;
+    jitterRef.current = 0.8 + Math.random() * 0.5; // 0.8x .. 1.3x
     setRemaining(null);
     setFound(false);
     pulse.value = withRepeat(withTiming(1.08, { duration: 700 }), -1, true);
@@ -81,7 +84,11 @@ export function MatchmakingModal({
       }, 650);
     };
     const onStatus = (p: MatchmakingStatusPayload) => {
-      deadlineRef.current = Date.now() + Math.max(0, p.estimatedMs - p.waitTime);
+      // Fixa o prazo só na 1ª vez (com jitter) — não pula a cada status.
+      if (deadlineRef.current === null) {
+        deadlineRef.current =
+          Date.now() + Math.max(0, p.estimatedMs * jitterRef.current - p.waitTime);
+      }
     };
     socket.on("matchFound", onMatchFound);
     socket.on("matchmakingStatus", onStatus);
@@ -110,7 +117,7 @@ export function MatchmakingModal({
   }, [visible, onCancel, pulse, rot]);
 
   const counterText =
-    remaining === null ? "…" : remaining > 0 ? `~${remaining}s` : "Quase lá...";
+    remaining === null ? "…" : remaining > 0 ? `${remaining}s` : "Quase lá...";
 
   const handleCancel = () => {
     playButtonSound();

@@ -31,11 +31,15 @@ export function MatchmakingOverlay({
   const [found, setFound] = useState(false);
   const matchedRef = useRef(false);
   const deadlineRef = useRef<number | null>(null);
+  // Fator aplicado uma vez ao tempo estimado pra o número exibido NÃO ser
+  // exatamente o prazo do bot (um pouco a mais ou a menos) — parece natural.
+  const jitterRef = useRef(1);
 
   useEffect(() => {
     if (!visible) return;
     matchedRef.current = false;
     deadlineRef.current = null;
+    jitterRef.current = 0.8 + Math.random() * 0.5; // 0.8x .. 1.3x
     setRemaining(null);
     setFound(false);
     const socket = getSocket();
@@ -49,7 +53,12 @@ export function MatchmakingOverlay({
       }, 650);
     };
     const onStatus = (p: MatchmakingStatusPayload) => {
-      deadlineRef.current = Date.now() + Math.max(0, p.estimatedMs - p.waitTime);
+      // Fixa o prazo exibido só na 1ª vez (com jitter) — evita o contador
+      // pular a cada status e desacopla o número do tempo real do bot.
+      if (deadlineRef.current === null) {
+        deadlineRef.current =
+          Date.now() + Math.max(0, p.estimatedMs * jitterRef.current - p.waitTime);
+      }
     };
     socket.on("matchFound", onMatchFound);
     socket.on("matchmakingStatus", onStatus);
@@ -88,7 +97,7 @@ export function MatchmakingOverlay({
   // Texto do contador: regressivo. Antes do 1º status mostra "…"; ao chegar a 0
   // segue buscando ("Quase lá...").
   const counterText =
-    remaining === null ? "…" : remaining > 0 ? `~${remaining}s` : "Quase lá...";
+    remaining === null ? "…" : remaining > 0 ? `${remaining}s` : "Quase lá...";
 
   return (
     <div
