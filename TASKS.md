@@ -17,7 +17,6 @@ Backlog vivo do Barreira. A ordem reflete prioridade — o que está no topo é 
 - Cache/memoização de `shortestPathDistance` no `bot.ts` — ainda é BFS puro recomputado a cada chamada (`shared/src/bot.ts:110`), inclusive no loop de avaliação de paredes. Já há otimização parcial (`distFieldToGoal` reaproveita 1 BFS entre candidatas, `bot.ts:258`), mas a função em si não é memoizada.
 - Acessibilidade: faltam `accessibilityLabel` no **tabuleiro** (`Square.tsx`, `Piece.tsx`, `Wall.tsx` têm zero); botões/modais já têm. Padronizar alvos de toque mínimos (48dp) — hoje inconsistentes (ex.: `FriendsButton` com `minWidth:16`).
 - AdMob real no mobile — hoje **inexistente** (sem lib, sem placeholder). Precisa integrar `react-native-google-mobile-ads` do zero e decidir onde mostrar (o antigo `adContainer` em `game.tsx` não existe mais).
-- Cleanup: `theme.ts:8-16` calcula `CELL_SIZE`/`WALL_LENGTH`/`WALL_THICKNESS` que ninguém importa (dead code) — o sizing real vem todo de `useResponsiveBoard.ts`. Remover os valores mortos do `theme.ts` (manter só as cores).
 - Tutorial / primeira partida guiada — nada interativo hoje (só as páginas de texto `Regras.tsx` / `Estrategias.tsx` no web).
 
 ---
@@ -29,6 +28,8 @@ Backlog vivo do Barreira. A ordem reflete prioridade — o que está no topo é 
 Auditoria dos "nice-to-have" contra o código atual. Dois itens já estavam feitos e saíram da lista:
 - **Testes unitários da engine** — feito (com vitest, não Jest). Há `*.test.ts` cobrindo `engine.ts`, `walls.ts`, `moves.ts`, `board.ts`, `bot.ts`, `serialization.ts` em `shared/src/`.
 - **Alternar quem começa no restart** — feito. `randomFirstTurn()` (`shared/src/board.ts:31`) é usado em todo (re)início: server (`lobby.ts` start/rematch), jogo local mobile (`game.tsx` init/`onRestart`). Não é mais "sempre P1".
+
+Além disso, feito o **cleanup do `theme.ts`**: removidos `BOARD_PADDING`/`BOARD_SIZE`/`CELL_SIZE`/`WALL_THICKNESS`/`WALL_LENGTH` (dead code — ninguém importava; `BOARD_SIZE` vem do `@barreira/shared` e o sizing real é do `useResponsiveBoard.ts`) e o import `Dimensions`. `theme.ts` ficou só com a paleta de cores.
 
 ### 2026-06-05 — Hardening de rate limit / anti-flood (server)
 
