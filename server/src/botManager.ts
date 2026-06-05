@@ -57,6 +57,10 @@ const MOVE_DELAY_MIN_MS = Number(process.env.BOT_MOVE_MIN_MS ?? 800);
 const MOVE_DELAY_MAX_MS = Number(process.env.BOT_MOVE_MAX_MS ?? 2_500);
 const LEAVE_DELAY_MIN_MS = Number(process.env.BOT_LEAVE_MIN_MS ?? 3_000);
 const LEAVE_DELAY_MAX_MS = Number(process.env.BOT_LEAVE_MAX_MS ?? 6_000);
+// Salas de bot ociosas no lobby (waiting, só bots) expiram após esse tempo se
+// ninguém entrar. A varredura é o próprio scan (4s) — sem timer novo (ver
+// estudo da TASK 5). Configurável via env pra testes. Default 3min.
+const BOT_ROOM_TTL_MS = Number(process.env.BOT_ROOM_TTL_MS ?? 180_000);
 // Bot rescue: se um humano cria sala e ninguém entra em 10-15s, um bot
 // entra como guest pra começar a partida. Configurável via env pra testes.
 const RESCUE_DELAY_MIN_MS = Number(process.env.BOT_RESCUE_MIN_MS ?? 10_000);
@@ -258,8 +262,33 @@ const reapOrphanedBotRooms = (): void => {
   }
 };
 
+// Expira salas de bot ociosas no lobby: waiting, 100% bot e mais velhas que o
+// TTL. Remove (bot sai, sala some, clientes recebem lobbyUpdated). Salas de
+// matchmaking ficam de fora — são privadas e já estão "playing", nunca waiting.
+const reapExpiredBotRooms = (): void => {
+  const now = Date.now();
+  const expired: string[] = [];
+  for (const room of getAllRooms().values()) {
+    if (room.status !== "waiting") continue;
+    if (room.players.length === 0) continue;
+    if (!room.players.every((p) => p.isBot)) continue;
+    if (now - room.createdAt < BOT_ROOM_TTL_MS) continue;
+    expired.push(room.code);
+  }
+  for (const code of expired) {
+    const room = getAllRooms().get(code);
+    if (!room) continue;
+    for (const p of room.players.filter((pl) => pl.isBot)) {
+      botDifficulties.delete(p.socketId);
+    }
+    removeBotFromRoom(code);
+    console.log(`[botManager] sala de bot ${code} expirou (ociosa > ${BOT_ROOM_TTL_MS}ms)`);
+  }
+};
+
 const scan = (): void => {
   reapOrphanedBotRooms();
+  reapExpiredBotRooms();
 
   let waitingCount = 0;
   for (const room of getAllRooms().values()) {

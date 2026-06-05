@@ -95,6 +95,9 @@ export type ServerRoom = {
   // partida começa; limpo em recordMatchFinish no fim. null = sem partida
   // registrada (sala em waiting, ou já finalizada).
   matchId: string | null;
+  // Timestamp (ms) de criação da sala. Usado pra expirar salas de bot ociosas
+  // no lobby (botManager varre e remove as waiting de bot mais velhas que o TTL).
+  createdAt: number;
 };
 
 // === Estado global ===
@@ -272,6 +275,7 @@ export const createRoom = (input: CreateInput): ServerRoom => {
     timeUsedMs: { 1: 0, 2: 0 },
     turnStartedAt: null,
     matchId: null,
+    createdAt: Date.now(),
   };
   rooms.set(code, room);
   socketToRoom.set(input.hostSocketId, code);
@@ -755,6 +759,7 @@ export const createBotHostRoom = (input: BotHostInput): ServerRoom => {
     timeUsedMs: { 1: 0, 2: 0 },
     turnStartedAt: null,
     matchId: null,
+    createdAt: Date.now(),
   };
   rooms.set(code, room);
   // NÃO seta socketToRoom — o socketId é fake, não tem socket.io listener.

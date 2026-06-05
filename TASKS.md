@@ -4,7 +4,7 @@ Backlog vivo do Barreira. A ordem reflete prioridade — o que está no topo é 
 
 ---
 
-## Em andamento — Partida Rápida (Quick Match)
+## Concluído — Partida Rápida (Quick Match) — 2026-06-05
 
 Matchmaking estilo Clash Royale: card "Partida Rápida" no lobby → tela de busca → fila de até 15s; acha humano vira sala privada, senão cai num bot (medium/hard 50/50).
 
@@ -13,10 +13,10 @@ Matchmaking estilo Clash Royale: card "Partida Rápida" no lobby → tela de bus
 - [ ] **TASK 3 — Server: matchmaking (`server/src/matchmaking.ts`)**: fila; 2 reais → sala privada + `matchFound` pros dois; 15s sem par → sala com bot. Eventos `joinMatchmaking`/`leaveMatchmaking`/`matchFound`/`matchmakingStatus`. Anti-spam: 1 fila por vez.
 - [ ] **TASK 4 — Nomes de bots realistas**: `shared/src/botNames.ts` com ≥80 nomes BR + `getRandomBotName()` sem repetição simultânea. Substituir `anonimo####`.
 - [x] **TASK 5 — ESTUDO: impacto do timer de expiração de salas de bot** (relatório entregue): salas de bot *waiting* são limitadas a `BOT_MIN_WAITING` (≈2), não crescem com o tráfego → impacto de timers é desprezível em qualquer abordagem. **Recomendação: (b) piggyback no scan de 4s que JÁ existe no botManager** (`reapOrphanedBotRooms`), com `createdAt` na sala → zero timers novos, remoção ativa + `lobbyUpdated`, precisão ~4s num timeout de 180s. Evitar (c) (sem remoção ativa/broadcast, efeito colateral no listRooms). **Aguardando aprovação pra TASK 6.**
-- [ ] **TASK 6 — Timer de expiração de salas de bot** (só após TASK 5 aprovada): salas de bot públicas expiram em 3min sem jogador; salas de matchmaking não expiram.
-- [ ] **TASK 7 — Testes automatizados**: matchmaking (2 reais, timeout→bot, leave, anti-spam), `getRandomBotName`, expiração de salas (após TASK 6).
+- [x] **TASK 6 — Timer de expiração de salas de bot** (aprovada com abordagem (b), TTL 3min): `createdAt` na sala (`lobby.ts`); `reapExpiredBotRooms` no scan de 4s do `botManager` remove salas de bot *waiting* > 3min (`BOT_ROOM_TTL_MS`, env-config). Matchmaking não afetado (privadas/playing). Zero timers novos.
+- [x] **TASK 7 — Testes automatizados**: matchmaking 7 (2 reais, timeout→bot, leave, anti-spam ×2, status), `botNames` 4 (lista, sem repetição, sufixo), expiração 2 (expira em 3min / não expira com humano). Tudo verde.
 
-> Regra: NÃO implementar a TASK 6 antes de completar e reportar a TASK 5.
+> Concluída. Regra cumprida: TASK 6 só foi implementada após a TASK 5 reportada e aprovada.
 
 ---
 
