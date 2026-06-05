@@ -11,7 +11,7 @@ import { supabase } from "../net/supabase";
 import { useAuth } from "../state/auth";
 
 // Emails autorizados a ver o dashboard. Adicione outros aqui se precisar.
-const ADMIN_EMAILS = ["paulovitortss@gmail.com"];
+const ADMIN_EMAILS = ["paulovitortss@gmail.com", "philipmadantas123@gmail.com"];
 
 type DashboardStats = {
   users: { registered: number; anonymous_real: number; bots: number };
