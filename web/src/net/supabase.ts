@@ -22,6 +22,12 @@ export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
   auth: {
     persistSession: true,
     autoRefreshToken: true,
-    detectSessionInUrl: false,
+    // Precisa ser true: o link de recuperacao de senha volta pra
+    // /reset-password com os tokens no hash (#access_token=...&type=recovery).
+    // O SDK so processa esse hash e emite PASSWORD_RECOVERY se isso estiver
+    // ligado. Com false, ResetPassword nunca via a sessao e mostrava
+    // "link expirado". (No mobile fica false de proposito: la os tokens
+    // chegam via deep link e sao aplicados na mao com setSession.)
+    detectSessionInUrl: true,
   },
 });
