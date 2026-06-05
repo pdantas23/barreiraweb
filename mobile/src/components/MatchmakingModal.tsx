@@ -94,11 +94,15 @@ export function MatchmakingModal({
     socket.on("matchmakingStatus", onStatus);
 
     void joinMatchmaking().then((res) => {
-      // already-in-queue = já estamos buscando (StrictMode) → ignora.
-      if (!res.ok && res.error !== "already-in-queue") {
-        const info = errorInfo(res.error);
-        Alert.alert(info.title, res.message ?? info.message);
-        onCancel();
+      if (!res.ok) {
+        // Benignos (StrictMode monta 2×): já na fila / já pareado numa sala. O
+        // matchFound real chega e navega — não tratar como erro.
+        const benign = res.error === "already-in-queue" || res.error === "already-in-room";
+        if (!benign) {
+          const info = errorInfo(res.error);
+          Alert.alert(info.title, res.message ?? info.message);
+          onCancel();
+        }
       }
     });
 

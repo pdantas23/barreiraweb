@@ -64,10 +64,15 @@ export function MatchmakingOverlay({
     socket.on("matchmakingStatus", onStatus);
 
     void joinMatchmaking().then((res) => {
-      // already-in-queue = já estamos buscando (StrictMode) → ignora.
-      if (!res.ok && res.error !== "already-in-queue") {
-        onError(res);
-        onCancel();
+      if (!res.ok) {
+        // Benignos do StrictMode (efeito monta 2×): already-in-queue = já na
+        // fila; already-in-room = já pareados numa sala. Em ambos o matchFound
+        // real chega e navega — não tratar como erro.
+        const benign = res.error === "already-in-queue" || res.error === "already-in-room";
+        if (!benign) {
+          onError(res);
+          onCancel();
+        }
       }
     });
 

@@ -159,13 +159,17 @@ export default function HomeScreen() {
     setErrorPopup(errorInfo(res.error));
   };
 
-  const refresh = useCallback(async () => {
+  // `silent` = auto-load (mount, reconnect, lobbyUpdated): NÃO mostra modal de
+  // erro, porque no cold-start o socket ainda está no handshake e a 1ª chamada
+  // pode falhar por timeout (some sozinho quando conecta). Só o refresh manual
+  // (botão) mostra erro.
+  const refresh = useCallback(async (silent = false) => {
     setLoading(true);
     const res = await listRooms();
     setLoading(false);
     setFirstLoadDone(true);
     if (!res.ok) {
-      showError(res);
+      if (!silent) showError(res);
       return;
     }
     setRooms(res.data.rooms);
@@ -174,15 +178,18 @@ export default function HomeScreen() {
   useEffect(() => {
     clearLastGameStart();
     const socket = connectSocket();
-    refresh();
+    refresh(true);
     // Server avisa quando o conjunto de salas waiting muda — sem isso o
     // user precisaria apertar refresh pra ver sala nova/morta.
-    const onLobbyUpdated = () => {
-      refresh();
-    };
+    const onLobbyUpdated = () => refresh(true);
+    // Recarrega quando o socket (re)conecta — conserta o cold-start: a 1ª
+    // listRooms pode falhar durante o handshake; ao conectar, recarrega sozinho.
+    const onConnect = () => refresh(true);
     socket.on("lobbyUpdated", onLobbyUpdated);
+    socket.on("connect", onConnect);
     return () => {
       socket.off("lobbyUpdated", onLobbyUpdated);
+      socket.off("connect", onConnect);
     };
   }, [refresh]);
 
@@ -336,7 +343,7 @@ export default function HomeScreen() {
               </span>
               <div style={{ flex: 1, display: "flex", justifyContent: "flex-end" }}>
                 <button
-                  onClick={refresh}
+                  onClick={() => refresh()}
                   disabled={loading || busy}
                   style={{
                     width: 32, height: 32, borderRadius: 16, backgroundColor: C.white,

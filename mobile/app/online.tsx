@@ -85,12 +85,16 @@ export default function OnlineScreen() {
     Alert.alert(info.title, res.message ?? info.message);
   }, []);
 
-  const refresh = useCallback(async () => {
+  // `silent` = auto-load (mount/focus/reconnect/lobbyUpdated): não mostra Alert
+  // de erro — no cold-start o socket ainda está no handshake e a 1ª chamada
+  // pode falhar por timeout (recarrega sozinho ao conectar). Só o refresh
+  // manual (botão) mostra erro.
+  const refresh = useCallback(async (silent = false) => {
     setLoading(true);
     const res = await listRooms();
     setLoading(false);
     if (!res.ok) {
-      showError(res);
+      if (!silent) showError(res);
       return;
     }
     setRooms(res.data.rooms);
@@ -99,15 +103,18 @@ export default function OnlineScreen() {
   useEffect(() => {
     clearLastGameStart();
     connectSocket();
-    refresh();
+    refresh(true);
     // Server avisa quando salas waiting mudam — refaz a lista sem polling.
     const socket = getSocket();
-    const onLobbyUpdated = () => {
-      refresh();
-    };
+    const onLobbyUpdated = () => refresh(true);
+    // Recarrega ao (re)conectar — conserta o cold-start (1ª listRooms pode
+    // falhar durante o handshake; ao conectar, recarrega sozinho).
+    const onConnect = () => refresh(true);
     socket.on("lobbyUpdated", onLobbyUpdated);
+    socket.on("connect", onConnect);
     return () => {
       socket.off("lobbyUpdated", onLobbyUpdated);
+      socket.off("connect", onConnect);
     };
   }, [refresh]);
 
@@ -120,7 +127,7 @@ export default function OnlineScreen() {
       // /online-game lê esse cache e pula direto pra "vs anônimo..." como
       // se o bot tivesse entrado imediato. Limpar no focus blinda esse caso.
       clearLastGameStart();
-      refresh();
+      refresh(true);
     }, [refresh]),
   );
 
@@ -289,7 +296,7 @@ export default function OnlineScreen() {
                     : `${rooms.length} sala${rooms.length === 1 ? "" : "s"} disponíve${rooms.length === 1 ? "l" : "is"}`}
                 </Text>
                 <Pressable
-                  onPress={refresh}
+                  onPress={() => refresh()}
                   disabled={loading || busy}
                   style={({ pressed }) => [
                     styles.refreshBtn,
