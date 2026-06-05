@@ -14,13 +14,22 @@ Backlog vivo do Barreira. A ordem reflete prioridade — o que está no topo é 
 
 ## Futuro (nice-to-have)
 
-- Cache/memoização de `shortestPathDistance` no `bot.ts` — ainda é BFS puro recomputado a cada chamada (`shared/src/bot.ts:110`), inclusive no loop de avaliação de paredes. Já há otimização parcial (`distFieldToGoal` reaproveita 1 BFS entre candidatas, `bot.ts:258`), mas a função em si não é memoizada.
 - AdMob real no mobile — hoje **inexistente** (sem lib, sem placeholder). Precisa integrar `react-native-google-mobile-ads` do zero e decidir onde mostrar (o antigo `adContainer` em `game.tsx` não existe mais).
 - Tutorial / primeira partida guiada — nada interativo hoje (só as páginas de texto `Regras.tsx` / `Estrategias.tsx` no web).
 
 ---
 
 ## Histórico
+
+### 2026-06-05 — Cache do bot investigado e DESCARTADO (sem ganho)
+
+Tentativa de cachear/memoizar o BFS do bot (`shared/src/bot.ts`). Medido empiricamente com simulação determinística bot-vs-bot (fingerprint das jogadas idêntico antes/depois — comportamento preservado). **Nenhuma variante deu speedup mensurável**, então tudo foi revertido:
+- `WeakMap<WallSet, …>` por config de paredes pro `shortestPathDistance`: hit rate só **~11%** — o hot path (~258k chamadas/partida-hard) vem do `wallIncreasesDist` avaliando paredes em `WallSet` descartáveis (objeto único por chamada, nunca dá hit). Overhead do cache anulou o ganho.
+- Cache do `distFieldToGoal` por `(walls, targetRow)`: hit rate bom (**63%**), mas o BFS já é barato → ganho dentro do ruído.
+- Trocar `registerWall`+BFS por BFS com 2 arestas extras (evita copiar Sets): também sem efeito.
+- Medição min-of-trials: baseline ~1643–1688ms vs modificado ~1648–1659ms (1× hard+medium nos 2 turnos) — **indistinguíveis**.
+
+Lição: o custo NÃO está no BFS (já otimizado com `Uint8Array`, vizinhos inline, early-return), e sim no overhead da busca (clonagem de estado no `applyMove`, `positionHash` montando string por nó, iteração do `generateMoves`). Um ganho real exigiria atacar isso — refactor maior, com risco de comportamento. Reforça [[bot-changes-validate-empirically]].
 
 ### 2026-06-05 — Acessibilidade do tabuleiro (mobile)
 
