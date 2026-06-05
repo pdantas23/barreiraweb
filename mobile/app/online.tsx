@@ -22,6 +22,8 @@ import {
 import { JoinByCodeModal } from "../src/components/JoinByCodeModal";
 import { Leaderboard } from "../src/components/Leaderboard";
 import { FriendsButton } from "../src/components/FriendsButton";
+import { QuickMatchCard } from "../src/components/QuickMatchCard";
+import { MatchmakingModal } from "../src/components/MatchmakingModal";
 import { createRoom, joinRoom, listRooms } from "../src/net/api";
 import { errorInfo } from "../src/net/errors";
 import { clearLastGameStart, connectSocket, getSocket } from "../src/net/socket";
@@ -76,6 +78,7 @@ export default function OnlineScreen() {
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [showLeaderboard, setShowLeaderboard] = useState(false);
+  const [matchmaking, setMatchmaking] = useState(false);
 
   const showError = useCallback((res: { error: string; message?: string }) => {
     const info = errorInfo(res.error);
@@ -272,6 +275,13 @@ export default function OnlineScreen() {
           showsVerticalScrollIndicator={false}
           ListHeaderComponent={
             <View>
+              {/* Partida Rápida (matchmaking) — acima da lista de salas. */}
+              <View style={{ marginBottom: 14 }}>
+                <QuickMatchCard
+                  disabled={busy}
+                  onPlay={() => { playButtonSound(); setMatchmaking(true); }}
+                />
+              </View>
               <View style={styles.subRow}>
                 <Text style={styles.subText}>
                   {loading
@@ -338,6 +348,11 @@ export default function OnlineScreen() {
             </LinearGradient>
           </Pressable>
         </View>
+
+        <MatchmakingModal
+          visible={matchmaking}
+          onCancel={() => setMatchmaking(false)}
+        />
 
         <CreateRoomModal
           visible={createOpen}

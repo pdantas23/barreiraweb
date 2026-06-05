@@ -37,6 +37,8 @@ import { PageGate } from "../components/PageGate";
 import { HeaderAuthButtons } from "../components/HeaderAuthButtons";
 import { FriendsHub } from "../components/FriendsHub";
 import { Leaderboard } from "../components/Leaderboard";
+import { QuickMatchCard } from "../components/QuickMatchCard";
+import { MatchmakingOverlay } from "../components/MatchmakingOverlay";
 import { createRoom, joinRoom, listRooms } from "../net/api";
 import { clearLastGameStart, connectSocket } from "../net/socket";
 import {
@@ -132,6 +134,7 @@ export default function HomeScreen() {
   const [joinOpen, setJoinOpen] = useState(false);
   const [joinTarget, setJoinTarget] = useState<PublicRoom | null>(null);
   const [errorPopup, setErrorPopup] = useState<FriendlyError | null>(null);
+  const [matchmaking, setMatchmaking] = useState(false);
 
   // Audio + privacy bootstrap
   useEffect(() => {
@@ -312,6 +315,14 @@ export default function HomeScreen() {
               no rodapé mesmo com poucas salas. O leaderboard saiu da
               sidebar/topo e virou o botão flutuante (modal abaixo). */}
           <main className="flex flex-col flex-1 min-h-0">
+            {/* Partida Rápida (matchmaking) — acima da lista de salas. */}
+            <div style={{ padding: "12px 20px 0" }}>
+              <QuickMatchCard
+                disabled={busy}
+                onPlay={() => { playButtonSound(); setMatchmaking(true); }}
+              />
+            </div>
+
             {/* Barra de status — título centralizado na tela e o refresh colado
                 na extrema direita. Os dois spacers flex:1 (esquerda e direita)
                 mantêm o título no centro independente do botão. O troféu
@@ -607,6 +618,12 @@ export default function HomeScreen() {
         )}
 
         {/* Modais do lobby */}
+        <MatchmakingOverlay
+          visible={matchmaking}
+          onCancel={() => setMatchmaking(false)}
+          onError={showError}
+        />
+
         <CreateRoomModal visible={createOpen} onClose={() => setCreateOpen(false)} onConfirm={onConfirmCreate} />
         <JoinByCodeModal
           visible={joinOpen}

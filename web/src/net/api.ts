@@ -73,6 +73,18 @@ export const requestRematch = (): Promise<RpcResult<null>> =>
 export const respondRematch = (accept: boolean): Promise<RpcResult<null>> =>
   safeRpc(() => connectSocket().emitWithAck("respondRematch", { accept }));
 
+// === Matchmaking (Partida Rápida) ===
+
+// Entra na fila. ensureAuthedSocket pra o server resolver o authUserId (troféu
+// na vitória) — anônimo também funciona, só não premia.
+export const joinMatchmaking = (): Promise<RpcResult<null>> =>
+  safeRpc(() =>
+    ensureAuthedSocket().then(() => connectSocket().emitWithAck("joinMatchmaking", {})),
+  );
+
+export const leaveMatchmaking = (): Promise<RpcResult<null>> =>
+  safeRpc(() => connectSocket().emitWithAck("leaveMatchmaking", {}));
+
 // === Sistema de amizade ===
 
 export const sendFriendRequest = (targetUsername: string): Promise<RpcResult<null>> =>
