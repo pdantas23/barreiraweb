@@ -3,27 +3,19 @@
 // Overlay full-screen escuro com animação contínua (radar pulsante) enquanto
 // busca adversário. Entra na fila no mount (joinMatchmaking) e escuta
 // `matchFound` → navega pra partida (o gameStart já vem cacheado pelo socket).
-// Cancelar (ou desmontar sem match) chama leaveMatchmaking.
+// O contador é REGRESSIVO (estilo Clash Royale): mostra o tempo estimado pra
+// achar partida, vindo do `matchmakingStatus`, e conta pra baixo.
 //
-// O contador é "enganoso" de propósito: avança rápido no início, desacelera no
-// meio e acelera no fim, batendo ~15s (o mesmo timeout do bot no server).
+// `already-in-queue` NÃO é tratado como erro: significa que já estamos na fila
+// (acontece no StrictMode do dev, que monta o efeito 2×) — é ignorado.
 
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { IoFlash, IoClose } from "react-icons/io5";
-import type { MatchFoundPayload } from "@barreira/shared";
+import type { MatchFoundPayload, MatchmakingStatusPayload } from "@barreira/shared";
 import { getSocket } from "../net/socket";
 import { joinMatchmaking, leaveMatchmaking } from "../net/api";
 import { playButtonSound } from "../hooks/useButtonSound";
-
-const MAX_SECONDS = 15;
-
-// Curva fast-slow-fast: derivada alta nas pontas, baixa no meio.
-const organicProgress = (t: number): number => {
-  const x = Math.min(1, Math.max(0, t));
-  const s = x < 0.5 ? -1 : 1;
-  return 0.5 + 0.5 * s * Math.pow(Math.abs(2 * x - 1), 0.7);
-};
 
 export function MatchmakingOverlay({
   visible,
@@ -35,45 +27,51 @@ export function MatchmakingOverlay({
   onError: (res: { error: string; message?: string }) => void;
 }) {
   const navigate = useNavigate();
-  const [seconds, setSeconds] = useState(0);
+  const [remaining, setRemaining] = useState<number | null>(null);
   const [found, setFound] = useState(false);
   const matchedRef = useRef(false);
+  const deadlineRef = useRef<number | null>(null);
 
   useEffect(() => {
     if (!visible) return;
     matchedRef.current = false;
-    setSeconds(0);
+    deadlineRef.current = null;
+    setRemaining(null);
     setFound(false);
-    const startedAt = Date.now();
     const socket = getSocket();
 
     const onMatchFound = (payload: MatchFoundPayload) => {
       matchedRef.current = true;
       setFound(true);
-      // Pequeno respiro pra mostrar "Adversário encontrado!" antes de entrar.
+      // Respiro curto pra mostrar "Adversário encontrado!" antes de entrar.
       setTimeout(() => {
         navigate(`/online-game?code=${encodeURIComponent(payload.roomCode)}`);
       }, 650);
     };
+    const onStatus = (p: MatchmakingStatusPayload) => {
+      deadlineRef.current = Date.now() + Math.max(0, p.estimatedMs - p.waitTime);
+    };
     socket.on("matchFound", onMatchFound);
+    socket.on("matchmakingStatus", onStatus);
 
-    // Entra na fila. Se falhar (já na fila / sem conexão), reporta e fecha.
     void joinMatchmaking().then((res) => {
-      if (!res.ok) {
+      // already-in-queue = já estamos buscando (StrictMode) → ignora.
+      if (!res.ok && res.error !== "already-in-queue") {
         onError(res);
         onCancel();
       }
     });
 
-    // Contador orgânico.
     const timer = setInterval(() => {
-      const t = (Date.now() - startedAt) / (MAX_SECONDS * 1000);
-      setSeconds(Math.min(MAX_SECONDS, Math.round(MAX_SECONDS * organicProgress(t))));
+      if (deadlineRef.current === null) return;
+      const ms = Math.max(0, deadlineRef.current - Date.now());
+      setRemaining(Math.ceil(ms / 1000));
     }, 100);
 
     return () => {
       clearInterval(timer);
       socket.off("matchFound", onMatchFound);
+      socket.off("matchmakingStatus", onStatus);
       // Saiu sem casar → sai da fila. Se já casou, é no-op no server.
       if (!matchedRef.current) void leaveMatchmaking();
     };
@@ -86,6 +84,11 @@ export function MatchmakingOverlay({
     void leaveMatchmaking();
     onCancel();
   };
+
+  // Texto do contador: regressivo. Antes do 1º status mostra "…"; ao chegar a 0
+  // segue buscando ("Quase lá...").
+  const counterText =
+    remaining === null ? "…" : remaining > 0 ? `~${remaining}s` : "Quase lá...";
 
   return (
     <div
@@ -114,7 +117,6 @@ export function MatchmakingOverlay({
         @keyframes mmSpin { to { transform: rotate(360deg); } }
       `}</style>
 
-      {/* Radar: anéis pulsando pra fora + núcleo com raio */}
       <div style={{ position: "relative", width: 200, height: 200, display: "flex", alignItems: "center", justifyContent: "center" }}>
         {[0, 1, 2].map((i) => (
           <span
@@ -129,7 +131,6 @@ export function MatchmakingOverlay({
             }}
           />
         ))}
-        {/* anel varredura girando */}
         <span
           style={{
             position: "absolute",
@@ -161,9 +162,14 @@ export function MatchmakingOverlay({
       <div style={{ marginTop: 36, color: "#FFFFFF", fontSize: 19, fontWeight: 800, letterSpacing: 0.3 }}>
         {found ? "Adversário encontrado!" : "Procurando adversário..."}
       </div>
+      {!found && (
+        <div style={{ marginTop: 6, color: "rgba(255,255,255,0.55)", fontSize: 12, letterSpacing: 0.4 }}>
+          tempo estimado
+        </div>
+      )}
       <div
         style={{
-          marginTop: 10,
+          marginTop: 8,
           color: "#6B9FFF",
           fontSize: 34,
           fontWeight: 900,
@@ -172,7 +178,7 @@ export function MatchmakingOverlay({
           textAlign: "center",
         }}
       >
-        {seconds}s
+        {found ? "🎉" : counterText}
       </div>
 
       {!found && (

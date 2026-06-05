@@ -17,7 +17,7 @@ import Animated, {
   withRepeat,
   withTiming,
 } from "react-native-reanimated";
-import type { MatchFoundPayload } from "@barreira/shared";
+import type { MatchFoundPayload, MatchmakingStatusPayload } from "@barreira/shared";
 import { joinMatchmaking, leaveMatchmaking } from "../net/api";
 import { getSocket } from "../net/socket";
 import { errorInfo } from "../net/errors";
@@ -29,14 +29,6 @@ const C = {
   blueLight: "#6B9FFF",
   white: "#FFFFFF",
 } as const;
-
-const MAX_SECONDS = 15;
-
-const organicProgress = (t: number): number => {
-  const x = Math.min(1, Math.max(0, t));
-  const s = x < 0.5 ? -1 : 1;
-  return 0.5 + 0.5 * s * Math.pow(Math.abs(2 * x - 1), 0.7);
-};
 
 const Ring = ({ delay }: { delay: number }) => {
   const p = useSharedValue(0);
@@ -60,9 +52,10 @@ export function MatchmakingModal({
   visible: boolean;
   onCancel: () => void;
 }) {
-  const [seconds, setSeconds] = useState(0);
+  const [remaining, setRemaining] = useState<number | null>(null);
   const [found, setFound] = useState(false);
   const matchedRef = useRef(false);
+  const deadlineRef = useRef<number | null>(null);
 
   const pulse = useSharedValue(1);
   const rot = useSharedValue(0);
@@ -72,12 +65,12 @@ export function MatchmakingModal({
   useEffect(() => {
     if (!visible) return;
     matchedRef.current = false;
-    setSeconds(0);
+    deadlineRef.current = null;
+    setRemaining(null);
     setFound(false);
     pulse.value = withRepeat(withTiming(1.08, { duration: 700 }), -1, true);
     rot.value = withRepeat(withTiming(360, { duration: 1600, easing: Easing.linear }), -1, false);
 
-    const startedAt = Date.now();
     const socket = getSocket();
 
     const onMatchFound = (payload: MatchFoundPayload) => {
@@ -87,10 +80,15 @@ export function MatchmakingModal({
         router.push({ pathname: "/online-game" as never, params: { code: payload.roomCode } });
       }, 650);
     };
+    const onStatus = (p: MatchmakingStatusPayload) => {
+      deadlineRef.current = Date.now() + Math.max(0, p.estimatedMs - p.waitTime);
+    };
     socket.on("matchFound", onMatchFound);
+    socket.on("matchmakingStatus", onStatus);
 
     void joinMatchmaking().then((res) => {
-      if (!res.ok) {
+      // already-in-queue = já estamos buscando (StrictMode) → ignora.
+      if (!res.ok && res.error !== "already-in-queue") {
         const info = errorInfo(res.error);
         Alert.alert(info.title, res.message ?? info.message);
         onCancel();
@@ -98,16 +96,21 @@ export function MatchmakingModal({
     });
 
     const timer = setInterval(() => {
-      const t = (Date.now() - startedAt) / (MAX_SECONDS * 1000);
-      setSeconds(Math.min(MAX_SECONDS, Math.round(MAX_SECONDS * organicProgress(t))));
+      if (deadlineRef.current === null) return;
+      const ms = Math.max(0, deadlineRef.current - Date.now());
+      setRemaining(Math.ceil(ms / 1000));
     }, 100);
 
     return () => {
       clearInterval(timer);
       socket.off("matchFound", onMatchFound);
+      socket.off("matchmakingStatus", onStatus);
       if (!matchedRef.current) void leaveMatchmaking();
     };
   }, [visible, onCancel, pulse, rot]);
+
+  const counterText =
+    remaining === null ? "…" : remaining > 0 ? `~${remaining}s` : "Quase lá...";
 
   const handleCancel = () => {
     playButtonSound();
@@ -131,7 +134,8 @@ export function MatchmakingModal({
         <Text style={styles.title}>
           {found ? "Adversário encontrado!" : "Procurando adversário..."}
         </Text>
-        <Text style={styles.counter}>{seconds}s</Text>
+        {!found && <Text style={styles.estLabel}>tempo estimado</Text>}
+        <Text style={styles.counter}>{found ? "🎉" : counterText}</Text>
 
         {!found && (
           <Pressable
@@ -189,8 +193,9 @@ const styles = StyleSheet.create({
     elevation: 10,
   },
   title: { marginTop: 36, color: C.white, fontSize: 18, fontWeight: "800", letterSpacing: 0.3 },
+  estLabel: { marginTop: 6, color: "rgba(255,255,255,0.55)", fontSize: 12, letterSpacing: 0.4 },
   counter: {
-    marginTop: 10,
+    marginTop: 8,
     color: C.blueLight,
     fontSize: 32,
     fontWeight: "900",

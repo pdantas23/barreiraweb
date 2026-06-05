@@ -102,6 +102,8 @@ const errorInfo = (err: string): FriendlyError => {
       return { title: "Voce ja esta numa sala", message: "Saia da sala atual antes de entrar em outra." };
     case "self-match":
       return { title: "Voce nao pode jogar contra si mesmo", message: "Essa sala foi criada pela sua propria conta em outra sessao. Procure outra sala ou crie uma nova." };
+    case "already-in-queue":
+      return { title: "Voce ja esta na fila", message: "Aguarde encontrar um adversario ou cancele a busca atual." };
     case "internal-error":
       return { title: "Sem conexao", message: "Nao conseguimos falar com o servidor agora. Verifique sua internet e tente de novo." };
     default:

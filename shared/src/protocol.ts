@@ -132,12 +132,16 @@ export type MatchFoundPayload = {
   isBot: boolean;
 };
 
-// Emitido a cada ~2s enquanto o jogador aguarda na fila.
+// Emitido logo ao entrar e a cada ~2s enquanto aguarda.
 export type MatchmakingStatusPayload = {
   // Há quanto tempo o jogador está na fila (ms).
   waitTime: number;
   // Posição na fila (1 = próximo a ser pareado).
   position: number;
+  // Tempo total estimado de espera pra ESTE jogador (ms) — o cliente usa pra
+  // mostrar um contador regressivo (estilo Clash Royale). É o prazo até cair
+  // no bot, sorteado por jogador (varia), então não é fixo.
+  estimatedMs: number;
 };
 
 // === Profile (identidade persistente anônima) ===
