@@ -26,6 +26,21 @@ Backlog vivo do Barreira. A ordem reflete prioridade — o que está no topo é 
 
 ## Histórico
 
+### 2026-06-05 — Hardening de rate limit / anti-flood (server)
+
+- **Anti-flood em memória** (`server/src/hardening.ts`, novo): janela deslizante por chave, tudo por-processo (sem Redis — cobre o deploy single-node atual). Limites configuráveis por env:
+  - Conexões novas por IP/min (`RL_CONN_PER_MIN`, default 60) via `io.use()` — protege a tabela `players`, que ganha uma linha por `clientId` novo a cada conexão.
+  - Eventos por socket numa janela de 10s (`RL_EVENTS_PER_10S`, default 120) checado no wrapper `rpc()` — barra spam de `createRoom`/`move`/etc.
+  - Log `[flood]` quando alguém estoura; sweeper a cada 60s pra não vazar memória (`startHardeningSweeper`).
+- **`server/src/index.ts`**: `maxHttpBufferSize: 64*1024` no socket + `express.json({ limit: "50kb" })` (corta payload gigante); `helmet()` + `express-rate-limit` (`RL_HTTP_PER_MIN`, default 120/min) no HTTP; `app.set("trust proxy", 1)` pro `X-Forwarded-For` real do nginx.
+- **Protocolo + clientes**: novo `RpcError "rate-limited"` (`shared/src/protocol.ts`) com mensagem "Calma aí" no `web/src/net/errors.ts` e `mobile/src/net/errors.ts`.
+- Mock do `io` em `server/src/wo-trophy.test.ts` ganhou `use: vi.fn()` (o `io.use` roda no load do módulo). 105 testes do server passando. Deploy feito (`pm2 restart` + rebuild web).
+
+### 2026-06-05 — Fix reset de senha no web (link aparecia expirado)
+
+- Bug: ao voltar do email de recuperação, o link caía em "link inválido/expirado". Causa: `web/src/net/supabase.ts` tinha `detectSessionInUrl: false`, então o SDK nunca processava os tokens do hash (`#access_token=...&type=recovery`) — `ResetPassword.tsx` não via sessão. A mensagem de "expirado" era nossa, não do Supabase; o token estava válido.
+- Fix: `detectSessionInUrl: true` no cliente web. (Mobile segue `false` de propósito — lá os tokens chegam via deep link e são aplicados na mão com `setSession`.)
+
 ### 2026-06-05 — Analytics + observabilidade + dashboard admin + UX lobby
 
 > Trabalho do Paulo (pdantas23) feito em cima do `777cb93`. O sistema de amizade
