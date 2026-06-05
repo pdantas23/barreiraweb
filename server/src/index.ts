@@ -89,12 +89,19 @@ import {
 import { sendInvitePush, upsertPushToken } from "./push.js";
 import type { InviteAcceptResult } from "@barreira/shared";
 import {
+  addMatchmakingBot,
   maybeBotRequestRematch,
   maybeScheduleBotMove,
   scheduleBotRescue,
   setOnBotRescueStarted,
   startBotManager,
 } from "./botManager.js";
+import {
+  initMatchmaking,
+  joinMatchmaking,
+  leaveMatchmaking,
+  type QueuedPlayer,
+} from "./matchmaking.js";
 
 const PORT = Number(process.env.PORT ?? 3000);
 
@@ -352,6 +359,72 @@ const friendService = createFriendService({
   isInGame,
   createInviteRoom,
   sendInvitePush,
+});
+
+// === Matchmaking (Partida Rápida) ===
+// Injeta no módulo de fila as operações concretas (criar sala + gameStart +
+// bot), reusando o broadcastGameStart e o lobby já existentes.
+initMatchmaking({
+  createHumanMatch: (host: QueuedPlayer, guest: QueuedPlayer) => {
+    const room = createRoom({
+      hostSocketId: host.socketId,
+      hostClientId: host.clientId,
+      hostAuthUserId: host.authUserId,
+      hostName: host.name,
+      color: "random",
+      isPrivate: true, // sala de matchmaking não aparece no lobby público
+      hostPlatform: host.platform,
+    });
+    io.sockets.sockets.get(host.socketId)?.join(room.code);
+    try {
+      joinRoom({
+        socketId: guest.socketId,
+        clientId: guest.clientId,
+        authUserId: guest.authUserId,
+        playerName: guest.name,
+        code: room.code,
+        password: room.password ?? undefined,
+        platform: guest.platform,
+      });
+    } catch {
+      // Guest não pôde entrar (caiu nesse meio-tempo, etc) — desfaz a sala.
+      leaveRoom(host.socketId);
+      return null;
+    }
+    io.sockets.sockets.get(guest.socketId)?.join(room.code);
+    recordMatchStart(room);
+    broadcastGameStart(room);
+    console.log(`[matchmaking] match real ${host.name} x ${guest.name} → ${room.code}`);
+    return { code: room.code, password: room.password };
+  },
+  createBotMatch: (host: QueuedPlayer) => {
+    const room = createRoom({
+      hostSocketId: host.socketId,
+      hostClientId: host.clientId,
+      hostAuthUserId: host.authUserId,
+      hostName: host.name,
+      color: "random",
+      isPrivate: true,
+      hostPlatform: host.platform,
+    });
+    io.sockets.sockets.get(host.socketId)?.join(room.code);
+    const added = addMatchmakingBot(room.code);
+    if (!added) {
+      leaveRoom(host.socketId);
+      return null;
+    }
+    recordMatchStart(added.room);
+    broadcastGameStart(added.room);
+    maybeScheduleBotMove(added.room);
+    console.log(`[matchmaking] timeout → bot ${added.botName} pra ${host.name} → ${room.code}`);
+    return { code: room.code, botName: added.botName };
+  },
+  emitMatchFound: (socketId, payload) => {
+    io.to(socketId).emit("matchFound", payload);
+  },
+  emitStatus: (socketId, payload) => {
+    io.to(socketId).emit("matchmakingStatus", payload);
+  },
 });
 
 // Resolve o username (login) do socket; erro tipado se não estiver logado.
@@ -845,8 +918,40 @@ io.on("connection", (socket: TypedSocket) => {
     })(payload, socket, ack),
   );
 
+  // === Matchmaking (Partida Rápida) ===
+  socket.on("joinMatchmaking", (payload, ack) =>
+    rpc(async () => {
+      const authUserId = await ensureAuthUserId(socket);
+      // Nome exibido pro oponente: username se logado, senão o display_name do
+      // profile anônimo (mesma resolução do createRoom/joinRoom).
+      const fallback = clientId
+        ? (await getOrCreateProfile(clientId)).displayName
+        : (socket.data.username ?? "Anônimo");
+      const name = await resolvePlayerName(authUserId, fallback);
+      const player: QueuedPlayer = {
+        socketId: socket.id,
+        clientId,
+        authUserId,
+        name,
+        platform: socket.data.platform ?? null,
+        joinedAt: Date.now(),
+      };
+      joinMatchmaking(player);
+      return null;
+    })(payload, socket, ack),
+  );
+
+  socket.on("leaveMatchmaking", (payload, ack) =>
+    rpc(() => {
+      leaveMatchmaking(socket.id);
+      return null;
+    })(payload, socket, ack),
+  );
+
   socket.on("disconnect", (reason) => {
     console.log(`[-] desconectou: ${socket.id} (${reason})`);
+    // Sai da fila de matchmaking se estava nela (não bloqueia o resto).
+    leaveMatchmaking(socket.id);
     // Baixa de presença: se foi o último socket do usuário, avisa amigos.
     const off = onlineRegistry.remove(socket.id);
     if (off?.nowOffline) {

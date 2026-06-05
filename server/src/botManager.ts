@@ -24,6 +24,7 @@ import type { Server } from "socket.io";
 import {
   applyMove,
   botMove,
+  getRandomBotName,
   serializeState,
   type BotDifficulty,
   type ClientToServerEvents,
@@ -70,13 +71,22 @@ const BOT_COLORS = ["cyan", "random", "red"] as const;
 
 // === Helpers ===
 
-const randInt = (min: number, max: number): number =>
-  Math.floor(min + Math.random() * (max - min + 1));
-
 const randomBetween = (min: number, max: number): number =>
   min + Math.random() * (max - min);
 
-const generateBotName = (): string => `anonimo${randInt(1000, 9999)}`;
+// Nomes de bot em uso AGORA (em qualquer sala ativa) — pra não repetir nome
+// simultaneamente no lobby. Scan barato: poucas salas, poucos players.
+const activeBotNames = (): Set<string> => {
+  const names = new Set<string>();
+  for (const room of getAllRooms().values()) {
+    for (const p of room.players) {
+      if (p.isBot) names.add(p.name);
+    }
+  }
+  return names;
+};
+
+const generateBotName = (): string => getRandomBotName(activeBotNames());
 
 const pickRandomColor = (): "cyan" | "random" | "red" =>
   BOT_COLORS[Math.floor(Math.random() * BOT_COLORS.length)];
@@ -157,6 +167,22 @@ export const scheduleBotRescue = (room: ServerRoom): void => {
 // em cenários que o lobby não captura sozinho.
 export const cancelPendingBotRescue = (room: ServerRoom): void => {
   cancelBotRescue(room);
+};
+
+// Insere um bot como guest numa sala existente (humano = host) e atribui a
+// dificuldade — usado pelo matchmaking quando estoura o timeout sem par real.
+// Devolve a sala atualizada (status playing, gameState pronto) + o nome do bot,
+// ou null se a sala não pôde receber o bot. O caller (index.ts) cuida de
+// recordMatchStart + broadcastGameStart + maybeScheduleBotMove.
+export const addMatchmakingBot = (
+  code: string,
+): { room: ServerRoom; botName: string } | null => {
+  const botName = generateBotName();
+  const updated = addBotGuest({ code, botName });
+  if (!updated) return null;
+  const botPlayer = updated.players.find((p) => p.isBot);
+  if (botPlayer) botDifficulties.set(botPlayer.socketId, randomDifficulty());
+  return { room: updated, botName };
 };
 
 /**

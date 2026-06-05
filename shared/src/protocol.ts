@@ -114,6 +114,32 @@ export type RematchRequestedPayload = {
 export type RematchDeclinedPayload = Record<string, never>;
 export type RematchExpiredPayload = Record<string, never>;
 
+// === Matchmaking (Partida Rápida) ===
+
+export type JoinMatchmakingPayload = Record<string, never>;
+export type LeaveMatchmakingPayload = Record<string, never>;
+
+// Emitido pros DOIS jogadores quando um par é formado (humano+humano) ou quando
+// o bot entra (timeout). O cliente usa `roomCode` pra dar joinRoom e cair na
+// partida. `opponentName` é só pra exibir na tela de "adversário encontrado".
+export type MatchFoundPayload = {
+  roomCode: string;
+  opponentName: string;
+  // Senha da sala privada criada pro match (humano+humano). O cliente precisa
+  // dela pra entrar. Em sala de bot o cliente é o host e não usa.
+  password?: string | null;
+  // true se o adversário é um bot (timeout sem par real). Só pra telemetria/UX.
+  isBot: boolean;
+};
+
+// Emitido a cada ~2s enquanto o jogador aguarda na fila.
+export type MatchmakingStatusPayload = {
+  // Há quanto tempo o jogador está na fila (ms).
+  waitTime: number;
+  // Posição na fila (1 = próximo a ser pareado).
+  position: number;
+};
+
 // === Profile (identidade persistente anônima) ===
 // Emitido pelo server logo após connect/reanchor, ANTES de qualquer
 // gameStart. Cliente guarda em estado global pra mostrar em todas as telas.
@@ -208,6 +234,7 @@ export type RpcError =
   | "invite-expired" // link de amizade expirado
   | "invalid-payload"
   | "rate-limited" // muitos eventos em pouco tempo — anti-flood
+  | "already-in-queue" // já está na fila de matchmaking (anti-spam)
   | "internal-error";
 
 export type RpcResult<T> =
@@ -291,6 +318,15 @@ export type ClientToServerEvents = {
     payload: RegisterPushTokenPayload,
     ack: (res: RpcResult<null>) => void,
   ) => void;
+  // === Matchmaking (Partida Rápida) ===
+  joinMatchmaking: (
+    payload: JoinMatchmakingPayload,
+    ack: (res: RpcResult<null>) => void,
+  ) => void;
+  leaveMatchmaking: (
+    payload: LeaveMatchmakingPayload,
+    ack: (res: RpcResult<null>) => void,
+  ) => void;
 };
 
 export type ServerToClientEvents = {
@@ -316,4 +352,7 @@ export type ServerToClientEvents = {
   gameInviteReceived: (payload: GameInviteReceivedPayload) => void;
   gameInviteResponse: (payload: GameInviteResponsePayload) => void;
   gameInviteExpired: (payload: GameInviteExpiredPayload) => void;
+  // === Matchmaking (Partida Rápida) ===
+  matchFound: (payload: MatchFoundPayload) => void;
+  matchmakingStatus: (payload: MatchmakingStatusPayload) => void;
 };

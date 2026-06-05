@@ -4,6 +4,22 @@ Backlog vivo do Barreira. A ordem reflete prioridade — o que está no topo é 
 
 ---
 
+## Em andamento — Partida Rápida (Quick Match)
+
+Matchmaking estilo Clash Royale: card "Partida Rápida" no lobby → tela de busca → fila de até 15s; acha humano vira sala privada, senão cai num bot (medium/hard 50/50).
+
+- [ ] **TASK 1 — UI: Card Partida Rápida (web + mobile)**: card azul com ícone de raio, "Partida Rápida" / "Encontre um adversário em segundos" / botão "JOGAR →", acima da lista de salas. Web (`Home.tsx`) e mobile (`online.tsx`).
+- [ ] **TASK 2 — UI: Tela de matchmaking com animação**: fundo escuro com animação contínua (CSS no web / Reanimated no mobile), "Procurando adversário...", contador 0→15s com avanço "orgânico" (rápido no início, lento no meio, rápido no fim), botão "Cancelar".
+- [ ] **TASK 3 — Server: matchmaking (`server/src/matchmaking.ts`)**: fila; 2 reais → sala privada + `matchFound` pros dois; 15s sem par → sala com bot. Eventos `joinMatchmaking`/`leaveMatchmaking`/`matchFound`/`matchmakingStatus`. Anti-spam: 1 fila por vez.
+- [ ] **TASK 4 — Nomes de bots realistas**: `shared/src/botNames.ts` com ≥80 nomes BR + `getRandomBotName()` sem repetição simultânea. Substituir `anonimo####`.
+- [ ] **TASK 5 — ESTUDO: impacto do timer de expiração de salas de bot** (relatório, sem código): capacidade de salas simultâneas, custo de N timers no event loop, comparar (a) setTimeout/sala (b) polling único (c) timestamp + lazy no listRooms. Recomendar e **aguardar aprovação**.
+- [ ] **TASK 6 — Timer de expiração de salas de bot** (só após TASK 5 aprovada): salas de bot públicas expiram em 3min sem jogador; salas de matchmaking não expiram.
+- [ ] **TASK 7 — Testes automatizados**: matchmaking (2 reais, timeout→bot, leave, anti-spam), `getRandomBotName`, expiração de salas (após TASK 6).
+
+> Regra: NÃO implementar a TASK 6 antes de completar e reportar a TASK 5.
+
+---
+
 ## Próximas
 
 1. **Modo Rankeada** — coluna `elo_ranqueada` separada (não reaproveitar `trofeus_casual`); pareamento por faixa; reset sazonal opcional.

@@ -13,6 +13,9 @@ export * from "./engine";
 export { botMove } from "./bot";
 export type { BotDifficulty } from "./bot";
 
+// --- Nomes realistas pra bots ---
+export { BOT_NAMES, getRandomBotName } from "./botNames";
+
 // --- Serialização (wire format) ---
 export * from "./serialization";
 
