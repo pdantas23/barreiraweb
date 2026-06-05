@@ -8,6 +8,14 @@ Backlog vivo do Barreira. A ordem reflete prioridade — o que está no topo é 
 
 1. **Modo Rankeada** — coluna `elo_ranqueada` separada (não reaproveitar `trofeus_casual`); pareamento por faixa; reset sazonal opcional.
 
+2. **Modo 2x2 (duplas)** — partida de 4 jogadores em 2 times. Regras principais:
+   - 4 peões, um em cada lado do tabuleiro (cima/baixo/esquerda/direita); parceiros começam em lados **opostos**.
+   - Cada jogador tem como objetivo alcançar o lado **oposto** ao seu de largada.
+   - O **time vence quando QUALQUER um dos dois parceiros** chega ao seu objetivo.
+   - Paredes divididas entre os jogadores (ex.: 5 cada, mantendo o total de 20); regra de **não fechar totalmente o caminho** vale pra todos.
+   - A vez **gira pelo tabuleiro** alternando os times; salto/pulo sobre peões adjacentes (parceiro ou adversário) segue a regra normal.
+   - Exige: tabuleiro com objetivo nos 4 lados (hoje só 2), lógica de times + sala de 4 no server (matchmaking 2+2), e UI de 4 peões/4 bancos de parede.
+
 > [AdSense] revisão já solicitada no painel em 2026-05-26 — aguardando resposta do Google (2–7 dias). Se aprovado, slot `9953596385` já está ativo em `web/src/ads/adsConfig.ts:24`. Se rejeitado de novo, anotar o motivo aqui e abrir nova task.
 
 ---
