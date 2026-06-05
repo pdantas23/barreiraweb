@@ -207,6 +207,7 @@ export type RpcError =
   | "invite-invalid" // link de amizade inexistente/inválido
   | "invite-expired" // link de amizade expirado
   | "invalid-payload"
+  | "rate-limited" // muitos eventos em pouco tempo — anti-flood
   | "internal-error";
 
 export type RpcResult<T> =

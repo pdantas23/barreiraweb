@@ -11,7 +11,7 @@ const mocks = vi.hoisted(() => ({
   listen: vi.fn(),
   fakeIo: null as unknown,
 }));
-mocks.fakeIo = { on: vi.fn(), emit: vi.fn(), to: vi.fn(() => ({ emit: mocks.toEmit })) };
+mocks.fakeIo = { on: vi.fn(), use: vi.fn(), emit: vi.fn(), to: vi.fn(() => ({ emit: mocks.toEmit })) };
 
 vi.mock("node:http", () => ({ createServer: () => ({ listen: mocks.listen }) }));
 vi.mock("socket.io", () => ({ Server: vi.fn(() => mocks.fakeIo) }));

@@ -12,6 +12,8 @@ import { resolve } from "node:path";
 dotenv.config({ path: resolve(process.cwd(), ".env") });
 dotenv.config({ path: resolve(process.cwd(), "..", ".env") });
 import express from "express";
+import helmet from "helmet";
+import rateLimit from "express-rate-limit";
 import { createServer } from "node:http";
 import { Server, type Socket } from "socket.io";
 import {
@@ -79,6 +81,11 @@ import {
 import { isAllowedOrigin } from "./cors.js";
 import { createOnlineRegistry } from "./onlineRegistry.js";
 import { createFriendService, createSupabaseFriendStore } from "./friendships.js";
+import {
+  connectionAllowed,
+  eventAllowed,
+  startHardeningSweeper,
+} from "./hardening.js";
 import { sendInvitePush, upsertPushToken } from "./push.js";
 import type { InviteAcceptResult } from "@barreira/shared";
 import {
@@ -93,7 +100,26 @@ const PORT = Number(process.env.PORT ?? 3000);
 
 // === HTTP ===
 const app = express();
-app.use(express.json());
+// Atrás do nginx (1 hop): faz req.ip refletir o X-Forwarded-For real, senão
+// todo request viria de 127.0.0.1 e o rate-limit cairia num balde só.
+app.set("trust proxy", 1);
+// Headers de segurança padrão. Só afeta as rotas express (/health) — as
+// requests de /socket.io são tratadas pela engine antes do express.
+app.use(helmet());
+// Limite explícito de corpo: as mensagens do jogo são minúsculas, 50kb é
+// folga de sobra e fecha o vetor de payload JSON gigante.
+app.use(express.json({ limit: "50kb" }));
+
+// Rate-limit do HTTP. Só existe /health hoje; 120/min por IP é teto alto pra
+// healthcheck/uptime e barra varredura. Devolve 429 sem derrubar o resto.
+app.use(
+  rateLimit({
+    windowMs: 60_000,
+    limit: Number(process.env.RL_HTTP_PER_MIN ?? 120),
+    standardHeaders: true,
+    legacyHeaders: false,
+  }),
+);
 
 app.get("/health", (_req, res) => {
   res.json({ ok: true, ts: Date.now() });
@@ -114,9 +140,22 @@ const corsOrigin = (
 const httpServer = createServer(app);
 const io = new Server<ClientToServerEvents, ServerToClientEvents>(httpServer, {
   cors: { origin: corsOrigin },
+  // Default é 1MB por mensagem — alto pro nosso tráfego (jogadas minúsculas).
+  // 64KB cobre qualquer payload legítimo e corta mensagem gigante de propósito.
+  maxHttpBufferSize: 64 * 1024,
 });
 
 type TypedSocket = Socket<ClientToServerEvents, ServerToClientEvents>;
+
+// Anti-flood de conexão: recusa quem abre sockets em loop (protege a tabela
+// `players`, que ganha uma linha por clientId novo). Roda antes do connection.
+io.use((socket, next) => {
+  if (connectionAllowed(socket, Date.now())) {
+    next();
+  } else {
+    next(new Error("rate-limited"));
+  }
+});
 
 // === Helpers ===
 
@@ -139,6 +178,11 @@ const rpc = <P, R>(
   handler: (payload: P, socket: TypedSocket) => Promise<R> | R,
 ) => {
   return async (payload: P, socket: TypedSocket, ack: (res: RpcResult<R>) => void) => {
+    // Throttle por socket: barra spam de eventos antes de tocar engine/DB.
+    if (!eventAllowed(socket, Date.now())) {
+      ack(errResult("rate-limited"));
+      return;
+    }
     try {
       const data = await handler(payload, socket);
       ack(okResult(data));
@@ -902,6 +946,8 @@ httpServer.listen(PORT, () => {
   startBotManager(io);
   // Cron diário de reengajamento (18h BRT): push pra quem sumiu há 48h+.
   startReengagementCron();
+  // Limpeza periódica das janelas de rate-limit (libera memória de IPs/sockets).
+  startHardeningSweeper();
   // Snapshot periódico de presença online pro dashboard.
   setInterval(() => {
     try {

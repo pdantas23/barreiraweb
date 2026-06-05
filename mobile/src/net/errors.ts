@@ -42,6 +42,11 @@ export const errorInfo = (err: string): ErrorInfo => {
         title: "Dados inválidos",
         message: "Tente novamente.",
       };
+    case "rate-limited":
+      return {
+        title: "Calma aí",
+        message: "Muitas ações em pouco tempo. Espera alguns segundos e tenta de novo.",
+      };
     case "internal-error":
       return {
         title: "Sem conexão",
