@@ -291,6 +291,14 @@ export default function HomeScreen() {
             </span>
           </div>
           <div className="flex items-center gap-1.5">
+            {/* Troféu (leaderboard) — na navbar, à esquerda do nome do usuário. */}
+            <button
+              onClick={() => { playButtonSound(); setShowLeaderboard(true); }}
+              className="w-9 h-9 rounded-full bg-white border border-cell-bg flex items-center justify-center cursor-pointer hover:opacity-80"
+              aria-label="Ver leaderboard"
+            >
+              <IoTrophy size={16} color="#F4B619" />
+            </button>
             <HeaderAuthButtons />
             <FriendsHub />
             <button
@@ -302,18 +310,6 @@ export default function HomeScreen() {
             </button>
           </div>
         </header>
-
-        {/* === Botão flutuante do leaderboard ===
-            Fixo no canto superior esquerdo, logo abaixo do header. Abre o
-            ranking num modal (antes ficava inline no topo do lobby). */}
-        <button
-          onClick={() => { playButtonSound(); setShowLeaderboard(true); }}
-          className="fixed left-4 z-[100] w-11 h-11 rounded-full bg-white border border-[#DDEAFF] shadow-[0_2px_8px_rgba(61,111,255,0.15)] flex items-center justify-center cursor-pointer hover:opacity-90 active:scale-95 transition-transform"
-          style={{ top: 72 }}
-          aria-label="Ver leaderboard"
-        >
-          <IoTrophy size={20} color="#F4B619" />
-        </button>
 
         {/* === Body responsivo: 3 colunas no desktop, 1 fluindo no mobile ===
             No mobile não há flex-1/min-h-0 (sem altura travada) → o conteúdo
