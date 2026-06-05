@@ -15,7 +15,7 @@
     "dev": "concurrently -n server,web,mobile -c blue,green,magenta -k \"npm:dev:server\" \"npm:dev:web\" \"npm:dev:mobile\"",
     "dev:web": "npm --workspace=barreira-web run dev",
     "dev:server": "PORT=3001 npm --workspace=@barreira/server run dev",
-    "dev:mobile": "npm --prefix mobile run start",
+    "dev:mobile": "npm --prefix mobile run start:qr",
     "test:client": "npm --workspace=@barreira/server run test-client",
     "test:room": "npm --workspace=@barreira/server run test-room",
     "test:game": "npm --workspace=@barreira/server run test-game",

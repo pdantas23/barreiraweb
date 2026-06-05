@@ -4,22 +4,6 @@ Backlog vivo do Barreira. A ordem reflete prioridade — o que está no topo é 
 
 ---
 
-## Concluído — Partida Rápida (Quick Match) — 2026-06-05
-
-Matchmaking estilo Clash Royale: card "Partida Rápida" no lobby → tela de busca → fila de até 15s; acha humano vira sala privada, senão cai num bot (medium/hard 50/50).
-
-- [ ] **TASK 1 — UI: Card Partida Rápida (web + mobile)**: card azul com ícone de raio, "Partida Rápida" / "Encontre um adversário em segundos" / botão "JOGAR →", acima da lista de salas. Web (`Home.tsx`) e mobile (`online.tsx`).
-- [ ] **TASK 2 — UI: Tela de matchmaking com animação**: fundo escuro com animação contínua (CSS no web / Reanimated no mobile), "Procurando adversário...", contador 0→15s com avanço "orgânico" (rápido no início, lento no meio, rápido no fim), botão "Cancelar".
-- [ ] **TASK 3 — Server: matchmaking (`server/src/matchmaking.ts`)**: fila; 2 reais → sala privada + `matchFound` pros dois; 15s sem par → sala com bot. Eventos `joinMatchmaking`/`leaveMatchmaking`/`matchFound`/`matchmakingStatus`. Anti-spam: 1 fila por vez.
-- [ ] **TASK 4 — Nomes de bots realistas**: `shared/src/botNames.ts` com ≥80 nomes BR + `getRandomBotName()` sem repetição simultânea. Substituir `anonimo####`.
-- [x] **TASK 5 — ESTUDO: impacto do timer de expiração de salas de bot** (relatório entregue): salas de bot *waiting* são limitadas a `BOT_MIN_WAITING` (≈2), não crescem com o tráfego → impacto de timers é desprezível em qualquer abordagem. **Recomendação: (b) piggyback no scan de 4s que JÁ existe no botManager** (`reapOrphanedBotRooms`), com `createdAt` na sala → zero timers novos, remoção ativa + `lobbyUpdated`, precisão ~4s num timeout de 180s. Evitar (c) (sem remoção ativa/broadcast, efeito colateral no listRooms). **Aguardando aprovação pra TASK 6.**
-- [x] **TASK 6 — Timer de expiração de salas de bot** (aprovada com abordagem (b), TTL 3min): `createdAt` na sala (`lobby.ts`); `reapExpiredBotRooms` no scan de 4s do `botManager` remove salas de bot *waiting* > 3min (`BOT_ROOM_TTL_MS`, env-config). Matchmaking não afetado (privadas/playing). Zero timers novos.
-- [x] **TASK 7 — Testes automatizados**: matchmaking 7 (2 reais, timeout→bot, leave, anti-spam ×2, status), `botNames` 4 (lista, sem repetição, sufixo), expiração 2 (expira em 3min / não expira com humano). Tudo verde.
-
-> Concluída. Regra cumprida: TASK 6 só foi implementada após a TASK 5 reportada e aprovada.
-
----
-
 ## Próximas
 
 1. **Modo Rankeada** — coluna `elo_ranqueada` separada (não reaproveitar `trofeus_casual`); pareamento por faixa; reset sazonal opcional.
@@ -31,11 +15,43 @@ Matchmaking estilo Clash Royale: card "Partida Rápida" no lobby → tela de bus
 ## Futuro (nice-to-have)
 
 - AdMob real no mobile — hoje **inexistente** (sem lib, sem placeholder). Precisa integrar `react-native-google-mobile-ads` do zero e decidir onde mostrar (o antigo `adContainer` em `game.tsx` não existe mais).
-- Tutorial / primeira partida guiada — nada interativo hoje (só as páginas de texto `Regras.tsx` / `Estrategias.tsx` no web).
 
 ---
 
 ## Histórico
+
+### 2026-06-05 — Tutorial: primeira partida guiada (mobile) + fixes
+
+Tutorial interativo (coach-marks sobre o tabuleiro real), **uma vez por dispositivo**, que **roda ANTES da tela inicial** na primeira abertura. Ensina jogando e termina deixando o usuário concluir a partida. Decisões: partida guiada interativa (não slides) + flag por dispositivo via AsyncStorage (reinstalar mostra de novo — aceito).
+
+- **Persistência** (`mobile/src/state/tutorial.tsx`): provider espelhando `audioSettings.tsx`, key `tutorial_seen`, expõe `{ seen, loading, markSeen() }` + helper puro `shouldShowTutorial(seen, loading)`. Montado no `_layout.tsx`.
+- **Gatilho ANTES da home** (`app/index.tsx`): na 1ª vez (`!seen && !loading`), a home faz `router.replace("/tutorial")` assim que a flag resolve, com guard de render (fundo neutro) pra não piscar a tela inicial. (Mudou da ideia original de disparar no "Jogar".) Item **"Rever tutorial"** nas Configurações.
+- **Roteiro data-driven** (`mobile/src/tutorial/script.ts`): `TUTORIAL_STEPS` (intro → mover → objetivo → parede → regra → "agora jogue"), `scriptedOpponentMove` (oponente anda reto, previsível) e `allowedTargets` (interseção com lances válidos da engine, defensivo).
+- **Coach-marks** (`mobile/src/components/TutorialOverlay.tsx`): banner com texto + dots de progresso + "Pular" + CTA; *gating* de toque por passo (reaproveita `getValidMoves`/`canPlaceWall`); labels de acessibilidade; sem animação essencial (reduce-motion ok).
+- **Tela do tutorial** (`app/tutorial.tsx`): duas fases — **guiada** (coach-marks, oponente scriptado) e **livre** (partida até o fim contra o bot fácil, com `GameOverModal`). Oponente joga com **delay de 700ms** (`OPPONENT_THINK_MS`, igual ao `game.tsx`) — antes era instantâneo. Sem troféu (é local/offline; troféu só vem do servidor no casual online). `markSeen()` ao entrar na fase livre ou ao pular/sair.
+- **Testes**: `tutorial.test.tsx` (persistência/flag/skip/storage falho), `script.test.ts` (roteiro/oponente legal/fluxo), `tutorial-gate.test.tsx` (redireciona antes da home / já visto mostra home / loading não pisca). Suíte cheia verde (web 60 · server 114 · shared 65 · mobile 68).
+
+**Fixes paralelos (mesma leva):**
+- **Erro do refresh token no cold start** (`mobile/src/net/supabase.ts`): o `@supabase/auth-js` faz `console.error` interno quando o refresh token salvo está inválido (`GoTrueClient._recoverAndRefresh`) — mas já trata (remove sessão, emite SIGNED_OUT). Vazava um ERROR vermelho em produção. Filtro cirúrgico silencia **só** essa mensagem; qualquer outro erro passa.
+- **QR do Expo Go no `npm run dev`** (`mobile/scripts/start-with-qr.mjs` + `package.json` raiz/mobile): rodando sob `concurrently` o stdout não é TTY → o Expo não desenha o QR. Wrapper sobe `expo start --lan`, faz polling no `/status` e, quando o Metro está pronto, imprime um QR estático de `exp://<IP-LAN>:8081` (IP recalculado a cada boot) com margem pra sobreviver ao prefixo `[mobile]`. Sem hotkeys i/a/r (pra isso, `npm --prefix mobile start` em terminal próprio).
+- **Teste web stale** (`web/src/pages/Home.test.tsx`): atualizado pro troféu na navbar (não mais flutuante) + mock completo de `../net/api` pro `FriendsHub` (evita unhandled rejection que derrubava o exit code).
+
+### 2026-06-05 — Ajustes pós-lançamento do Quick Match + troféu na navbar
+
+Refinamentos em cima da Partida Rápida já entregue, além do reposicionamento do troféu:
+- **Matchmaking — robustez e timing** (`server/src/matchmaking.ts` + overlays web/mobile): server passou a **ignorar `already-in-queue`** (re-entrada na fila não vira erro) e **`already-in-room`** no fluxo lobby+matchmaking; cold-start não dispara mais modal de erro. Timeout da fila virou faixa **12–20s** (antes fixo) e o contador é **regressivo**. Tempo exibido ganhou **jitter** e o "~" do contador foi removido (parece mais "real").
+- **Troféu na navbar** (web): movido pra navbar **à esquerda do username**, removido o indicador flutuante anterior.
+- **Troféu no mobile**: aparece **só no lobby**, não na tela inicial.
+
+### 2026-06-05 — Partida Rápida (Quick Match) entregue
+
+Matchmaking estilo Clash Royale: card "Partida Rápida" no lobby → tela de busca → fila; acha humano vira sala privada, senão cai num bot (medium/hard 50/50). 7 tasks, todas concluídas (regra cumprida: TASK 6 só foi implementada após a TASK 5 reportada e aprovada).
+- **UI card** (`web/src/components/QuickMatchCard.tsx`/`Home.tsx`, `mobile/app/online.tsx`): card azul com ícone de raio, "Partida Rápida" / "Encontre um adversário em segundos" / "JOGAR →", acima da lista de salas.
+- **Tela de matchmaking** (`web/src/components/MatchmakingOverlay.tsx` / Reanimated no mobile): fundo escuro animado, "Procurando adversário...", contador com avanço "orgânico", botão "Cancelar".
+- **Server** (`server/src/matchmaking.ts`): fila; 2 reais → sala privada + `matchFound`; sem par → sala com bot. Eventos `joinMatchmaking`/`leaveMatchmaking`/`matchFound`/`matchmakingStatus`. Anti-spam: 1 fila por vez.
+- **Nomes de bot realistas** (`shared/src/botNames.ts`): ≥80 nomes BR + `getRandomBotName()` sem repetição simultânea, substituindo `anonimo####`.
+- **Expiração de salas de bot ociosas** (TASK 5 estudo → TASK 6 impl): `createdAt` na sala (`lobby.ts`); `reapExpiredBotRooms` piggyback no scan de 4s do `botManager` remove salas de bot *waiting* > 3min (`BOT_ROOM_TTL_MS`, env-config), zero timers novos. Matchmaking não afetado (privadas/playing).
+- **Testes** (TASK 7): matchmaking 7 + `botNames` 4 + expiração 2, tudo verde.
 
 ### 2026-06-05 — Cache do bot investigado e DESCARTADO (sem ganho)
 

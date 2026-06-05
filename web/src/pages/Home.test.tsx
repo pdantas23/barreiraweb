@@ -1,6 +1,6 @@
-// Testes do ícone flutuante + modal do leaderboard na Home.
+// Testes do troféu (leaderboard) na navbar + modal do leaderboard na Home.
 //
-// O ícone-troféu vive fixo no canto superior esquerdo (abaixo do header) e
+// O troféu vive na navbar (header), à esquerda dos botões de auth/config, e
 // abre um modal com o <Leaderboard /> dentro. Como o componente do modal é
 // inline na Home, renderizamos a Home inteira mockando as dependências de
 // rede/áudio. O Leaderboard real roda dentro do modal (supabase mockado).
@@ -28,6 +28,19 @@ vi.mock("../net/api", () => ({
   listRooms: vi.fn().mockResolvedValue({ ok: true, data: { rooms: [] } }),
   joinRoom: vi.fn(),
   createRoom: vi.fn(),
+  // FriendsHub (renderizado na navbar) consome estas — sem o mock, getFriends()
+  // no mount vira unhandled rejection e o vitest sai com erro mesmo passando.
+  getFriends: vi.fn().mockResolvedValue({
+    ok: true,
+    data: { friends: [], incomingRequests: [], outgoingRequests: [] },
+  }),
+  sendFriendRequest: vi.fn().mockResolvedValue({ ok: true }),
+  acceptFriendRequest: vi.fn().mockResolvedValue({ ok: true }),
+  declineFriendRequest: vi.fn().mockResolvedValue({ ok: true }),
+  removeFriend: vi.fn().mockResolvedValue({ ok: true }),
+  createFriendInviteLink: vi.fn().mockResolvedValue({ ok: true, data: { url: "" } }),
+  sendGameInvite: vi.fn().mockResolvedValue({ ok: true }),
+  respondGameInvite: vi.fn().mockResolvedValue({ ok: true }),
 }));
 vi.mock("../hooks/useButtonSound", () => ({
   playButtonSound: vi.fn(),
@@ -89,15 +102,15 @@ beforeEach(() => {
   h.auth.current = { user: null, username: null };
 });
 
-describe("Home — ícone flutuante do leaderboard", () => {
-  it("renderiza o ícone-troféu fixo no canto superior esquerdo", () => {
+describe("Home — troféu (leaderboard) na navbar", () => {
+  it("renderiza o troféu na navbar (header), não mais flutuante", () => {
     renderHome();
     const btn = screen.getByLabelText("Ver leaderboard");
     expect(btn).toBeInTheDocument();
-    // Flutuante (fixed), encostado à esquerda, abaixo do header.
-    expect(btn).toHaveClass("fixed");
-    expect(btn).toHaveClass("left-4");
-    expect(btn).toHaveStyle({ top: "72px" });
+    // Vive na navbar: botão redondo dentro do <header>, sem posicionamento fixo.
+    expect(btn).toHaveClass("rounded-full");
+    expect(btn).not.toHaveClass("fixed");
+    expect(btn.closest("header")).not.toBeNull();
   });
 
   it("o leaderboard não aparece inline — só dentro do modal", () => {
