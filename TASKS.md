@@ -105,7 +105,7 @@ Além disso, feito o **cleanup do `theme.ts`**: removidos `BOARD_PADDING`/`BOARD
 > Trabalho do Paulo (pdantas23) feito em cima do `777cb93`. O sistema de amizade
 > do sócio veio depois, por cima disso. Resumo aqui pra contexto.
 
-**Analytics — schema (Supabase, SQL em `docs/analytics-fase1.sql` e `docs/analytics-fase7.sql`):**
+**Analytics — schema (Supabase, migration consolidada `supabase/migrations/20260605_analytics.sql`):**
 - `players` ganhou `is_bot`, `user_id` (FK `auth.users`), `last_platform`.
 - Tabela nova `matches` — registro de partidas: `mode` (casual_online / private_online / training_offline), `winner`, `finish_reason` (goal / timeout_wo / leave_wo / abandoned), e p1/p2 com `client_id` / `user_id` / `is_bot` / `platform`.
 - Tabela nova `online_snapshots` — foto da presença ao longo do tempo (podada > 30 dias).

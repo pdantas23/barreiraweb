@@ -17,6 +17,7 @@
 import {
   initialState,
   randomFirstTurn,
+  type BotDifficulty,
   type Color,
   type ColorChoice,
   type GameState,
@@ -53,6 +54,9 @@ export type ServerPlayer = {
   // Plataforma de origem (web/ios/android), null se desconhecida ou bot.
   // Propaga pro matches.pN_platform no recordMatchStart.
   platform: Platform | null;
+  // Dificuldade do bot (só quando isBot). Setada pelo botManager ao atribuir a
+  // dificuldade; persistida em matches.bot_difficulty no recordMatchStart.
+  botDifficulty?: BotDifficulty;
 };
 
 export type RematchState = {
@@ -76,6 +80,9 @@ export type ServerRoom = {
   // Lances aplicados nesta partida (analytics — total_moves). Reset no
   // recordMatchStart, incrementado a cada move aceito (humano e bot).
   moveCount: number;
+  // Espera no matchmaking até a partida formar (ms). Setado só nas salas de
+  // matchmaking; persistido em matches.wait_ms. undefined/null = não-matchmaking.
+  waitMs?: number | null;
   password: string | null;
   hostColor: ColorChoice;
   hostName: string;

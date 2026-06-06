@@ -37,19 +37,27 @@ export const recordMatchStart = (room: ServerRoom): void => {
   const mode =
     room.isPrivate && room.source !== "matchmaking" ? "private_online" : "casual_online";
 
+  // Dificuldade do bot (qualquer lado que seja bot); null se humano vs humano.
+  const botDifficulty =
+    (p1?.isBot ? p1.botDifficulty : p2?.isBot ? p2.botDifficulty : null) ?? null;
+
   const row = {
     id,
     room_code: room.code,
     mode,
     source: room.source,
+    bot_difficulty: botDifficulty,
+    wait_ms: room.waitMs ?? null,
     p1_client_id: p1?.clientId ?? null,
     p1_user_id: p1?.authUserId ?? null,
     p1_is_bot: p1?.isBot ?? false,
     p1_platform: p1?.platform ?? null,
+    p1_name: p1?.name ?? null,
     p2_client_id: p2?.clientId ?? null,
     p2_user_id: p2?.authUserId ?? null,
     p2_is_bot: p2?.isBot ?? false,
     p2_platform: p2?.platform ?? null,
+    p2_name: p2?.name ?? null,
   };
 
   logEvent("match_started", { room: room.code, detail: mode });

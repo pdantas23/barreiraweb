@@ -427,6 +427,7 @@ initMatchmaking({
       return null;
     }
     io.sockets.sockets.get(guest.socketId)?.join(room.code);
+    room.waitMs = Math.max(0, Math.round(Date.now() - host.joinedAt)); // espera na fila (analytics)
     recordMatchStart(room);
     broadcastGameStart(room);
     console.log(`[matchmaking] match real ${host.name} x ${guest.name} → ${room.code}`);
@@ -449,6 +450,7 @@ initMatchmaking({
       leaveRoom(host.socketId);
       return null;
     }
+    added.room.waitMs = Math.max(0, Math.round(Date.now() - host.joinedAt)); // espera até cair no bot
     recordMatchStart(added.room);
     broadcastGameStart(added.room);
     maybeScheduleBotMove(added.room);

@@ -159,7 +159,11 @@ export const scheduleBotRescue = (room: ServerRoom): void => {
     }
     // Atribui dificuldade ao bot guest do rescue.
     const botPlayer = updated.players.find((p) => p.isBot);
-    if (botPlayer) botDifficulties.set(botPlayer.socketId, randomDifficulty());
+    if (botPlayer) {
+      const difficulty = randomDifficulty();
+      botDifficulties.set(botPlayer.socketId, difficulty);
+      botPlayer.botDifficulty = difficulty;
+    }
     // Analytics: partida começou (bot entrou como guest → playing).
     recordMatchStart(updated);
     console.log(`[botManager] rescue: ${botName} entrou em ${code}`);
@@ -185,7 +189,11 @@ export const addMatchmakingBot = (
   const updated = addBotGuest({ code, botName });
   if (!updated) return null;
   const botPlayer = updated.players.find((p) => p.isBot);
-  if (botPlayer) botDifficulties.set(botPlayer.socketId, randomDifficulty());
+  if (botPlayer) {
+    const difficulty = randomDifficulty();
+    botDifficulties.set(botPlayer.socketId, difficulty);
+    botPlayer.botDifficulty = difficulty;
+  }
   return { room: updated, botName };
 };
 
@@ -324,6 +332,7 @@ const spawnBotHostRoom = (): void => {
   if (botPlayer) {
     const difficulty = randomDifficulty();
     botDifficulties.set(botPlayer.socketId, difficulty);
+    botPlayer.botDifficulty = difficulty; // persiste em matches.bot_difficulty
     console.log(`[botManager] sala bot ${room.code} criada por ${name} (cor ${color}, dificuldade ${difficulty})`);
   }
 };
