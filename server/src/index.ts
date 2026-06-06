@@ -34,6 +34,7 @@ import {
   chargeTurnTime,
   clearRematch,
   createRoom,
+  getAllRooms,
   getRoomBySocket,
   initGameClock,
   joinRoom,
@@ -61,7 +62,8 @@ import {
 } from "./profiles.js";
 import { startReengagementCron } from "./reengagement.js";
 import { resolveAuthUser } from "./auth.js";
-import { recordMatchStart, recordMatchFinish } from "./matches.js";
+import { recordMatchStart, recordMatchFinish, reconcileOrphanMatches } from "./matches.js";
+import { logEvent, recentEvents } from "./eventLog.js";
 import { recordOnlineSnapshot, type OnlineStats } from "./snapshots.js";
 import { awardCasualTrophy } from "./trophies.js";
 import {
@@ -100,6 +102,7 @@ import {
   initMatchmaking,
   joinMatchmaking,
   leaveMatchmaking,
+  queueSize,
   type QueuedPlayer,
 } from "./matchmaking.js";
 
@@ -130,6 +133,36 @@ app.use(
 
 app.get("/health", (_req, res) => {
   res.json({ ok: true, ts: Date.now() });
+});
+
+// === Tempo real (dashboard de analytics) ===
+// Estado ao vivo que NÃO está no Supabase (salas/fila vivem em memória).
+// Sem PII: códigos de sala, modo, nº de players e eventos recentes (tipo/sala).
+// Leitura pública, igual às RPCs do dashboard (não expõe nome/email).
+app.get("/admin/live", (_req, res) => {
+  let waiting = 0;
+  let playing = 0;
+  const openRooms: Array<{ code: string; players: number; isBot: boolean }> = [];
+  for (const room of getAllRooms().values()) {
+    if (room.status === "waiting") {
+      waiting++;
+      if (!room.isPrivate) {
+        openRooms.push({
+          code: room.code,
+          players: room.players.length,
+          isBot: room.players.every((p) => p.isBot),
+        });
+      }
+    } else if (room.status === "playing") {
+      playing++;
+    }
+  }
+  res.json({
+    ts: Date.now(),
+    rooms: { waiting, playing, open: openRooms.slice(0, 30) },
+    matchmaking: queueSize(),
+    events: recentEvents(30),
+  });
 });
 
 // === WebSocket ===
@@ -347,6 +380,7 @@ const createInviteRoom = (
     hostName: fromUsername,
     color: "random",
     isPrivate: true,
+    source: "invite",
   });
   hostSocket?.join(room.code);
   return { code: room.code, password: room.password };
@@ -373,6 +407,7 @@ initMatchmaking({
       hostName: host.name,
       color: "random",
       isPrivate: true, // sala de matchmaking não aparece no lobby público
+      source: "matchmaking", // ...mas é jogo casual pra analytics
       hostPlatform: host.platform,
     });
     io.sockets.sockets.get(host.socketId)?.join(room.code);
@@ -405,6 +440,7 @@ initMatchmaking({
       hostName: host.name,
       color: "random",
       isPrivate: true,
+      source: "matchmaking",
       hostPlatform: host.platform,
     });
     io.sockets.sockets.get(host.socketId)?.join(room.code);
@@ -487,6 +523,7 @@ io.on("connection", (socket: TypedSocket) => {
   socket.data.authUserId = null;
   socket.data.platform = platform;
   console.log(`[+] conectou: ${socket.id}${clientId ? ` (clientId ${clientId.slice(0, 8)}…)` : ""}`);
+  logEvent("connect", { detail: platform ?? "?" });
 
   // Resolve identidade persistente via Supabase (fire-and-forget — não
   // bloqueia outros handlers). Emite `profile` quando resolver.
@@ -692,6 +729,7 @@ io.on("connection", (socket: TypedSocket) => {
       // Inclui o `move` no payload pra o replay client-side empilhar o lance
       // do oponente (que o client não vê de outra forma, só vê state final).
       room.gameState = result.state;
+      room.moveCount++; // analytics: total_moves gravado no recordMatchFinish
       // Debita o tempo gasto neste turno e reinicia o cronômetro pro próximo.
       chargeTurnTime(room, me.enginePlayer, now);
       const wireState = serializeState(result.state);
@@ -1047,6 +1085,9 @@ httpServer.listen(PORT, () => {
   console.log(`Barreira server rodando em http://localhost:${PORT}`);
   console.log(`Health:  http://localhost:${PORT}/health`);
   console.log(`Socket:  ws://localhost:${PORT}`);
+  // Reconcilia partidas órfãs (finished_at NULL) deixadas por um restart
+  // anterior no meio do jogo — marca como abandonadas. Fire-and-forget.
+  reconcileOrphanMatches();
   // Inicializa o bot manager — vai povoar o lobby com salas fantasmas.
   startBotManager(io);
   // Cron diário de reengajamento (18h BRT): push pra quem sumiu há 48h+.

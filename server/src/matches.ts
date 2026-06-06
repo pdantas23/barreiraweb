@@ -14,6 +14,7 @@
 import { randomUUID } from "node:crypto";
 import type { PlayerId } from "@barreira/shared";
 import { getSupabase } from "./db.js";
+import { logEvent } from "./eventLog.js";
 import type { ServerRoom } from "./lobby.js";
 
 export type FinishReason = "goal" | "timeout_wo" | "leave_wo" | "abandoned";
@@ -25,14 +26,22 @@ export const recordMatchStart = (room: ServerRoom): void => {
 
   const id = randomUUID();
   room.matchId = id;
+  room.moveCount = 0; // zera o contador de lances pra esta partida (cobre revanche)
 
   const p1 = room.players.find((p) => p.enginePlayer === 1) ?? null;
   const p2 = room.players.find((p) => p.enginePlayer === 2) ?? null;
 
+  // mode é derivado do source (não de isPrivate): matchmaking é casual mesmo
+  // nascendo "privado" pra não aparecer no lobby. Convite e sala privada manual
+  // são private_online.
+  const mode =
+    room.isPrivate && room.source !== "matchmaking" ? "private_online" : "casual_online";
+
   const row = {
     id,
     room_code: room.code,
-    mode: room.isPrivate ? "private_online" : "casual_online",
+    mode,
+    source: room.source,
     p1_client_id: p1?.clientId ?? null,
     p1_user_id: p1?.authUserId ?? null,
     p1_is_bot: p1?.isBot ?? false,
@@ -42,6 +51,8 @@ export const recordMatchStart = (room: ServerRoom): void => {
     p2_is_bot: p2?.isBot ?? false,
     p2_platform: p2?.platform ?? null,
   };
+
+  logEvent("match_started", { room: room.code, detail: mode });
 
   void (async () => {
     try {
@@ -68,6 +79,8 @@ export const recordMatchFinish = (
   if (!id) return;
   room.matchId = null;
 
+  logEvent("match_finished", { room: room.code, detail: reason });
+
   void (async () => {
     try {
       const { error } = await getSupabase()
@@ -76,6 +89,7 @@ export const recordMatchFinish = (
           finished_at: new Date().toISOString(),
           winner,
           finish_reason: reason,
+          total_moves: room.moveCount,
         })
         .eq("id", id);
       if (error) {
@@ -83,6 +97,31 @@ export const recordMatchFinish = (
       }
     } catch (err) {
       console.warn("[matches] erro inesperado no finalize:", err);
+    }
+  })();
+};
+
+// Reconciliação no boot: partidas que ficaram com finished_at NULL são órfãs
+// (o server reiniciou no meio do jogo — as salas vivem só em memória e somem no
+// restart). Marca como abandonadas pra não distorcer "em andamento" vs total.
+// Idempotente; roda uma vez no startup. Fire-and-forget.
+export const reconcileOrphanMatches = (): void => {
+  void (async () => {
+    try {
+      const { data, error } = await getSupabase()
+        .from("matches")
+        .update({ finished_at: new Date().toISOString(), finish_reason: "abandoned" })
+        .is("finished_at", null)
+        .select("id");
+      if (error) {
+        console.warn("[matches] reconcile órfãs falhou:", error.message);
+        return;
+      }
+      if (data && data.length > 0) {
+        console.log(`[matches] reconcile: ${data.length} partida(s) órfã(s) marcada(s) como abandonada(s)`);
+      }
+    } catch (err) {
+      console.warn("[matches] erro inesperado no reconcile:", err);
     }
   })();
 };

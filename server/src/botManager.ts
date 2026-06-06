@@ -352,6 +352,7 @@ const playBotMove = (room: ServerRoom, bot: ServerPlayer): void => {
   }
 
   room.gameState = result.state;
+  room.moveCount++; // analytics: conta o lance do bot (total_moves)
   // Mantém o relógio autoritativo coerente — debita o turno do bot e
   // reinicia pro humano (senão o reportTimeout do humano calcula errado).
   chargeTurnTime(room, bot.enginePlayer, Date.now());

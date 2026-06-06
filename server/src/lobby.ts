@@ -62,10 +62,20 @@ export type RematchState = {
   timer: NodeJS.Timeout;
 };
 
+// Origem da partida pra analytics — distinta de isPrivate (visibilidade no
+// lobby). Matchmaking nasce isPrivate=true (não aparece no lobby) mas é jogo
+// casual; por isso o source é separado. Ver recordMatchStart.
+export type MatchSource = "lobby" | "matchmaking" | "invite" | "private" | "rescue";
+
 export type ServerRoom = {
   code: string;
   status: RoomStatus;
   isPrivate: boolean;
+  // Origem analítica da sala (não confundir com isPrivate). Setado na criação.
+  source: MatchSource;
+  // Lances aplicados nesta partida (analytics — total_moves). Reset no
+  // recordMatchStart, incrementado a cada move aceito (humano e bot).
+  moveCount: number;
   password: string | null;
   hostColor: ColorChoice;
   hostName: string;
@@ -237,6 +247,9 @@ export type CreateInput = {
   color: ColorChoice;
   isPrivate: boolean;
   hostPlatform?: Platform | null;
+  // Origem analítica. Default: private se isPrivate, senão lobby. Matchmaking e
+  // convite passam explícito.
+  source?: MatchSource;
 };
 
 export const createRoom = (input: CreateInput): ServerRoom => {
@@ -251,6 +264,8 @@ export const createRoom = (input: CreateInput): ServerRoom => {
     code,
     status: "waiting",
     isPrivate: input.isPrivate,
+    source: input.source ?? (input.isPrivate ? "private" : "lobby"),
+    moveCount: 0,
     password: input.isPrivate ? generatePassword() : null,
     hostColor: input.color,
     hostName: input.hostName,
@@ -735,6 +750,8 @@ export const createBotHostRoom = (input: BotHostInput): ServerRoom => {
     code,
     status: "waiting",
     isPrivate: false, // bots sempre públicos
+    source: "lobby", // sala-isca pública; partida vira casual_online
+    moveCount: 0,
     password: null,
     hostColor: input.color,
     hostName: input.hostName,
