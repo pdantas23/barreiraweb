@@ -28,6 +28,16 @@ Backlog vivo do Barreira. A ordem reflete prioridade — o que está no topo é 
 
 ## Histórico
 
+### 2026-06-06 — AdSense: carregamento condicional (limpeza de violação)
+
+O script do AdSense vazava pra todas as rotas da SPA: o `AdBanner` injetava o script com uma flag global que nunca removia, então depois de visitar `/regras` ele ficava no DOM em `/`, `/online`, `/game` etc. (violação "anúncios em telas sem conteúdo").
+
+- **`web/src/ads/AdBanner.tsx`** (reescrito): script **reference-counted** — injeta no mount do 1º banner, **remove no unmount** do último (zera `window.adsbygoogle`). `crossorigin="anonymous"`. Hook `useAdSenseAccountMeta()` adiciona/remove a meta `google-adsense-account`.
+- **SPA**: meta global removida do `index.html`; `/regras /estrategias /sobre /privacy` chamam o hook + `AdBanner` no fim da página; `/privacy` ganhou o banner.
+- **HTMLs estáticos** (`deploy/public/{regras,estrategias,sobre,privacy}.html` — o que o crawler vê em acesso direto, não tinham nada): snippet oficial (meta + script no `<head>`, ad unit antes do "JOGAR AGORA").
+- **Política de privacidade** (React `Privacy.tsx` + `privacy.html`): dizia "não exibimos anúncios" — atualizada pra divulgar o Google AdSense + cookies (exigência do AdSense pra aprovação).
+- **Adiado**: anúncio na tela de fim de partida (gameOver) — fica pra DEPOIS da conta ser aprovada (era violação no passado: o `AdInterstitial` foi removido por isso). `ads.txt` intacto; nenhuma lógica de jogo tocada.
+
 ### 2026-06-05 — Analytics: auditoria + redesign + métricas avançadas (deployado)
 
 Auditoria completa do dashboard de analytics e redesign em 3 fases. Tudo no ar.

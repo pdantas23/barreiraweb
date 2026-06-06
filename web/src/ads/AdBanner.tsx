@@ -15,31 +15,70 @@ interface AdBannerProps {
   style?: React.CSSProperties;
 }
 
-// Em dev, o script do AdSense injeta `style="height: auto"` em ancestrais
-// (inclusive #root), quebrando o layout. Slots fake (0000...) tambem nao
-// renderizam nada util. Por isso so carregamos em producao.
+// Em dev, o script real do AdSense injeta `style="height: auto"` em ancestrais
+// (inclusive #root), quebrando o layout, e slots fake não rendem nada útil.
+// Por isso só carrega em produção.
 const ADS_ENABLED = import.meta.env.PROD;
-let scriptInjected = false;
 
-function ensureAdSenseScript() {
-  if (scriptInjected || !ADS_ENABLED || typeof document === "undefined") return;
-  scriptInjected = true;
-  const s = document.createElement("script");
-  s.async = true;
-  s.crossOrigin = "anonymous";
-  s.src = `https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=${AD_CLIENT}`;
-  document.head.appendChild(s);
+// ─── Carregamento reference-counted do script ───
+// O script do AdSense só fica no DOM enquanto há ao menos um <AdBanner> montado.
+// Ao sair de TODAS as páginas de conteúdo (lobby, jogo, matchmaking, etc.) o
+// contador zera e o script é REMOVIDO. Sem isso ele era injetado uma vez e
+// vazava pra todas as rotas da SPA — violação ("anúncios em telas sem conteúdo").
+let mountedBanners = 0;
+let scriptEl: HTMLScriptElement | null = null;
+
+function addAdSenseScript(): void {
+  if (!ADS_ENABLED || typeof document === "undefined") return;
+  mountedBanners += 1;
+  if (scriptEl) return; // já presente
+  scriptEl = document.createElement("script");
+  scriptEl.async = true;
+  scriptEl.crossOrigin = "anonymous";
+  scriptEl.src = `https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=${AD_CLIENT}`;
+  scriptEl.dataset.adsbygoogle = "barreira";
+  document.head.appendChild(scriptEl);
+}
+
+function removeAdSenseScript(): void {
+  if (!ADS_ENABLED || typeof document === "undefined") return;
+  mountedBanners = Math.max(0, mountedBanners - 1);
+  if (mountedBanners > 0 || !scriptEl) return; // ainda há banner montado
+  scriptEl.remove();
+  scriptEl = null;
+  // Zera a fila global pra não vazar estado pra outras rotas.
+  try {
+    delete (window as { adsbygoogle?: unknown }).adsbygoogle;
+  } catch {
+    (window as { adsbygoogle?: unknown }).adsbygoogle = undefined;
+  }
 }
 
 /**
- * Componente reutilizável para exibir um ad unit do Google AdSense.
+ * Meta tag de verificação da conta AdSense (`google-adsense-account`).
+ * Usar SOMENTE nas páginas de conteúdo (/regras, /estrategias, /sobre,
+ * /privacy): adiciona no mount, remove no unmount — não vaza pra outras rotas.
+ */
+export function useAdSenseAccountMeta(): void {
+  useEffect(() => {
+    if (typeof document === "undefined") return;
+    if (document.querySelector('meta[name="google-adsense-account"]')) return; // já existe
+    const m = document.createElement("meta");
+    m.name = "google-adsense-account";
+    m.content = AD_CLIENT;
+    m.dataset.dynamic = "adsense";
+    document.head.appendChild(m);
+    return () => m.remove();
+  }, []);
+}
+
+/**
+ * Ad unit do Google AdSense.
  *
  * ATENÇÃO: usar SOMENTE em páginas com conteúdo editorial (/regras,
- * /estrategias, /sobre, /privacy). Nunca em /, /online, /game ou
- * /online-game — viola a política do AdSense.
- *
- * Uso:
- *   <AdBanner slot={AD_SLOTS.contentBanner} format="horizontal" className="w-full my-6" />
+ * /estrategias, /sobre, /privacy). NUNCA em /, /online, /game ou /online-game
+ * — viola a política do AdSense. O script é carregado no mount e removido no
+ * unmount (reference-counted), então não persiste ao navegar pra outras rotas.
  */
 export function AdBanner({
   slot,
@@ -49,17 +88,16 @@ export function AdBanner({
   style,
 }: AdBannerProps) {
   const adRef = useRef<HTMLModElement>(null);
-  const pushed = useRef(false);
 
   useEffect(() => {
-    if (pushed.current || !ADS_ENABLED) return;
-    pushed.current = true;
-    ensureAdSenseScript();
+    if (!ADS_ENABLED) return;
+    addAdSenseScript();
     try {
       (window.adsbygoogle = window.adsbygoogle || []).push({});
     } catch {
       // AdSense script não carregou (bloqueador de ads, etc.)
     }
+    return () => removeAdSenseScript();
   }, []);
 
   if (!ADS_ENABLED) {
