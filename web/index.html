@@ -3,9 +3,11 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <!-- AdSense (meta + script) é carregado dinamicamente SÓ nas páginas de
-         conteúdo (web/src/ads/AdBanner.tsx) — não global, pra não vazar pra
-         telas sem conteúdo (lobby/jogo). -->
+    <!-- AdSense: a meta de verificação de propriedade é global (NÃO carrega
+         anúncios — é só pra o Google confirmar a posse do site). O script
+         adsbygoogle.js segue carregado condicionalmente só nas páginas de
+         conteúdo (web/src/ads/AdBanner.tsx). -->
+    <meta name="google-adsense-account" content="ca-pub-2366664885069425" />
     <link rel="icon" type="image/webp" href="/photos/art.webp" />
     <link rel="apple-touch-icon" href="/photos/art.png" />
     <title>Barreira — Jogo de tabuleiro estratégico online</title>
