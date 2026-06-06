@@ -28,6 +28,19 @@ Backlog vivo do Barreira. A ordem reflete prioridade — o que está no topo é 
 
 ## Histórico
 
+### 2026-06-05 — Analytics: auditoria + redesign + métricas avançadas (deployado)
+
+Auditoria completa do dashboard de analytics e redesign em 3 fases. Tudo no ar.
+
+**Fase 1 — Auditoria** (só relatório): mapeou todo o fluxo de coleta. Achados ❌: card "Bots em players" sempre 0 (bots não entram em `players`); "Treino offline" nunca registrado; matchmaking caía em `private_online`. ⚠️: online é snapshot ~60s (não tempo real); `total_moves` nunca gravado; fuso UTC vs BRT; "0 partidas em 01–03/06" = a tabela `matches` só começou a gravar em 04/06.
+
+**Fase 2 — Redesign** (`web/src/pages/AdminStats.tsx`): sidebar (Visão Geral/Partidas/Jogadores/Engajamento/Tempo Real) + gráficos **recharts** (lazy-load pra não inchar o bundle), tema escuro. Correções: `matches.source` explícito (matchmaking=casual), bots de `matches`, `total_moves`, reconcile de órfãs no boot, fuso BRT, finalizadas em tudo. Endpoint `/admin/live` (salas/fila/eventos em memória) + ring buffer + `location` no nginx.
+
+**Fase 3 — Métricas avançadas + performance**: filtro de período global (Hoje/7/30/90/custom, localStorage); RPCs aceitam `p_from`/`p_to`. Métricas novas: abandono, win-rate por dificuldade, retenção D1/D7/D30, conversão anônimo→conta, recorrentes, partidas/sessão, **heatmap** hora×dia, **funil**, espera de matchmaking, seção **Bots**. Captura forward-only no server (`bot_difficulty`, `p1_name/p2_name`, `wait_ms`). Export **CSV** por tabela. Performance: índices (composites + expressão `_brt_date` sargável), `LIMIT 200`, cache cliente por TTL (10/15/30min), escalonamento 70ms, timeout 10s nas pesadas. Testes em `web/src/pages/adminUtils.test.ts` (período + CSV).
+
+- **Migrations centralizadas** em `supabase/migrations/` (consolidada `20260605_analytics.sql`, idempotente/re-rodável); `docs/` removida. Acesso ao dashboard por allowlist de email (`AdminStats.tsx`).
+- **Incidente no deploy** (resolvido): `cp` do template nginx (HTTP-only) removeu o bloco 443 SSL do certbot → HTTPS fora ~1–2min. Restaurado com `certbot install --nginx --cert-name barreirajogo.com`. Blindado no cheatsheet de deploy (`.env`): todo `cp` de nginx agora exige re-rodar o certbot.
+
 ### 2026-06-05 — Tutorial: primeira partida guiada (mobile) + fixes
 
 Tutorial interativo (coach-marks sobre o tabuleiro real), **uma vez por dispositivo**, que **roda ANTES da tela inicial** na primeira abertura. Ensina jogando e termina deixando o usuário concluir a partida. Decisões: partida guiada interativa (não slides) + flag por dispositivo via AsyncStorage (reinstalar mostra de novo — aceito).
