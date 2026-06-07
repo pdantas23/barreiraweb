@@ -6,6 +6,7 @@ import {
   goalRow,
   hasPathToRow,
   initialState,
+  positionHash,
   randomFirstTurn,
   registerWall,
   WALLS_PER_PLAYER,
@@ -35,8 +36,10 @@ type Difficulty = BotDifficulty;
 
 const pickBot = (
   difficulty: Difficulty,
-): ((state: GameState, botId: PlayerId) => Move | null) =>
-  (state, botId) => botMove(state, botId, difficulty);
+): ((state: GameState, botId: PlayerId, recent?: string[]) => Move | null) =>
+  (state, botId, recent) => botMove(state, botId, difficulty, recent);
+
+const RECENT_LIMIT = 8; // = HISTORY_LIMIT do bot.ts
 
 const parseDifficulty = (raw: unknown): Difficulty => {
   if (raw === "easy" || raw === "medium" || raw === "hard") return raw;
@@ -128,6 +131,10 @@ export function useLocalGame() {
 
   const stateRef = useRef(state);
   stateRef.current = state;
+  // Memória cross-turn do bot (Correção 1): últimas posições REAIS da partida
+  // (mesmo formato do positionHash). Passada ao botMove pra detectar ciclos
+  // entre turnos e ativar o anti-shuffle no treino offline. Reset no restart.
+  const recentRef = useRef<string[]>([positionHash(state)]);
   const ghostRef = useRef(ghost);
   ghostRef.current = ghost;
   const dragTypeRef = useRef(dragType);
@@ -138,11 +145,20 @@ export function useLocalGame() {
     return new Set(getValidMoves(state, HUMAN));
   }, [state, myTurn, dragType]);
 
+  // Registra cada posição real (humano, bot e início) na memória cross-turn.
+  useEffect(() => {
+    const hash = positionHash(state);
+    const list = recentRef.current;
+    if (list[list.length - 1] === hash) return; // não duplica a mesma posição
+    list.push(hash);
+    if (list.length > RECENT_LIMIT) list.shift();
+  }, [state]);
+
   // Bot turn
   useEffect(() => {
     if (state.turn !== OPPONENT || state.winner !== null || countdownActive) return;
     const timer = setTimeout(() => {
-      const move = botMove(state, OPPONENT);
+      const move = botMove(state, OPPONENT, recentRef.current);
       if (!move) return;
       const res = applyMove(state, OPPONENT, move);
       if (res.ok) {
@@ -217,6 +233,7 @@ export function useLocalGame() {
 
   const onRestart = () => {
     const fresh = initialState(randomFirstTurn());
+    recentRef.current = [positionHash(fresh)]; // reset da memória cross-turn
     setState(fresh);
     setReplayMoves([]);
     setReplayFirstTurn(fresh.turn);
