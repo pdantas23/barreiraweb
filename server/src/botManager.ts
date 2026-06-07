@@ -24,6 +24,7 @@ import type { Server } from "socket.io";
 import {
   applyMove,
   botMove,
+  positionHash,
   getRandomBotName,
   serializeState,
   type BotDifficulty,
@@ -103,6 +104,25 @@ const botDifficulties = new Map<string, BotDifficulty>();
 
 const randomDifficulty = (): BotDifficulty =>
   Math.random() < 0.5 ? "medium" : "hard";
+
+// === Memória cross-turn do bot (Correção 1) ===
+// Histórico das últimas posições REAIS de cada sala (hashes no formato do
+// positionHash). Passado ao botMove pra que a detecção de repetição enxergue
+// ciclos ENTRE turnos (não só dentro de uma busca). Sem isso o bot podia
+// oscilar A→B→A→B indefinidamente porque cada chamada começava sem memória.
+// Limpo junto com a sala (scheduleBotLeave / reaps) pra não vazar.
+const RECENT_LIMIT = 8; // = HISTORY_LIMIT do bot.ts
+const recentByRoom = new Map<string, string[]>();
+
+const recordPosition = (room: ServerRoom): void => {
+  if (!room.gameState) return;
+  const hash = positionHash(room.gameState);
+  const list = recentByRoom.get(room.code) ?? [];
+  if (list[list.length - 1] === hash) return; // não duplica a mesma posição
+  list.push(hash);
+  if (list.length > RECENT_LIMIT) list.shift();
+  recentByRoom.set(room.code, list);
+};
 
 // Pra evitar spawns concorrentes na mesma "janela" (race do setInterval +
 // múltiplos setTimeouts agendados). Conta spawns em voo.
@@ -242,6 +262,9 @@ export const maybeScheduleBotMove = (room: ServerRoom): void => {
     scheduleBotLeave(room);
     return;
   }
+  // Registra a posição real atual (pós-game-start ou pós-lance do humano) na
+  // memória cross-turn antes de decidir se o bot joga.
+  recordPosition(room);
   const currentPlayer = room.players.find(
     (p) => p.enginePlayer === room.gameState!.turn,
   );
@@ -289,6 +312,7 @@ const reapExpiredBotRooms = (): void => {
     for (const p of room.players.filter((pl) => pl.isBot)) {
       botDifficulties.delete(p.socketId);
     }
+    recentByRoom.delete(code);
     removeBotFromRoom(code);
     console.log(`[botManager] sala de bot ${code} expirou (ociosa > ${BOT_ROOM_TTL_MS}ms)`);
   }
@@ -348,7 +372,8 @@ const playBotMove = (room: ServerRoom, bot: ServerPlayer): void => {
   if (room.gameState.turn !== bot.enginePlayer) return; // não é mais a vez
 
   const difficulty = botDifficulties.get(bot.socketId) ?? "medium";
-  const move = botMove(room.gameState, bot.enginePlayer, difficulty);
+  const recent = recentByRoom.get(room.code) ?? [];
+  const move = botMove(room.gameState, bot.enginePlayer, difficulty, recent);
   if (!move) {
     console.warn(`[botManager] sala ${room.code}: bot não gerou move`);
     return;
@@ -361,6 +386,7 @@ const playBotMove = (room: ServerRoom, bot: ServerPlayer): void => {
   }
 
   room.gameState = result.state;
+  recordPosition(room); // memória cross-turn: registra a posição pós-lance do bot
   room.moveCount++; // analytics: conta o lance do bot (total_moves)
   // Mantém o relógio autoritativo coerente — debita o turno do bot e
   // reinicia pro humano (senão o reportTimeout do humano calcula errado).
@@ -415,6 +441,7 @@ const scheduleBotLeave = (room: ServerRoom): void => {
     for (const p of room.players.filter((pl) => pl.isBot)) {
       botDifficulties.delete(p.socketId);
     }
+    recentByRoom.delete(room.code);
     removeBotFromRoom(room.code);
     console.log(`[botManager] bot saiu da sala ${room.code}`);
   }, delay);

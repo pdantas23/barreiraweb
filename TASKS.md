@@ -28,6 +28,15 @@ Backlog vivo do Barreira. A ordem reflete prioridade — o que está no topo é 
 
 ## Histórico
 
+### 2026-06-07 — Bot: correção de pêndulo / oscilação (memória cross-turn)
+
+Diagnóstico empírico (200 partidas medium×hard + caça-loop de 60) achou 3 falhas: o bot não tinha memória entre turnos (a detecção de repetição só valia dentro de uma busca), oscilava em casas de mesma distância BFS (pêndulo NEUTRO ~3.3%) e às vezes preferia gastar parede própria a converter posição quase ganha — 1/200 partida travou no cap de 200 lances.
+
+- **`shared/src/bot.ts`** (única lógica de bot do projeto): (1) `botMove` ganhou param opcional `recentPositions?: string[]` — semeia um `crossTurn` separado pra detecção de ciclos **entre turnos** (backward compatible: sem ele, comportamento antigo); `positionHash` exportado. (2) `movePenalty` (ex-`retreatPenalty`) agora também penaliza (`SHUFFLE_PENALTY 120`) voltar a uma casa NEUTRA recém-ocupada pelo próprio peão — só quando há avanço disponível (não pune encurralado). (3) `evaluate`: a `botDist ≤ 3` o `progressScore` pesa ×9 (vs ×3) e o valor de parede própria zera → converte a vitória em vez de segurar parede.
+- **`server/src/botManager.ts`**: rastreia os últimos 8 hashes de posição real por sala (`recentByRoom`) e passa ao `botMove`; limpa junto com a sala.
+- **Resultado (diagnóstico):** travadas 1→**0**/200; ciclos cross-turn exatos **0**/60; pêndulo NEUTRO 3.3%→**0.19% (med) / 0.59% (hard)**; recuo desnecessário **0.02% / 0.09%** (<0.5%); paredes inúteis **0%**; média 63.9→**63.2** lances. Testes de produção shared 65/65 e server 114/114 verdes.
+- **Pendente (reportado, não implementado por ora):** web/mobile offline ainda não passam `recentPositions` ao `botMove` — então no treino offline a detecção cross-turn e o anti-shuffle ficam inativos (a conversão de vitória, essa sim, já vale). Wiring exige tocar `web`/`mobile` (fora do escopo desta task).
+
 ### 2026-06-06 — AdSense: carregamento condicional (limpeza de violação)
 
 O script do AdSense vazava pra todas as rotas da SPA: o `AdBanner` injetava o script com uma flag global que nunca removia, então depois de visitar `/regras` ele ficava no DOM em `/`, `/online`, `/game` etc. (violação "anúncios em telas sem conteúdo").

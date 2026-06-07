@@ -85,6 +85,14 @@ const ROOT_TOP_K = 3;
 // Valor moderado: filtra o vai-e-vem tolo sem sobrepor uma vantagem tática real
 // (que move o score em centenas/milhares).
 const RETREAT_PENALTY = 120;
+// Penalidade de "shuffle" (Correção 2): voltar o peão a uma casa recém-ocupada
+// de MESMA distância BFS (oscilação NEUTRA A↔B sem progresso). Igual à de recuo
+// — moderada, filtra o vai-e-vem tolo sem sobrepor vantagem tática real. Só
+// aplica quando há avanço disponível (não pune peão encurralado).
+const SHUFFLE_PENALTY = 120;
+// Quantas casas recentes do peão consideramos pra o shuffle (últimas N posições
+// reais do próprio peão). Curto de propósito: só o pêndulo imediato A↔B.
+const RECENT_CELLS_LIMIT = 4;
 
 const rowOf = (idx: number): number => Math.floor(idx / BOARD_SIZE);
 const colOf = (idx: number): number => idx % BOARD_SIZE;
@@ -95,7 +103,7 @@ const pieceOf = (state: GameState, id: PlayerId): number =>
 // Paredes só são ADICIONADAS ao longo do jogo, então a ordem dos placements é
 // estável dentro de uma mesma busca (todo descendente herda o prefixo do nó
 // raiz) — basta concatenar, sem ordenar.
-const positionHash = (state: GameState): string => {
+export const positionHash = (state: GameState): string => {
   let walls = "";
   for (const p of state.walls.placements) {
     walls += `${p.type}${p.interRow},${p.interCol};`;
@@ -177,16 +185,19 @@ const evaluate = (state: GameState, botId: PlayerId, humanId: PlayerId): number 
   if (botDist === UNREACHABLE) return -WIN_SCORE;
   if (humanDist === UNREACHABLE) return WIN_SCORE;
   const distScore = (humanDist - botDist) * 10;
+  // Correção 3 (conversão de posição vencedora): a ≤3 casas do próprio gol, o
+  // termo de progresso pesa MUITO mais (×9 vs ×3) e o saldo de paredes é zerado
+  // — o bot prefere fortemente AVANÇAR/achar o gap a gastar parede própria
+  // quando está quase vencendo (evita a guerra de paredes que estagnava o jogo).
+  const closeToWin = botDist <= 3;
   // Termo de PROGRESSO absoluto: recompensa estar perto do próprio objetivo,
   // independentemente do adversário. Sem ele, posições de saldo relativo igual
-  // viram platôs (andar não muda o score) — a origem dos ciclos. Com ele, o bot
-  // sempre prefere avançar mesmo quando a posição relativa é neutra.
-  const progressScore = (MAX_DIST - botDist) * 3;
-  // Saldo de paredes na mão (peso baixo, ×1): ter mais paredes que o adversário
-  // é uma vantagem leve, mas NÃO penalizamos usar paredes — o bot deve bloquear
-  // à vontade. O que evita parede ruim é o filtro de relevância em generateMoves
-  // (só vira candidata a parede que de fato afasta o adversário), não o custo.
-  const wallScore = (state.wallsLeft[botId] - state.wallsLeft[humanId]) * 1;
+  // viram platôs (andar não muda o score) — a origem dos ciclos.
+  const progressScore = (MAX_DIST - botDist) * (closeToWin ? 9 : 3);
+  // Saldo de paredes na mão (peso baixo, ×1; zerado perto do gol). NÃO
+  // penalizamos usar paredes — o que evita parede ruim é o filtro de relevância
+  // em generateMoves, não o custo.
+  const wallScore = (state.wallsLeft[botId] - state.wallsLeft[humanId]) * (closeToWin ? 0 : 1);
   return distScore + progressScore + wallScore;
 };
 
@@ -302,21 +313,31 @@ const distFieldToGoal = (state: GameState, targetRow: number): Int16Array => {
 // a distância de cada casa; um destino só é punido se afasta do objetivo
 // (dist maior que a atual) E existe algum lance de peça que NÃO afasta (recuo
 // desnecessário). Recuo forçado (todos afastam) passa livre.
-const retreatPenalty = (
+const movePenalty = (
   state: GameState,
   botId: PlayerId,
   moves: Move[],
+  recentCells: Set<number>,
 ): ((to: number) => number) => {
   const field = distFieldToGoal(state, goalRow(botId));
   const myDist = field[pieceOf(state, botId)];
-  let hasNonRetreat = false;
+  let hasNonRetreat = false; // existe lance que não afasta (≤ dist atual)
+  let hasAdvance = false; // existe lance que ENCURTA (< dist atual)
   for (const mv of moves) {
     if (mv.kind !== "piece") continue;
     const d = field[mv.to];
-    if (d >= 0 && d <= myDist) { hasNonRetreat = true; break; }
+    if (d >= 0 && d <= myDist) hasNonRetreat = true;
+    if (d >= 0 && d < myDist) hasAdvance = true;
   }
-  return (to: number): number =>
-    field[to] > myDist && hasNonRetreat ? RETREAT_PENALTY : 0;
+  return (to: number): number => {
+    const d = field[to];
+    // Recuo desnecessário: afasta do objetivo havendo alternativa que não afasta.
+    if (d > myDist) return hasNonRetreat ? RETREAT_PENALTY : 0;
+    // Shuffle neutro: volta a casa recém-ocupada de MESMA distância, havendo
+    // avanço disponível (peão não encurralado) — quebra o pêndulo A↔B neutro.
+    if (d === myDist && hasAdvance && recentCells.has(to)) return SHUFFLE_PENALTY;
+    return 0;
+  };
 };
 
 // Avalia o estado-filho recursando no minimax — mas se `child` recria uma
@@ -342,16 +363,22 @@ const scoreChild = (
   botId: PlayerId,
   humanId: PlayerId,
   history: Set<string>,
+  crossTurn: Set<string>,
+  recentCells: Set<number>,
 ): number => {
   const hash = positionHash(child);
-  if (history.has(hash)) {
+  // Repetição: ou no caminho de busca (intra), ou numa posição REAL recente da
+  // partida (cross-turn, semeada via recentPositions — Correção 1). Ambas cortam
+  // como −REPEAT_PENALTY, fazendo o bot fugir de ciclos entre turnos também.
+  if (history.has(hash) || crossTurn.has(hash)) {
     return -REPEAT_PENALTY;
   }
   // Atualiza o histórico a cada nó (entra ao descer, sai ao subir) e respeita a
-  // janela de HISTORY_LIMIT posições.
+  // janela de HISTORY_LIMIT posições. Só o caminho de busca conta pro limite —
+  // o crossTurn é separado pra não consumir a janela.
   const added = history.size < HISTORY_LIMIT;
   if (added) history.add(hash);
-  const score = minimax(child, depth - 1, alpha, beta, childIsMax, botId, humanId, history);
+  const score = minimax(child, depth - 1, alpha, beta, childIsMax, botId, humanId, history, crossTurn, recentCells);
   if (added) history.delete(hash);
   return score;
 };
@@ -365,6 +392,8 @@ const minimax = (
   botId: PlayerId,
   humanId: PlayerId,
   history: Set<string>,
+  crossTurn: Set<string>,
+  recentCells: Set<number>,
 ): number => {
   if (depth === 0 || state.winner !== null) {
     return evaluate(state, botId, humanId);
@@ -376,14 +405,14 @@ const minimax = (
   let explored = false;
   if (isMax) {
     let best = -Infinity;
-    // Penalidade de recuo desnecessário do peão do bot neste nó (anti-pêndulo).
-    const penalty = retreatPenalty(turned, botId, moves);
+    // Penalidade de recuo desnecessário + shuffle neutro do peão do bot neste nó.
+    const penalty = movePenalty(turned, botId, moves, recentCells);
     for (const move of moves) {
       const res = applyMove(turned, player, move);
       if (!res.ok) continue;
       explored = true;
       const pen = move.kind === "piece" ? penalty(move.to) : 0;
-      const score = scoreChild(res.state, depth, alpha, beta, false, botId, humanId, history) - pen;
+      const score = scoreChild(res.state, depth, alpha, beta, false, botId, humanId, history, crossTurn, recentCells) - pen;
       if (score > best) best = score;
       if (best > alpha) alpha = best;
       if (alpha >= beta) break;
@@ -395,7 +424,7 @@ const minimax = (
     const res = applyMove(turned, player, move);
     if (!res.ok) continue;
     explored = true;
-    const score = scoreChild(res.state, depth, alpha, beta, true, botId, humanId, history);
+    const score = scoreChild(res.state, depth, alpha, beta, true, botId, humanId, history, crossTurn, recentCells);
     if (score < best) best = score;
     if (best < beta) beta = best;
     if (alpha >= beta) break;
@@ -426,6 +455,11 @@ export const botMove = (
   state: GameState,
   botId: PlayerId,
   difficulty: BotDifficulty,
+  // Correção 1 (memória cross-turn): hashes das últimas posições REAIS da
+  // partida (mesmo formato do positionHash). Opcional → backward compatible: sem
+  // ele, comportamento idêntico ao anterior (só detecção intra-busca). Com ele,
+  // a detecção de repetição também enxerga ciclos entre turnos.
+  recentPositions?: string[],
 ): Move | null => {
   if (state.winner !== null) return null;
   const humanId = opponentOf(botId);
@@ -434,10 +468,24 @@ export const botMove = (
   const moves = generateMoves(turned, botId);
 
   // Histórico do CAMINHO de busca. NÃO persiste entre chamadas — botMove segue
-  // sendo função pura do estado (determinística e segura pra partidas
-  // concorrentes no server). Semeado com a posição-raiz pra que qualquer linha
-  // que volte à posição atual dentro do horizonte seja detectada como ciclo.
+  // sendo função pura (determinística, segura pra partidas concorrentes).
+  // Semeado com a posição-raiz pra detectar ciclos dentro do horizonte.
   const history = new Set<string>([positionHash(turned)]);
+  // Posições reais recentes (cross-turn). Set SEPARADO do history pra não
+  // consumir a janela HISTORY_LIMIT da detecção intra-busca.
+  const crossTurn = new Set<string>(
+    recentPositions ? recentPositions.slice(-HISTORY_LIMIT) : [],
+  );
+  // Casas recentes do PRÓPRIO peão (pro shuffle neutro — Correção 2), extraídas
+  // dos hashes recentes (formato `p1.p2.turn.walls`).
+  const recentCells = new Set<number>();
+  if (recentPositions) {
+    for (const h of recentPositions.slice(-RECENT_CELLS_LIMIT)) {
+      const parts = h.split(".");
+      const cell = Number(botId === 1 ? parts[0] : parts[1]);
+      if (Number.isFinite(cell)) recentCells.add(cell);
+    }
+  }
 
   // #3: coleta o score de TODOS os lances do root e escolhe entre os top-K.
   // Mantém a poda α-β (alpha sobe com o melhor encontrado): num nó MAX o melhor
@@ -446,7 +494,7 @@ export const botMove = (
   // (−REPEAT_PENALTY) sem recursão.
   // Penalidade de recuo desnecessário do peão no root (anti-pêndulo) — mesma
   // regra das camadas internas, agora sobre a decisão real do bot.
-  const penalty = retreatPenalty(turned, botId, moves);
+  const penalty = movePenalty(turned, botId, moves, recentCells);
   const scored: Array<{ move: Move; score: number }> = [];
   let alpha = -Infinity;
   for (const move of moves) {
@@ -454,12 +502,12 @@ export const botMove = (
     if (!res.ok) continue;
     const hash = positionHash(res.state);
     let score: number;
-    if (history.has(hash)) {
-      score = -REPEAT_PENALTY; // bot recriando a posição → fortemente evitado
+    if (history.has(hash) || crossTurn.has(hash)) {
+      score = -REPEAT_PENALTY; // recria posição (intra-busca OU cross-turn) → evitado
     } else {
       const pen = move.kind === "piece" ? penalty(move.to) : 0;
       history.add(hash);
-      score = minimax(res.state, depth - 1, alpha, Infinity, false, botId, humanId, history) - pen;
+      score = minimax(res.state, depth - 1, alpha, Infinity, false, botId, humanId, history, crossTurn, recentCells) - pen;
       history.delete(hash);
     }
     scored.push({ move, score });
