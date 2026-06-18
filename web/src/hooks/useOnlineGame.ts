@@ -369,7 +369,7 @@ export function useOnlineGame() {
     setShowReportConfirm(false);
     const subject = encodeURIComponent("Denuncia de jogador - Barreira");
     const body = encodeURIComponent(`Jogador denunciado: ${meta?.opponentName ?? "?"}\nSala: ${code}\nMotivo: `);
-    window.open(`mailto:contato@barreira.app?subject=${subject}&body=${body}`, "_blank");
+    window.open(`mailto:paulovitorengcomp@gmail.com?subject=${subject}&body=${body}`, "_blank");
   };
 
   const onBackToMenu = () => navigate("/");

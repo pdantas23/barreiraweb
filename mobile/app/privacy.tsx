@@ -102,7 +102,7 @@ export default function PrivacyScreen() {
             <Text style={styles.heading}>9. Contato</Text>
             <Text style={styles.body}>
               Em caso de dúvidas sobre privacidade, entre em contato pelo email:
-              contato@barreira.app
+              paulovitorengcomp@gmail.com
             </Text>
           </View>
         </ScrollView>

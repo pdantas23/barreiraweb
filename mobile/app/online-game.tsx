@@ -418,7 +418,7 @@ export default function OnlineGameScreen() {
             const body = encodeURIComponent(
               `Jogador denunciado: ${meta?.opponentName ?? "?"}\nSala: ${code}\nMotivo: `,
             );
-            Linking.openURL(`mailto:contato@barreira.app?subject=${subject}&body=${body}`);
+            Linking.openURL(`mailto:paulovitorengcomp@gmail.com?subject=${subject}&body=${body}`);
           },
         },
       ],

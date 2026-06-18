@@ -164,7 +164,7 @@ export default function SobreScreen() {
             <Section title="Contato">
               <p>
                 Sugestões, reportes de bug, propostas de parceria ou simplesmente um "oi": escreva para{" "}
-                <strong>contato@barreira.app</strong>. Lemos todas as mensagens.
+                <strong>paulovitorengcomp@gmail.com</strong>. Lemos todas as mensagens.
               </p>
             </Section>
 

@@ -107,7 +107,7 @@ export default function PrivacyScreen() {
 
           <h3 style={{ fontSize: 14, fontWeight: 800, color: C.navy, marginTop: 18, marginBottom: 8 }}>9. Contato</h3>
           <p style={{ fontSize: 13, color: "#4A5C7A", lineHeight: 1.6 }}>
-            Em caso de dúvidas sobre privacidade, entre em contato pelo email: contato@barreira.app
+            Em caso de dúvidas sobre privacidade, entre em contato pelo email: paulovitorengcomp@gmail.com
           </p>
 
           <AdBanner

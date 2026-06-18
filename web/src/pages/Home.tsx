@@ -471,8 +471,11 @@ export default function HomeScreen() {
           </aside>
         </div>
 
-        {/* === Footer com links de conteudo === */}
-        <footer className="flex-shrink-0 flex flex-row items-center justify-center gap-3 py-3 px-4 border-t border-cell-bg bg-white/60">
+        {/* === Footer com links de conteudo ===
+            Artigos e Suporte são páginas estáticas (sem rota React) — usam
+            <a href> (navegação real) em vez de navigate(). As demais têm rota
+            no React Router e usam navigate() pra navegação client-side. */}
+        <footer className="flex-shrink-0 flex flex-row flex-wrap items-center justify-center gap-x-3 gap-y-1.5 py-3 px-4 border-t border-cell-bg bg-white/60">
           <button
             onClick={() => { playButtonSound(); navigate("/regras"); }}
             className="text-muted text-[11px] font-semibold hover:text-brand bg-transparent border-none cursor-pointer"
@@ -487,6 +490,13 @@ export default function HomeScreen() {
             Estratégias
           </button>
           <span className="text-muted text-[11px]">·</span>
+          <a
+            href="/artigos"
+            className="text-muted text-[11px] font-semibold hover:text-brand no-underline cursor-pointer"
+          >
+            Artigos
+          </a>
+          <span className="text-muted text-[11px]">·</span>
           <button
             onClick={() => { playButtonSound(); navigate("/sobre"); }}
             className="text-muted text-[11px] font-semibold hover:text-brand bg-transparent border-none cursor-pointer"
@@ -494,11 +504,25 @@ export default function HomeScreen() {
             Sobre
           </button>
           <span className="text-muted text-[11px]">·</span>
+          <a
+            href="/suporte"
+            className="text-muted text-[11px] font-semibold hover:text-brand no-underline cursor-pointer"
+          >
+            Suporte
+          </a>
+          <span className="text-muted text-[11px]">·</span>
           <button
             onClick={() => { playButtonSound(); navigate("/privacy"); }}
             className="text-muted text-[11px] font-semibold hover:text-brand bg-transparent border-none cursor-pointer"
           >
             Privacidade
+          </button>
+          <span className="text-muted text-[11px]">·</span>
+          <button
+            onClick={() => { playButtonSound(); navigate("/termos"); }}
+            className="text-muted text-[11px] font-semibold hover:text-brand bg-transparent border-none cursor-pointer"
+          >
+            Termos
           </button>
         </footer>
 

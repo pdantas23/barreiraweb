@@ -16,7 +16,7 @@ Backlog vivo do Barreira. A ordem reflete prioridade — o que está no topo é 
    - A vez **gira pelo tabuleiro** alternando os times; salto/pulo sobre peões adjacentes (parceiro ou adversário) segue a regra normal.
    - Exige: tabuleiro com objetivo nos 4 lados (hoje só 2), lógica de times + sala de 4 no server (matchmaking 2+2), e UI de 4 peões/4 bancos de parede.
 
-> [AdSense] revisão já solicitada no painel em 2026-05-26 — aguardando resposta do Google (2–7 dias). Se aprovado, slot `9953596385` já está ativo em `web/src/ads/adsConfig.ts:24`. Se rejeitado de novo, anotar o motivo aqui e abrir nova task.
+> [AdSense] **Reprovado de novo em 2026-06-18** — motivo: **"Conteúdo de baixo valor"** (thin/low value content). Diagnóstico: home `/` vazia pro crawler (SPA, `#root` sem markup) + site raso em quantidade (só ~5 páginas indexáveis, o jogo é non-indexable). Remediação feita em 2026-06-18 (ver Histórico): home com conteúdo pré-renderizado, seção `/artigos` com 6 guias originais, `/termos` e `/suporte` visíveis, navegação e e-mail unificados. **Próximo passo: deploy + reenviar a revisão no painel.** Slot `9953596385` ativo em `web/src/ads/adsConfig.ts:24`.
 
 ---
 
@@ -27,6 +27,21 @@ Backlog vivo do Barreira. A ordem reflete prioridade — o que está no topo é 
 ---
 
 ## Histórico
+
+### 2026-06-18 — AdSense: remediação de "Conteúdo de baixo valor" (2ª reprovação)
+
+Resposta à 2ª reprovação do AdSense (motivo: "Conteúdo de baixo valor" / thin content). Diagnóstico: a home `/` era servida como SPA com `#root` vazio — pro crawler (que não executa JS, por isso o projeto usa prerender estático) a página de maior autoridade do domínio parecia em branco; e o site tinha só ~5 páginas indexáveis (o jogo em si é non-indexable via `robots.txt`). Não era problema de qualidade (regras/estratégias/sobre já eram bons), e sim de **volume + home vazia**.
+
+- **Home pré-renderizada** (`web/index.html`): conteúdo textual real e visível (~450 palavras: o que é, regras em resumo, modos, links internos) injetado **dentro do `<div id="root">`** com estilos inline. O React substitui esse markup ao montar (`createRoot().render()` em `main.tsx` limpa o container) — funciona como tela de carregamento e garante que o crawler receba texto. Confirmado no `dist/index.html` após build.
+- **Seção `/artigos`** (nova, alavanca principal contra thin content): índice em `deploy/public/artigos/index.html` + **6 artigos originais** (~1.000–1.100 palavras de corpo cada, escritos do zero, pt-BR com acentos): `historia-do-quoridor`, `glossario`, `guia-iniciante`, `taticas-de-parede`, `erros-comuns`, `aberturas`. Todos com meta/OG/canonical próprios, AdSense unit (slot `9953596385`), data de publicação e cross-linking interno. Site sai de ~5 → ~13 páginas indexáveis.
+- **`/termos` agora visível ao crawler**: criado `deploy/public/termos.html` (prerender com acentos corrigidos; o `Termos.tsx` React era invisível ao crawler). Adicionado ao nginx + sitemap.
+- **nginx** (`deploy/nginx/barreira.conf`): novos `location = /termos`, `location = /artigos` e regex `location ~ ^/artigos/([a-z0-9-]+)/?$` (serve os HTMLs estáticos antes do fallback da SPA), no mesmo padrão de `/regras`, `/sobre` etc.
+- **sitemap.xml** (`web/public/sitemap.xml`): de 5 → 14 URLs (home, regras, estrategias, artigos + 6 artigos, sobre, suporte, privacy, termos); home `changefreq` weekly.
+- **Navegação consistente**: nav de topo padronizado (Início · Regras · Estratégias · Artigos · Sobre · Suporte · Privacidade/Termos) em todas as páginas estáticas (incl. privacy.html e suporte.html, que não tinham nav). Footer da `Home.tsx` ganhou **Artigos**, **Suporte** e **Termos** — Artigos/Suporte usam `<a href>` (sem rota React, são estáticas), o resto segue `navigate()`.
+- **Fix dev/preview** (`web/vite.config.ts`): `/artigos`, `/artigos/<slug>` e `/suporte` não têm rota React e só existem como HTML estático servido pelo nginx — no `npm run dev`/`vite preview` (sem nginx) quebravam (tela branca / fallback da SPA). Novo plugin `barreira-prerender-static-pages` adiciona um middleware (`configureServer`+`configurePreviewServer`) que serve esses HTMLs de `deploy/public`, espelhando o nginx. Cobre SÓ essas rotas (as com componente React seguem pela SPA no dev, sem mudança). Verificado: as 8 rotas retornam 200 com o conteúdo certo no dev; build verde.
+- **E-mail de contato unificado** em `paulovitorengcomp@gmail.com` (antes conflitava com `contato@barreira.app`): `Sobre.tsx`, `Privacy.tsx`, `useOnlineGame.ts`, `sobre.html`, `mobile/app/online-game.tsx`, `mobile/app/privacy.tsx`. (Os `com.barreira.app` são bundle IDs, intactos.)
+- **Validação**: `npm run build` (web) verde, `dist/index.html` e `dist/sitemap.xml` corretos; testes web 72/72. **Não deployado ainda** — falta deploy (rebuild no VPS + nginx reload) e reenvio da revisão no painel do AdSense.
+- **Deixado de fora (deliberado)**: `document.title`/description dinâmicos nas páginas React de conteúdo — o crawler vê os HTMLs estáticos (que já têm title/description corretos), então não afeta o AdSense; é só polish de aba do navegador na navegação intra-SPA.
 
 ### 2026-06-07 — Bot: correção de pêndulo / oscilação (memória cross-turn)
 
