@@ -14,6 +14,12 @@ import { Piece } from "./Piece";
 import { Square } from "./Square";
 import { Wall } from "./Wall";
 
+/** Skin custom por jogador (Replay Builder): bandeira no peão + cor da parede. */
+export type PlayerSkin = {
+  flagUrl?: string;
+  wallColor?: string;
+};
+
 type Props = {
   state: GameState;
   validMoves: Set<number>;
@@ -24,6 +30,8 @@ type Props = {
   boardRef: React.RefObject<HTMLDivElement | null>;
   layout: BoardLayout;
   flipped?: boolean;
+  /** Skins custom (opcional — só o Replay Builder usa hoje). */
+  skins?: { 1?: PlayerSkin; 2?: PlayerSkin };
 };
 
 const piecePos = (index: number, layout: BoardLayout) => {
@@ -46,6 +54,7 @@ export const Board = ({
   boardRef,
   layout,
   flipped = false,
+  skins,
 }: Props) => {
 
   const squares: ReactElement[] = [];
@@ -146,7 +155,7 @@ export const Board = ({
               pointerEvents: "none",
             }}
           >
-            <Piece player={1} size={layout.squareSize} />
+            <Piece player={1} size={layout.squareSize} flagUrl={skins?.[1]?.flagUrl} />
           </div>
           <div
             style={{
@@ -159,7 +168,7 @@ export const Board = ({
               pointerEvents: "none",
             }}
           >
-            <Piece player={2} size={layout.squareSize} />
+            <Piece player={2} size={layout.squareSize} flagUrl={skins?.[2]?.flagUrl} />
           </div>
 
           {state.walls.placements.map((p) => (
@@ -167,6 +176,7 @@ export const Board = ({
               key={`${p.type}-${p.interRow}-${p.interCol}`}
               placement={p}
               layout={layout}
+              colorOverride={skins?.[(p.owner ?? 1) as 1 | 2]?.wallColor}
             />
           ))}
           {ghost && <Wall placement={ghost} layout={layout} ghost ghostInvalid={ghostInvalid} />}

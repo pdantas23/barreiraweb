@@ -7,12 +7,15 @@ type Props = {
   layout: BoardLayout;
   ghost?: boolean;
   ghostInvalid?: boolean;
+  /** Skin custom (Replay Builder): substitui a cor padrão da parede do
+   *  dono. Ghost preview não é afetado. */
+  colorOverride?: string;
 };
 
 const colorFor = (placement: WallPlacement) =>
   placement.owner === 2 ? gc.red : gc.blue;
 
-export const Wall = ({ placement, layout, ghost = false, ghostInvalid = false }: Props) => {
+export const Wall = ({ placement, layout, ghost = false, ghostInvalid = false, colorOverride }: Props) => {
   const { interRow: ir, interCol: ic, type } = placement;
   const { squareSize, gap, padding, wallThickness } = layout;
   const cellSize = squareSize + gap;
@@ -20,7 +23,7 @@ export const Wall = ({ placement, layout, ghost = false, ghostInvalid = false }:
     ? ghostInvalid
       ? gc.red
       : gc.blue
-    : colorFor(placement);
+    : colorOverride ?? colorFor(placement);
 
   const common: React.CSSProperties = {
     position: "absolute",

@@ -25,11 +25,12 @@ import {
   type WallPlacement,
   type WallType,
 } from "@barreira/shared";
-import { Board } from "../components/Board";
+import { Board, type PlayerSkin } from "../components/Board";
 import { WallBank } from "../components/WallBank";
 import { useResponsiveBoard } from "../hooks/useResponsiveBoard";
 import { useDragOverlay } from "../state/dragOverlay";
 import { cellToNotation } from "./replayBuilder/coord";
+import { COUNTRIES, countryByCode, flagUrl } from "./replayBuilder/countries";
 
 const C = {
   blue: "#3D6FFF",
@@ -133,6 +134,34 @@ export default function ReplayBuilderPage() {
 
   // Qual jogador comeca. So pode mudar antes do primeiro move.
   const [firstTurn, setFirstTurn] = useState<PlayerId>(2);
+
+  // === Skins de bandeira por jogador ===
+  // "" = visual padrao (azul/vermelho). Cosmetico puro — pode trocar a
+  // qualquer momento, nao entra no historico.
+  const [countryFor, setCountryFor] = useState<{ 1: string; 2: string }>({ 1: "", 2: "" });
+
+  const skins = useMemo<{ 1?: PlayerSkin; 2?: PlayerSkin }>(() => {
+    const skinOf = (code: string): PlayerSkin | undefined => {
+      const c = countryByCode(code);
+      if (!c) return undefined;
+      return { flagUrl: flagUrl(c.code), wallColor: c.wallColor };
+    };
+    return { 1: skinOf(countryFor[1]), 2: skinOf(countryFor[2]) };
+  }, [countryFor]);
+
+  // Imagens das bandeiras pro canvas de gravacao. crossOrigin="anonymous"
+  // (circle-flags manda CORS *) — sem isso o canvas fica "tainted" e o
+  // captureStream do video morre. Cache por codigo de pais.
+  const flagImgsRef = useRef<Map<string, HTMLImageElement>>(new Map());
+  useEffect(() => {
+    for (const code of [countryFor[1], countryFor[2]]) {
+      if (!code || flagImgsRef.current.has(code)) continue;
+      const img = new Image();
+      img.crossOrigin = "anonymous";
+      img.src = flagUrl(code);
+      flagImgsRef.current.set(code, img);
+    }
+  }, [countryFor]);
 
   // Historico das jogadas aplicadas. Tudo deriva daqui.
   const [history, setHistory] = useState<AppliedAction[]>([]);
@@ -288,12 +317,13 @@ export default function ReplayBuilderPage() {
     ctx.fillStyle = bottomGoalColor;
     ctx.fillRect(padding, padding + 9 * square + 8 * gap + 2, inner, 6);
 
-    // Paredes
+    // Paredes — skin de pais sobrepoe a cor padrao do dono
     for (const w of state.walls.placements) {
       const baseX = padding + w.interCol * (square + gap);
       const baseY = padding + w.interRow * (square + gap);
-      const owner = w.owner ?? 1;
-      const wallColor = owner === 1 ? "#00B2D6" : "#FF3D6F";
+      const owner = (w.owner ?? 1) as 1 | 2;
+      const wallColor =
+        skins[owner]?.wallColor ?? (owner === 1 ? "#00B2D6" : "#FF3D6F");
       ctx.fillStyle = wallColor;
       if (w.type === "h") {
         // Horizontal: 2 casas de largura, na linha entre interRow e interRow+1
@@ -304,13 +334,20 @@ export default function ReplayBuilderPage() {
       }
     }
 
-    // Peoes
-    const drawPawn = (pos: number, color: string, glow: string) => {
+    // Peoes — com bandeira circular se o jogador tem skin de pais
+    const drawPawn = (
+      pos: number,
+      color: string,
+      glow: string,
+      flagImg: HTMLImageElement | null,
+    ) => {
       const r = Math.floor(pos / 9);
       const c = pos % 9;
       const cx = padding + c * (square + gap) + square / 2;
       const cy = padding + r * (square + gap) + square / 2;
-      const radius = square * 0.35;
+      const flagReady = !!flagImg && flagImg.complete && flagImg.naturalWidth > 0;
+      // Com bandeira o peao eh maior e sem anel — a bandeira ocupa tudo.
+      const radius = square * (flagReady ? 0.44 : 0.35);
       // Glow
       const g = ctx.createRadialGradient(cx, cy, 0, cx, cy, radius * 1.6);
       g.addColorStop(0, glow);
@@ -319,11 +356,22 @@ export default function ReplayBuilderPage() {
       ctx.beginPath();
       ctx.arc(cx, cy, radius * 1.6, 0, Math.PI * 2);
       ctx.fill();
-      // Peao solido
-      ctx.fillStyle = color;
-      ctx.beginPath();
-      ctx.arc(cx, cy, radius, 0, Math.PI * 2);
-      ctx.fill();
+      if (flagReady) {
+        // Bandeira recortada em circulo (circle-flags ja vem redonda, o
+        // clip garante o encaixe exato).
+        ctx.save();
+        ctx.beginPath();
+        ctx.arc(cx, cy, radius, 0, Math.PI * 2);
+        ctx.clip();
+        ctx.drawImage(flagImg!, cx - radius, cy - radius, radius * 2, radius * 2);
+        ctx.restore();
+      } else {
+        // Peao solido (padrao / bandeira ainda carregando)
+        ctx.fillStyle = color;
+        ctx.beginPath();
+        ctx.arc(cx, cy, radius, 0, Math.PI * 2);
+        ctx.fill();
+      }
       // Brilho do topo
       const highlight = ctx.createRadialGradient(
         cx - radius * 0.3,
@@ -340,8 +388,15 @@ export default function ReplayBuilderPage() {
       ctx.arc(cx, cy, radius, 0, Math.PI * 2);
       ctx.fill();
     };
-    drawPawn(state.p1, "#00B2D6", "rgba(0,178,214,0.5)");
-    drawPawn(state.p2, "#FF3D6F", "rgba(255,61,111,0.5)");
+    const flagFor = (player: 1 | 2): HTMLImageElement | null =>
+      countryFor[player] ? (flagImgsRef.current.get(countryFor[player]) ?? null) : null;
+    // Glow acompanha a cor da skin (ex.: Brasil = verde) com alpha em hex
+    const glowFor = (player: 1 | 2, fallback: string): string => {
+      const wallColor = skins[player]?.wallColor;
+      return wallColor ? `${wallColor}80` : fallback;
+    };
+    drawPawn(state.p1, "#00B2D6", glowFor(1, "rgba(0,178,214,0.5)"), flagFor(1));
+    drawPawn(state.p2, "#FF3D6F", glowFor(2, "rgba(255,61,111,0.5)"), flagFor(2));
   };
 
   // (canvas redraw effect movido pra depois da declaracao de currentState)
@@ -501,14 +556,15 @@ export default function ReplayBuilderPage() {
   const isLatest = playbackIndex === lastIndex;
   const canEdit = isLatest && !playing && !currentState.winner;
 
-  // Redesenha o canvas quando o estado muda durante gravacao (cada move)
+  // Redesenha o canvas quando o estado muda durante gravacao (cada move).
+  // skins nas deps: trocar o pais redesenha o frame na hora.
   useEffect(() => {
     if (!recording) return;
     const canvas = recordingCanvasRef.current;
     if (!canvas) return;
     drawBoardToCanvas(canvas, currentState);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [recording, currentState]);
+  }, [recording, currentState, skins]);
 
   // Auto-stop da gravacao quando o playback chega no final
   useEffect(() => {
@@ -777,6 +833,50 @@ export default function ReplayBuilderPage() {
             </Section>
           )}
 
+          {/* Skins de bandeira */}
+          <Section title="Bandeiras dos jogadores">
+            {([1, 2] as const).map((p) => (
+              <div key={p} style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <span style={{ fontSize: 12, fontWeight: 800, color: p === 1 ? C.cyan : C.red, width: 22 }}>
+                  P{p}
+                </span>
+                {countryFor[p] ? (
+                  <img
+                    src={flagUrl(countryFor[p])}
+                    alt=""
+                    style={{ width: 22, height: 22, borderRadius: "50%", flexShrink: 0 }}
+                  />
+                ) : (
+                  <span
+                    style={{
+                      width: 22,
+                      height: 22,
+                      borderRadius: "50%",
+                      flexShrink: 0,
+                      background: p === 1
+                        ? `linear-gradient(135deg, ${C.cyan}, ${C.blue})`
+                        : `linear-gradient(135deg, ${C.red}, ${C.redLight})`,
+                    }}
+                  />
+                )}
+                <select
+                  value={countryFor[p]}
+                  onChange={(e) => setCountryFor((s) => ({ ...s, [p]: e.target.value }))}
+                  style={{ ...selectStyle, marginBottom: 0, flex: 1 }}
+                >
+                  <option value="">Padrão ({p === 1 ? "azul" : "vermelho"})</option>
+                  {COUNTRIES.map((c) => (
+                    <option key={c.code} value={c.code}>{c.name}</option>
+                  ))}
+                </select>
+              </div>
+            ))}
+            <p style={{ ...infoText, color: C.muted, fontSize: 11 }}>
+              Peão vira a bandeira do país e as barreiras usam a cor dela
+              (ex.: Brasil = verde). Vale pra tela e pro vídeo gravado.
+            </p>
+          </Section>
+
           {/* Mover peao */}
           <Section title="Mover peão">
             {canEdit ? (
@@ -874,6 +974,7 @@ export default function ReplayBuilderPage() {
             onSquareTap={handleSquareTap}
             boardRef={boardRef}
             layout={layout}
+            skins={skins}
           />
 
           {/* Controles de playback */}
