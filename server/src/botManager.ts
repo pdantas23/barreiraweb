@@ -24,6 +24,8 @@ import type { Server } from "socket.io";
 import {
   applyMove,
   botMove,
+  positionHash,
+  getRandomBotName,
   serializeState,
   type BotDifficulty,
   type ClientToServerEvents,
@@ -56,6 +58,10 @@ const MOVE_DELAY_MIN_MS = Number(process.env.BOT_MOVE_MIN_MS ?? 800);
 const MOVE_DELAY_MAX_MS = Number(process.env.BOT_MOVE_MAX_MS ?? 2_500);
 const LEAVE_DELAY_MIN_MS = Number(process.env.BOT_LEAVE_MIN_MS ?? 3_000);
 const LEAVE_DELAY_MAX_MS = Number(process.env.BOT_LEAVE_MAX_MS ?? 6_000);
+// Salas de bot ociosas no lobby (waiting, só bots) expiram após esse tempo se
+// ninguém entrar. A varredura é o próprio scan (4s) — sem timer novo (ver
+// estudo da TASK 5). Configurável via env pra testes. Default 3min.
+const BOT_ROOM_TTL_MS = Number(process.env.BOT_ROOM_TTL_MS ?? 180_000);
 // Bot rescue: se um humano cria sala e ninguém entra em 10-15s, um bot
 // entra como guest pra começar a partida. Configurável via env pra testes.
 const RESCUE_DELAY_MIN_MS = Number(process.env.BOT_RESCUE_MIN_MS ?? 10_000);
@@ -70,13 +76,22 @@ const BOT_COLORS = ["cyan", "random", "red"] as const;
 
 // === Helpers ===
 
-const randInt = (min: number, max: number): number =>
-  Math.floor(min + Math.random() * (max - min + 1));
-
 const randomBetween = (min: number, max: number): number =>
   min + Math.random() * (max - min);
 
-const generateBotName = (): string => `anonimo${randInt(1000, 9999)}`;
+// Nomes de bot em uso AGORA (em qualquer sala ativa) — pra não repetir nome
+// simultaneamente no lobby. Scan barato: poucas salas, poucos players.
+const activeBotNames = (): Set<string> => {
+  const names = new Set<string>();
+  for (const room of getAllRooms().values()) {
+    for (const p of room.players) {
+      if (p.isBot) names.add(p.name);
+    }
+  }
+  return names;
+};
+
+const generateBotName = (): string => getRandomBotName(activeBotNames());
 
 const pickRandomColor = (): "cyan" | "random" | "red" =>
   BOT_COLORS[Math.floor(Math.random() * BOT_COLORS.length)];
@@ -89,6 +104,25 @@ const botDifficulties = new Map<string, BotDifficulty>();
 
 const randomDifficulty = (): BotDifficulty =>
   Math.random() < 0.5 ? "medium" : "hard";
+
+// === Memória cross-turn do bot (Correção 1) ===
+// Histórico das últimas posições REAIS de cada sala (hashes no formato do
+// positionHash). Passado ao botMove pra que a detecção de repetição enxergue
+// ciclos ENTRE turnos (não só dentro de uma busca). Sem isso o bot podia
+// oscilar A→B→A→B indefinidamente porque cada chamada começava sem memória.
+// Limpo junto com a sala (scheduleBotLeave / reaps) pra não vazar.
+const RECENT_LIMIT = 8; // = HISTORY_LIMIT do bot.ts
+const recentByRoom = new Map<string, string[]>();
+
+const recordPosition = (room: ServerRoom): void => {
+  if (!room.gameState) return;
+  const hash = positionHash(room.gameState);
+  const list = recentByRoom.get(room.code) ?? [];
+  if (list[list.length - 1] === hash) return; // não duplica a mesma posição
+  list.push(hash);
+  if (list.length > RECENT_LIMIT) list.shift();
+  recentByRoom.set(room.code, list);
+};
 
 // Pra evitar spawns concorrentes na mesma "janela" (race do setInterval +
 // múltiplos setTimeouts agendados). Conta spawns em voo.
@@ -145,7 +179,11 @@ export const scheduleBotRescue = (room: ServerRoom): void => {
     }
     // Atribui dificuldade ao bot guest do rescue.
     const botPlayer = updated.players.find((p) => p.isBot);
-    if (botPlayer) botDifficulties.set(botPlayer.socketId, randomDifficulty());
+    if (botPlayer) {
+      const difficulty = randomDifficulty();
+      botDifficulties.set(botPlayer.socketId, difficulty);
+      botPlayer.botDifficulty = difficulty;
+    }
     // Analytics: partida começou (bot entrou como guest → playing).
     recordMatchStart(updated);
     console.log(`[botManager] rescue: ${botName} entrou em ${code}`);
@@ -157,6 +195,26 @@ export const scheduleBotRescue = (room: ServerRoom): void => {
 // em cenários que o lobby não captura sozinho.
 export const cancelPendingBotRescue = (room: ServerRoom): void => {
   cancelBotRescue(room);
+};
+
+// Insere um bot como guest numa sala existente (humano = host) e atribui a
+// dificuldade — usado pelo matchmaking quando estoura o timeout sem par real.
+// Devolve a sala atualizada (status playing, gameState pronto) + o nome do bot,
+// ou null se a sala não pôde receber o bot. O caller (index.ts) cuida de
+// recordMatchStart + broadcastGameStart + maybeScheduleBotMove.
+export const addMatchmakingBot = (
+  code: string,
+): { room: ServerRoom; botName: string } | null => {
+  const botName = generateBotName();
+  const updated = addBotGuest({ code, botName });
+  if (!updated) return null;
+  const botPlayer = updated.players.find((p) => p.isBot);
+  if (botPlayer) {
+    const difficulty = randomDifficulty();
+    botDifficulties.set(botPlayer.socketId, difficulty);
+    botPlayer.botDifficulty = difficulty;
+  }
+  return { room: updated, botName };
 };
 
 /**
@@ -204,6 +262,9 @@ export const maybeScheduleBotMove = (room: ServerRoom): void => {
     scheduleBotLeave(room);
     return;
   }
+  // Registra a posição real atual (pós-game-start ou pós-lance do humano) na
+  // memória cross-turn antes de decidir se o bot joga.
+  recordPosition(room);
   const currentPlayer = room.players.find(
     (p) => p.enginePlayer === room.gameState!.turn,
   );
@@ -232,8 +293,34 @@ const reapOrphanedBotRooms = (): void => {
   }
 };
 
+// Expira salas de bot ociosas no lobby: waiting, 100% bot e mais velhas que o
+// TTL. Remove (bot sai, sala some, clientes recebem lobbyUpdated). Salas de
+// matchmaking ficam de fora — são privadas e já estão "playing", nunca waiting.
+const reapExpiredBotRooms = (): void => {
+  const now = Date.now();
+  const expired: string[] = [];
+  for (const room of getAllRooms().values()) {
+    if (room.status !== "waiting") continue;
+    if (room.players.length === 0) continue;
+    if (!room.players.every((p) => p.isBot)) continue;
+    if (now - room.createdAt < BOT_ROOM_TTL_MS) continue;
+    expired.push(room.code);
+  }
+  for (const code of expired) {
+    const room = getAllRooms().get(code);
+    if (!room) continue;
+    for (const p of room.players.filter((pl) => pl.isBot)) {
+      botDifficulties.delete(p.socketId);
+    }
+    recentByRoom.delete(code);
+    removeBotFromRoom(code);
+    console.log(`[botManager] sala de bot ${code} expirou (ociosa > ${BOT_ROOM_TTL_MS}ms)`);
+  }
+};
+
 const scan = (): void => {
   reapOrphanedBotRooms();
+  reapExpiredBotRooms();
 
   let waitingCount = 0;
   for (const room of getAllRooms().values()) {
@@ -269,6 +356,7 @@ const spawnBotHostRoom = (): void => {
   if (botPlayer) {
     const difficulty = randomDifficulty();
     botDifficulties.set(botPlayer.socketId, difficulty);
+    botPlayer.botDifficulty = difficulty; // persiste em matches.bot_difficulty
     console.log(`[botManager] sala bot ${room.code} criada por ${name} (cor ${color}, dificuldade ${difficulty})`);
   }
 };
@@ -284,7 +372,8 @@ const playBotMove = (room: ServerRoom, bot: ServerPlayer): void => {
   if (room.gameState.turn !== bot.enginePlayer) return; // não é mais a vez
 
   const difficulty = botDifficulties.get(bot.socketId) ?? "medium";
-  const move = botMove(room.gameState, bot.enginePlayer, difficulty);
+  const recent = recentByRoom.get(room.code) ?? [];
+  const move = botMove(room.gameState, bot.enginePlayer, difficulty, recent);
   if (!move) {
     console.warn(`[botManager] sala ${room.code}: bot não gerou move`);
     return;
@@ -297,6 +386,8 @@ const playBotMove = (room: ServerRoom, bot: ServerPlayer): void => {
   }
 
   room.gameState = result.state;
+  recordPosition(room); // memória cross-turn: registra a posição pós-lance do bot
+  room.moveCount++; // analytics: conta o lance do bot (total_moves)
   // Mantém o relógio autoritativo coerente — debita o turno do bot e
   // reinicia pro humano (senão o reportTimeout do humano calcula errado).
   chargeTurnTime(room, bot.enginePlayer, Date.now());
@@ -350,6 +441,7 @@ const scheduleBotLeave = (room: ServerRoom): void => {
     for (const p of room.players.filter((pl) => pl.isBot)) {
       botDifficulties.delete(p.socketId);
     }
+    recentByRoom.delete(room.code);
     removeBotFromRoom(room.code);
     console.log(`[botManager] bot saiu da sala ${room.code}`);
   }, delay);

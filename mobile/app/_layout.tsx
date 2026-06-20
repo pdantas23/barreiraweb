@@ -12,6 +12,7 @@ import { DragOverlayProvider, useDragOverlay } from "../src/state/dragOverlay";
 import { AudioSettingsProvider } from "../src/state/audioSettings";
 import { ProfileProvider } from "../src/state/profile";
 import { AuthProvider } from "../src/state/auth";
+import { TutorialProvider } from "../src/state/tutorial";
 import { theme } from "../src/theme";
 
 const DragOverlayRenderer = () => {
@@ -48,6 +49,7 @@ export default function RootLayout() {
         <AudioSettingsProvider>
           <AuthProvider>
             <ProfileProvider>
+              <TutorialProvider>
               <StatusBar style="light" />
               <Stack
                 screenOptions={{
@@ -59,6 +61,7 @@ export default function RootLayout() {
               >
                 <Stack.Screen name="index" />
                 <Stack.Screen name="game" />
+                <Stack.Screen name="tutorial" options={{ animation: "fade" }} />
                 <Stack.Screen name="online" />
                 <Stack.Screen name="online-game" />
                 <Stack.Screen name="sala/[codigo]" options={{ animation: "fade" }} />
@@ -70,6 +73,7 @@ export default function RootLayout() {
               <DragOverlayRenderer />
               <AppGate />
               <SplashOverlay />
+              </TutorialProvider>
             </ProfileProvider>
           </AuthProvider>
         </AudioSettingsProvider>

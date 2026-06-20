@@ -64,6 +64,9 @@ const AnimatedPawn = ({
   return (
     <Animated.View
       pointerEvents="none"
+      accessible
+      accessibilityRole="image"
+      accessibilityLabel={`Peão ${player === 1 ? "azul" : "vermelho"}, coluna ${col(index) + 1}, linha ${row(index) + 1}`}
       style={[styles.pawn, { width: layout.squareSize, height: layout.squareSize }, animStyle]}
     >
       <Piece player={player} size={layout.squareSize} />

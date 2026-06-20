@@ -68,6 +68,16 @@ export const sendMove = (move: Move): Promise<RpcResult<null>> =>
 export const reportTimeout = (): Promise<RpcResult<null>> =>
   safeRpc(() => connectSocket().emitWithAck("reportTimeout", {}));
 
+// === Matchmaking (Partida Rápida) ===
+
+export const joinMatchmaking = (): Promise<RpcResult<null>> =>
+  safeRpc(() =>
+    ensureAuthedSocket().then(() => connectSocket().emitWithAck("joinMatchmaking", {})),
+  );
+
+export const leaveMatchmaking = (): Promise<RpcResult<null>> =>
+  safeRpc(() => connectSocket().emitWithAck("leaveMatchmaking", {}));
+
 export const requestRematch = (): Promise<RpcResult<null>> =>
   safeRpc(() => connectSocket().emitWithAck("requestRematch", {}));
 

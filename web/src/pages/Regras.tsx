@@ -2,7 +2,7 @@ import { useNavigate } from "react-router-dom";
 import { IoChevronBack } from "react-icons/io5";
 import { PageGate } from "../components/PageGate";
 import { HeaderAuthButtons } from "../components/HeaderAuthButtons";
-import { AdBanner } from "../ads/AdBanner";
+import { AdBanner, useAdSenseAccountMeta } from "../ads/AdBanner";
 import { AD_SLOTS } from "../ads/adsConfig";
 
 const C = {
@@ -19,6 +19,7 @@ const C = {
 
 export default function RegrasScreen() {
   const navigate = useNavigate();
+  useAdSenseAccountMeta(); // meta da conta AdSense só nas páginas de conteúdo
 
   return (
     <PageGate>
@@ -160,13 +161,6 @@ export default function RegrasScreen() {
               </p>
             </Section>
 
-            <AdBanner
-              slot={AD_SLOTS.contentBanner}
-              format="horizontal"
-              className="w-full my-6"
-              style={{ minHeight: 90 }}
-            />
-
             <Section title="Modos de Jogo">
               <p>
                 O Barreira oferece dois modos principais. No <strong>Treino</strong>, você joga offline contra a
@@ -178,6 +172,13 @@ export default function RegrasScreen() {
                 sistema garante reconexão automática em caso de queda temporária de internet.
               </p>
             </Section>
+
+            <AdBanner
+              slot={AD_SLOTS.contentBanner}
+              format="horizontal"
+              className="w-full my-6"
+              style={{ minHeight: 90 }}
+            />
           </div>
         </div>
       </div>

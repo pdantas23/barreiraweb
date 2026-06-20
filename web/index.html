@@ -3,6 +3,10 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!-- AdSense: a meta de verificação de propriedade é global (NÃO carrega
+         anúncios — é só pra o Google confirmar a posse do site). O script
+         adsbygoogle.js segue carregado condicionalmente só nas páginas de
+         conteúdo (web/src/ads/AdBanner.tsx). -->
     <meta name="google-adsense-account" content="ca-pub-2366664885069425" />
     <link rel="icon" type="image/webp" href="/photos/art.webp" />
     <link rel="apple-touch-icon" href="/photos/art.png" />
@@ -35,7 +39,51 @@
     <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&display=swap" rel="stylesheet" />
   </head>
   <body>
-    <div id="root"></div>
+    <div id="root">
+      <!-- Conteúdo pré-renderizado (SEO/AdSense): visível enquanto o bundle
+           carrega; o React substitui este markup ao montar (createRoot.render).
+           Garante que o crawler receba texto real na home, não uma página vazia. -->
+      <main style="max-width:760px;margin:0 auto;padding:40px 20px 80px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;color:#1A2A4A;line-height:1.7">
+        <h1 style="font-size:30px;margin:0 0 6px">Barreira — jogo de tabuleiro estratégico online</h1>
+        <p style="color:#5C6F8F;font-size:15px;margin:0 0 24px">
+          Um duelo de planejamento espacial inspirado no clássico Quoridor. Jogue grátis,
+          online contra outras pessoas ou contra a CPU, direto do navegador e sem instalar nada.
+        </p>
+        <p style="font-size:15px">
+          <strong>Barreira</strong> é um jogo para dois jogadores disputado em um tabuleiro de
+          9 por 9 casas. O objetivo é simples de entender e difícil de dominar: leve o seu peão
+          até a linha inicial do adversário antes que ele chegue à sua. A cada turno você escolhe
+          entre <strong>avançar o peão uma casa</strong> ou <strong>colocar uma das suas paredes</strong>
+          para atrasar, desviar ou cercar o oponente — nunca os dois no mesmo turno. Essa decisão
+          binária, lance após lance, é o coração da tensão estratégica do jogo.
+        </p>
+        <p style="font-size:15px">
+          Cada jogador tem dez paredes para a partida inteira, então saber a hora de bloquear e a
+          hora de correr é o que separa quem ganha de quem perde. As paredes são permanentes e nunca
+          podem fechar completamente o caminho de nenhum jogador até o objetivo — uma regra que
+          transforma cada barreira em uma escolha de longo prazo.
+        </p>
+        <h2 style="font-size:19px;color:#3D6FFF;margin:28px 0 8px">Modos de jogo</h2>
+        <p style="font-size:15px">
+          No <strong>Treino</strong> você joga offline contra a CPU em três níveis de dificuldade —
+          fácil, médio e difícil — ideal para aprender as regras no seu ritmo. No modo
+          <strong>Casual online</strong> você cria ou entra em uma sala e enfrenta outra pessoa em
+          tempo real, com relógio de três minutos por jogador. Há ainda a <strong>Partida Rápida</strong>,
+          que encontra um adversário em segundos. Tudo gratuito e sem cadastro obrigatório.
+        </p>
+        <h2 style="font-size:19px;color:#3D6FFF;margin:28px 0 8px">Aprenda e evolua</h2>
+        <p style="font-size:15px">
+          Conheça as <a href="/regras" style="color:#3D6FFF">regras completas</a>, mergulhe nas
+          <a href="/estrategias" style="color:#3D6FFF">estratégias</a> ou explore os nossos
+          <a href="/artigos" style="color:#3D6FFF">artigos e guias</a> sobre o jogo — da
+          <a href="/artigos/historia-do-quoridor" style="color:#3D6FFF">história do Quoridor</a> ao
+          <a href="/artigos/guia-iniciante" style="color:#3D6FFF">guia para iniciantes</a>. Saiba mais
+          <a href="/sobre" style="color:#3D6FFF">sobre o projeto</a> ou fale com a gente no
+          <a href="/suporte" style="color:#3D6FFF">suporte</a>.
+        </p>
+        <p style="color:#9AAACA;font-size:14px;margin-top:32px">Carregando o jogo…</p>
+      </main>
+    </div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

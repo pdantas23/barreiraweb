@@ -14,6 +14,27 @@ import { createClient } from "@supabase/supabase-js";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import Constants from "expo-constants";
 
+// ─── Silencia o ruído de "Invalid Refresh Token" no cold start ───
+// Quando há um refresh token velho/inválido no AsyncStorage, o GoTrueClient
+// (auth-js) chama `console.error(error)` em _recoverAndRefresh — mas JÁ trata o
+// caso (remove a sessão e emite SIGNED_OUT, app segue anônimo). É puramente
+// cosmético e vazava um ERROR vermelho no console (inclusive em produção/crash
+// reporting). Filtramos SÓ essa mensagem específica; qualquer outro erro passa
+// intacto. (Instalado no load do módulo, antes do 1º getSession().)
+const isStaleRefreshTokenError = (arg: unknown): boolean => {
+  if (!arg || typeof arg !== "object") return false;
+  const e = arg as { name?: string; message?: string };
+  return (
+    e.name === "AuthApiError" &&
+    /Invalid Refresh Token|Refresh Token Not Found/i.test(e.message ?? "")
+  );
+};
+const originalConsoleError = console.error.bind(console);
+console.error = (...args: unknown[]) => {
+  if (args.length === 1 && isStaleRefreshTokenError(args[0])) return;
+  originalConsoleError(...args);
+};
+
 const SUPABASE_URL =
   (Constants.expoConfig?.extra?.supabaseUrl as string | undefined) ?? "";
 const SUPABASE_ANON_KEY =

@@ -123,6 +123,8 @@ export const FriendsButton = ({ color = C.blue }: Props) => {
     <>
       <Pressable
         accessibilityLabel="Amigos"
+        accessibilityRole="button"
+        hitSlop={6}
         onPress={() => { setOpen(true); void refresh(); }}
         style={({ pressed }) => [styles.iconBtn, pressed && { opacity: 0.7 }]}
       >

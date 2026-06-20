@@ -37,6 +37,8 @@ import { PageGate } from "../components/PageGate";
 import { HeaderAuthButtons } from "../components/HeaderAuthButtons";
 import { FriendsHub } from "../components/FriendsHub";
 import { Leaderboard } from "../components/Leaderboard";
+import { QuickMatchCard } from "../components/QuickMatchCard";
+import { MatchmakingOverlay } from "../components/MatchmakingOverlay";
 import { createRoom, joinRoom, listRooms } from "../net/api";
 import { clearLastGameStart, connectSocket } from "../net/socket";
 import {
@@ -100,6 +102,8 @@ const errorInfo = (err: string): FriendlyError => {
       return { title: "Voce ja esta numa sala", message: "Saia da sala atual antes de entrar em outra." };
     case "self-match":
       return { title: "Voce nao pode jogar contra si mesmo", message: "Essa sala foi criada pela sua propria conta em outra sessao. Procure outra sala ou crie uma nova." };
+    case "already-in-queue":
+      return { title: "Voce ja esta na fila", message: "Aguarde encontrar um adversario ou cancele a busca atual." };
     case "internal-error":
       return { title: "Sem conexao", message: "Nao conseguimos falar com o servidor agora. Verifique sua internet e tente de novo." };
     default:
@@ -132,6 +136,7 @@ export default function HomeScreen() {
   const [joinOpen, setJoinOpen] = useState(false);
   const [joinTarget, setJoinTarget] = useState<PublicRoom | null>(null);
   const [errorPopup, setErrorPopup] = useState<FriendlyError | null>(null);
+  const [matchmaking, setMatchmaking] = useState(false);
 
   // Audio + privacy bootstrap
   useEffect(() => {
@@ -154,13 +159,17 @@ export default function HomeScreen() {
     setErrorPopup(errorInfo(res.error));
   };
 
-  const refresh = useCallback(async () => {
+  // `silent` = auto-load (mount, reconnect, lobbyUpdated): NÃO mostra modal de
+  // erro, porque no cold-start o socket ainda está no handshake e a 1ª chamada
+  // pode falhar por timeout (some sozinho quando conecta). Só o refresh manual
+  // (botão) mostra erro.
+  const refresh = useCallback(async (silent = false) => {
     setLoading(true);
     const res = await listRooms();
     setLoading(false);
     setFirstLoadDone(true);
     if (!res.ok) {
-      showError(res);
+      if (!silent) showError(res);
       return;
     }
     setRooms(res.data.rooms);
@@ -169,15 +178,18 @@ export default function HomeScreen() {
   useEffect(() => {
     clearLastGameStart();
     const socket = connectSocket();
-    refresh();
+    refresh(true);
     // Server avisa quando o conjunto de salas waiting muda — sem isso o
     // user precisaria apertar refresh pra ver sala nova/morta.
-    const onLobbyUpdated = () => {
-      refresh();
-    };
+    const onLobbyUpdated = () => refresh(true);
+    // Recarrega quando o socket (re)conecta — conserta o cold-start: a 1ª
+    // listRooms pode falhar durante o handshake; ao conectar, recarrega sozinho.
+    const onConnect = () => refresh(true);
     socket.on("lobbyUpdated", onLobbyUpdated);
+    socket.on("connect", onConnect);
     return () => {
       socket.off("lobbyUpdated", onLobbyUpdated);
+      socket.off("connect", onConnect);
     };
   }, [refresh]);
 
@@ -279,6 +291,14 @@ export default function HomeScreen() {
             </span>
           </div>
           <div className="flex items-center gap-1.5">
+            {/* Troféu (leaderboard) — na navbar, à esquerda do nome do usuário. */}
+            <button
+              onClick={() => { playButtonSound(); setShowLeaderboard(true); }}
+              className="w-9 h-9 rounded-full bg-white border border-cell-bg flex items-center justify-center cursor-pointer hover:opacity-80"
+              aria-label="Ver leaderboard"
+            >
+              <IoTrophy size={16} color="#F4B619" />
+            </button>
             <HeaderAuthButtons />
             <FriendsHub />
             <button
@@ -291,18 +311,6 @@ export default function HomeScreen() {
           </div>
         </header>
 
-        {/* === Botão flutuante do leaderboard ===
-            Fixo no canto superior esquerdo, logo abaixo do header. Abre o
-            ranking num modal (antes ficava inline no topo do lobby). */}
-        <button
-          onClick={() => { playButtonSound(); setShowLeaderboard(true); }}
-          className="fixed left-4 z-[100] w-11 h-11 rounded-full bg-white border border-[#DDEAFF] shadow-[0_2px_8px_rgba(61,111,255,0.15)] flex items-center justify-center cursor-pointer hover:opacity-90 active:scale-95 transition-transform"
-          style={{ top: 72 }}
-          aria-label="Ver leaderboard"
-        >
-          <IoTrophy size={20} color="#F4B619" />
-        </button>
-
         {/* === Body responsivo: 3 colunas no desktop, 1 fluindo no mobile ===
             No mobile não há flex-1/min-h-0 (sem altura travada) → o conteúdo
             cresce e o container externo scrolla tudo junto. */}
@@ -312,6 +320,14 @@ export default function HomeScreen() {
               no rodapé mesmo com poucas salas. O leaderboard saiu da
               sidebar/topo e virou o botão flutuante (modal abaixo). */}
           <main className="flex flex-col flex-1 min-h-0">
+            {/* Partida Rápida (matchmaking) — acima da lista de salas. */}
+            <div style={{ padding: "12px 20px 0" }}>
+              <QuickMatchCard
+                disabled={busy}
+                onPlay={() => { playButtonSound(); setMatchmaking(true); }}
+              />
+            </div>
+
             {/* Barra de status — título centralizado na tela e o refresh colado
                 na extrema direita. Os dois spacers flex:1 (esquerda e direita)
                 mantêm o título no centro independente do botão. O troféu
@@ -323,7 +339,7 @@ export default function HomeScreen() {
               </span>
               <div style={{ flex: 1, display: "flex", justifyContent: "flex-end" }}>
                 <button
-                  onClick={refresh}
+                  onClick={() => refresh()}
                   disabled={loading || busy}
                   style={{
                     width: 32, height: 32, borderRadius: 16, backgroundColor: C.white,
@@ -455,8 +471,11 @@ export default function HomeScreen() {
           </aside>
         </div>
 
-        {/* === Footer com links de conteudo === */}
-        <footer className="flex-shrink-0 flex flex-row items-center justify-center gap-3 py-3 px-4 border-t border-cell-bg bg-white/60">
+        {/* === Footer com links de conteudo ===
+            Artigos e Suporte são páginas estáticas (sem rota React) — usam
+            <a href> (navegação real) em vez de navigate(). As demais têm rota
+            no React Router e usam navigate() pra navegação client-side. */}
+        <footer className="flex-shrink-0 flex flex-row flex-wrap items-center justify-center gap-x-3 gap-y-1.5 py-3 px-4 border-t border-cell-bg bg-white/60">
           <button
             onClick={() => { playButtonSound(); navigate("/regras"); }}
             className="text-muted text-[11px] font-semibold hover:text-brand bg-transparent border-none cursor-pointer"
@@ -471,6 +490,13 @@ export default function HomeScreen() {
             Estratégias
           </button>
           <span className="text-muted text-[11px]">·</span>
+          <a
+            href="/artigos"
+            className="text-muted text-[11px] font-semibold hover:text-brand no-underline cursor-pointer"
+          >
+            Artigos
+          </a>
+          <span className="text-muted text-[11px]">·</span>
           <button
             onClick={() => { playButtonSound(); navigate("/sobre"); }}
             className="text-muted text-[11px] font-semibold hover:text-brand bg-transparent border-none cursor-pointer"
@@ -478,11 +504,25 @@ export default function HomeScreen() {
             Sobre
           </button>
           <span className="text-muted text-[11px]">·</span>
+          <a
+            href="/suporte"
+            className="text-muted text-[11px] font-semibold hover:text-brand no-underline cursor-pointer"
+          >
+            Suporte
+          </a>
+          <span className="text-muted text-[11px]">·</span>
           <button
             onClick={() => { playButtonSound(); navigate("/privacy"); }}
             className="text-muted text-[11px] font-semibold hover:text-brand bg-transparent border-none cursor-pointer"
           >
             Privacidade
+          </button>
+          <span className="text-muted text-[11px]">·</span>
+          <button
+            onClick={() => { playButtonSound(); navigate("/termos"); }}
+            className="text-muted text-[11px] font-semibold hover:text-brand bg-transparent border-none cursor-pointer"
+          >
+            Termos
           </button>
         </footer>
 
@@ -607,6 +647,12 @@ export default function HomeScreen() {
         )}
 
         {/* Modais do lobby */}
+        <MatchmakingOverlay
+          visible={matchmaking}
+          onCancel={() => setMatchmaking(false)}
+          onError={showError}
+        />
+
         <CreateRoomModal visible={createOpen} onClose={() => setCreateOpen(false)} onConfirm={onConfirmCreate} />
         <JoinByCodeModal
           visible={joinOpen}

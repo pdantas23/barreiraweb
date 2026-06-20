@@ -12,6 +12,8 @@ import { resolve } from "node:path";
 dotenv.config({ path: resolve(process.cwd(), ".env") });
 dotenv.config({ path: resolve(process.cwd(), "..", ".env") });
 import express from "express";
+import helmet from "helmet";
+import rateLimit from "express-rate-limit";
 import { createServer } from "node:http";
 import { Server, type Socket } from "socket.io";
 import {
@@ -32,6 +34,7 @@ import {
   chargeTurnTime,
   clearRematch,
   createRoom,
+  getAllRooms,
   getRoomBySocket,
   initGameClock,
   joinRoom,
@@ -59,7 +62,8 @@ import {
 } from "./profiles.js";
 import { startReengagementCron } from "./reengagement.js";
 import { resolveAuthUser } from "./auth.js";
-import { recordMatchStart, recordMatchFinish } from "./matches.js";
+import { recordMatchStart, recordMatchFinish, reconcileOrphanMatches } from "./matches.js";
+import { logEvent, recentEvents } from "./eventLog.js";
 import { recordOnlineSnapshot, type OnlineStats } from "./snapshots.js";
 import { awardCasualTrophy } from "./trophies.js";
 import {
@@ -79,24 +83,86 @@ import {
 import { isAllowedOrigin } from "./cors.js";
 import { createOnlineRegistry } from "./onlineRegistry.js";
 import { createFriendService, createSupabaseFriendStore } from "./friendships.js";
+import {
+  connectionAllowed,
+  eventAllowed,
+  startHardeningSweeper,
+} from "./hardening.js";
 import { sendInvitePush, upsertPushToken } from "./push.js";
 import type { InviteAcceptResult } from "@barreira/shared";
 import {
+  addMatchmakingBot,
   maybeBotRequestRematch,
   maybeScheduleBotMove,
   scheduleBotRescue,
   setOnBotRescueStarted,
   startBotManager,
 } from "./botManager.js";
+import {
+  initMatchmaking,
+  joinMatchmaking,
+  leaveMatchmaking,
+  queueSize,
+  type QueuedPlayer,
+} from "./matchmaking.js";
 
 const PORT = Number(process.env.PORT ?? 3000);
 
 // === HTTP ===
 const app = express();
-app.use(express.json());
+// Atrás do nginx (1 hop): faz req.ip refletir o X-Forwarded-For real, senão
+// todo request viria de 127.0.0.1 e o rate-limit cairia num balde só.
+app.set("trust proxy", 1);
+// Headers de segurança padrão. Só afeta as rotas express (/health) — as
+// requests de /socket.io são tratadas pela engine antes do express.
+app.use(helmet());
+// Limite explícito de corpo: as mensagens do jogo são minúsculas, 50kb é
+// folga de sobra e fecha o vetor de payload JSON gigante.
+app.use(express.json({ limit: "50kb" }));
+
+// Rate-limit do HTTP. Só existe /health hoje; 120/min por IP é teto alto pra
+// healthcheck/uptime e barra varredura. Devolve 429 sem derrubar o resto.
+app.use(
+  rateLimit({
+    windowMs: 60_000,
+    limit: Number(process.env.RL_HTTP_PER_MIN ?? 120),
+    standardHeaders: true,
+    legacyHeaders: false,
+  }),
+);
 
 app.get("/health", (_req, res) => {
   res.json({ ok: true, ts: Date.now() });
+});
+
+// === Tempo real (dashboard de analytics) ===
+// Estado ao vivo que NÃO está no Supabase (salas/fila vivem em memória).
+// Sem PII: códigos de sala, modo, nº de players e eventos recentes (tipo/sala).
+// Leitura pública, igual às RPCs do dashboard (não expõe nome/email).
+app.get("/admin/live", (_req, res) => {
+  let waiting = 0;
+  let playing = 0;
+  const openRooms: Array<{ code: string; players: number; isBot: boolean }> = [];
+  for (const room of getAllRooms().values()) {
+    if (room.status === "waiting") {
+      waiting++;
+      if (!room.isPrivate) {
+        openRooms.push({
+          code: room.code,
+          players: room.players.length,
+          isBot: room.players.every((p) => p.isBot),
+        });
+      }
+    } else if (room.status === "playing") {
+      playing++;
+    }
+  }
+  res.json({
+    ts: Date.now(),
+    rooms: { waiting, playing, open: openRooms.slice(0, 30) },
+    matchmaking: queueSize(),
+    events: recentEvents(30),
+  });
 });
 
 // === WebSocket ===
@@ -114,9 +180,22 @@ const corsOrigin = (
 const httpServer = createServer(app);
 const io = new Server<ClientToServerEvents, ServerToClientEvents>(httpServer, {
   cors: { origin: corsOrigin },
+  // Default é 1MB por mensagem — alto pro nosso tráfego (jogadas minúsculas).
+  // 64KB cobre qualquer payload legítimo e corta mensagem gigante de propósito.
+  maxHttpBufferSize: 64 * 1024,
 });
 
 type TypedSocket = Socket<ClientToServerEvents, ServerToClientEvents>;
+
+// Anti-flood de conexão: recusa quem abre sockets em loop (protege a tabela
+// `players`, que ganha uma linha por clientId novo). Roda antes do connection.
+io.use((socket, next) => {
+  if (connectionAllowed(socket, Date.now())) {
+    next();
+  } else {
+    next(new Error("rate-limited"));
+  }
+});
 
 // === Helpers ===
 
@@ -139,6 +218,11 @@ const rpc = <P, R>(
   handler: (payload: P, socket: TypedSocket) => Promise<R> | R,
 ) => {
   return async (payload: P, socket: TypedSocket, ack: (res: RpcResult<R>) => void) => {
+    // Throttle por socket: barra spam de eventos antes de tocar engine/DB.
+    if (!eventAllowed(socket, Date.now())) {
+      ack(errResult("rate-limited"));
+      return;
+    }
     try {
       const data = await handler(payload, socket);
       ack(okResult(data));
@@ -296,6 +380,7 @@ const createInviteRoom = (
     hostName: fromUsername,
     color: "random",
     isPrivate: true,
+    source: "invite",
   });
   hostSocket?.join(room.code);
   return { code: room.code, password: room.password };
@@ -308,6 +393,76 @@ const friendService = createFriendService({
   isInGame,
   createInviteRoom,
   sendInvitePush,
+});
+
+// === Matchmaking (Partida Rápida) ===
+// Injeta no módulo de fila as operações concretas (criar sala + gameStart +
+// bot), reusando o broadcastGameStart e o lobby já existentes.
+initMatchmaking({
+  createHumanMatch: (host: QueuedPlayer, guest: QueuedPlayer) => {
+    const room = createRoom({
+      hostSocketId: host.socketId,
+      hostClientId: host.clientId,
+      hostAuthUserId: host.authUserId,
+      hostName: host.name,
+      color: "random",
+      isPrivate: true, // sala de matchmaking não aparece no lobby público
+      source: "matchmaking", // ...mas é jogo casual pra analytics
+      hostPlatform: host.platform,
+    });
+    io.sockets.sockets.get(host.socketId)?.join(room.code);
+    try {
+      joinRoom({
+        socketId: guest.socketId,
+        clientId: guest.clientId,
+        authUserId: guest.authUserId,
+        playerName: guest.name,
+        code: room.code,
+        password: room.password ?? undefined,
+        platform: guest.platform,
+      });
+    } catch {
+      // Guest não pôde entrar (caiu nesse meio-tempo, etc) — desfaz a sala.
+      leaveRoom(host.socketId);
+      return null;
+    }
+    io.sockets.sockets.get(guest.socketId)?.join(room.code);
+    room.waitMs = Math.max(0, Math.round(Date.now() - host.joinedAt)); // espera na fila (analytics)
+    recordMatchStart(room);
+    broadcastGameStart(room);
+    console.log(`[matchmaking] match real ${host.name} x ${guest.name} → ${room.code}`);
+    return { code: room.code, password: room.password };
+  },
+  createBotMatch: (host: QueuedPlayer) => {
+    const room = createRoom({
+      hostSocketId: host.socketId,
+      hostClientId: host.clientId,
+      hostAuthUserId: host.authUserId,
+      hostName: host.name,
+      color: "random",
+      isPrivate: true,
+      source: "matchmaking",
+      hostPlatform: host.platform,
+    });
+    io.sockets.sockets.get(host.socketId)?.join(room.code);
+    const added = addMatchmakingBot(room.code);
+    if (!added) {
+      leaveRoom(host.socketId);
+      return null;
+    }
+    added.room.waitMs = Math.max(0, Math.round(Date.now() - host.joinedAt)); // espera até cair no bot
+    recordMatchStart(added.room);
+    broadcastGameStart(added.room);
+    maybeScheduleBotMove(added.room);
+    console.log(`[matchmaking] timeout → bot ${added.botName} pra ${host.name} → ${room.code}`);
+    return { code: room.code, botName: added.botName };
+  },
+  emitMatchFound: (socketId, payload) => {
+    io.to(socketId).emit("matchFound", payload);
+  },
+  emitStatus: (socketId, payload) => {
+    io.to(socketId).emit("matchmakingStatus", payload);
+  },
 });
 
 // Resolve o username (login) do socket; erro tipado se não estiver logado.
@@ -370,6 +525,7 @@ io.on("connection", (socket: TypedSocket) => {
   socket.data.authUserId = null;
   socket.data.platform = platform;
   console.log(`[+] conectou: ${socket.id}${clientId ? ` (clientId ${clientId.slice(0, 8)}…)` : ""}`);
+  logEvent("connect", { detail: platform ?? "?" });
 
   // Resolve identidade persistente via Supabase (fire-and-forget — não
   // bloqueia outros handlers). Emite `profile` quando resolver.
@@ -575,6 +731,7 @@ io.on("connection", (socket: TypedSocket) => {
       // Inclui o `move` no payload pra o replay client-side empilhar o lance
       // do oponente (que o client não vê de outra forma, só vê state final).
       room.gameState = result.state;
+      room.moveCount++; // analytics: total_moves gravado no recordMatchFinish
       // Debita o tempo gasto neste turno e reinicia o cronômetro pro próximo.
       chargeTurnTime(room, me.enginePlayer, now);
       const wireState = serializeState(result.state);
@@ -801,8 +958,40 @@ io.on("connection", (socket: TypedSocket) => {
     })(payload, socket, ack),
   );
 
+  // === Matchmaking (Partida Rápida) ===
+  socket.on("joinMatchmaking", (payload, ack) =>
+    rpc(async () => {
+      const authUserId = await ensureAuthUserId(socket);
+      // Nome exibido pro oponente: username se logado, senão o display_name do
+      // profile anônimo (mesma resolução do createRoom/joinRoom).
+      const fallback = clientId
+        ? (await getOrCreateProfile(clientId)).displayName
+        : (socket.data.username ?? "Anônimo");
+      const name = await resolvePlayerName(authUserId, fallback);
+      const player: QueuedPlayer = {
+        socketId: socket.id,
+        clientId,
+        authUserId,
+        name,
+        platform: socket.data.platform ?? null,
+        joinedAt: Date.now(),
+      };
+      joinMatchmaking(player);
+      return null;
+    })(payload, socket, ack),
+  );
+
+  socket.on("leaveMatchmaking", (payload, ack) =>
+    rpc(() => {
+      leaveMatchmaking(socket.id);
+      return null;
+    })(payload, socket, ack),
+  );
+
   socket.on("disconnect", (reason) => {
     console.log(`[-] desconectou: ${socket.id} (${reason})`);
+    // Sai da fila de matchmaking se estava nela (não bloqueia o resto).
+    leaveMatchmaking(socket.id);
     // Baixa de presença: se foi o último socket do usuário, avisa amigos.
     const off = onlineRegistry.remove(socket.id);
     if (off?.nowOffline) {
@@ -898,10 +1087,15 @@ httpServer.listen(PORT, () => {
   console.log(`Barreira server rodando em http://localhost:${PORT}`);
   console.log(`Health:  http://localhost:${PORT}/health`);
   console.log(`Socket:  ws://localhost:${PORT}`);
+  // Reconcilia partidas órfãs (finished_at NULL) deixadas por um restart
+  // anterior no meio do jogo — marca como abandonadas. Fire-and-forget.
+  reconcileOrphanMatches();
   // Inicializa o bot manager — vai povoar o lobby com salas fantasmas.
   startBotManager(io);
   // Cron diário de reengajamento (18h BRT): push pra quem sumiu há 48h+.
   startReengagementCron();
+  // Limpeza periódica das janelas de rate-limit (libera memória de IPs/sockets).
+  startHardeningSweeper();
   // Snapshot periódico de presença online pro dashboard.
   setInterval(() => {
     try {

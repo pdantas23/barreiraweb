@@ -10,8 +10,11 @@ export * from "./moves";
 export * from "./engine";
 
 // --- Bot (3 dificuldades: easy | medium | hard) ---
-export { botMove } from "./bot";
+export { botMove, positionHash } from "./bot";
 export type { BotDifficulty } from "./bot";
+
+// --- Nomes realistas pra bots ---
+export { BOT_NAMES, getRandomBotName } from "./botNames";
 
 // --- Serialização (wire format) ---
 export * from "./serialization";

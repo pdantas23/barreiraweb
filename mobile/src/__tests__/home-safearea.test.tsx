@@ -57,6 +57,11 @@ jest.mock("../state/audioSettings", () => ({
     setSfxEnabled: jest.fn(),
   }),
 }));
+// tutorial: importa AsyncStorage (nativo); no-op no jest, não é o foco aqui.
+jest.mock("../state/tutorial", () => ({
+  useTutorial: () => ({ seen: true, loading: false, markSeen: jest.fn() }),
+  shouldShowTutorial: () => false,
+}));
 
 import HomeScreen from "../../app/index";
 

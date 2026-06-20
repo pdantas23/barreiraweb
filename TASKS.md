@@ -8,30 +8,152 @@ Backlog vivo do Barreira. A ordem reflete prioridade — o que está no topo é 
 
 1. **Modo Rankeada** — coluna `elo_ranqueada` separada (não reaproveitar `trofeus_casual`); pareamento por faixa; reset sazonal opcional.
 
-> [AdSense] revisão já solicitada no painel em 2026-05-26 — aguardando resposta do Google (2–7 dias). Se aprovado, slot `9953596385` já está ativo em `web/src/ads/adsConfig.ts:24`. Se rejeitado de novo, anotar o motivo aqui e abrir nova task.
+2. **Modo 2x2 (duplas)** — partida de 4 jogadores em 2 times. Regras principais:
+   - 4 peões, um em cada lado do tabuleiro (cima/baixo/esquerda/direita); parceiros começam em lados **opostos**.
+   - Cada jogador tem como objetivo alcançar o lado **oposto** ao seu de largada.
+   - O **time vence quando QUALQUER um dos dois parceiros** chega ao seu objetivo.
+   - Paredes divididas entre os jogadores (ex.: 5 cada, mantendo o total de 20); regra de **não fechar totalmente o caminho** vale pra todos.
+   - A vez **gira pelo tabuleiro** alternando os times; salto/pulo sobre peões adjacentes (parceiro ou adversário) segue a regra normal.
+   - Exige: tabuleiro com objetivo nos 4 lados (hoje só 2), lógica de times + sala de 4 no server (matchmaking 2+2), e UI de 4 peões/4 bancos de parede.
+
+> [AdSense] **Reprovado de novo em 2026-06-18** — motivo: **"Conteúdo de baixo valor"** (thin/low value content). Diagnóstico: home `/` vazia pro crawler (SPA, `#root` sem markup) + site raso em quantidade (só ~5 páginas indexáveis, o jogo é non-indexable). Remediação feita e **deployada em 2026-06-18** (ver Histórico): home com conteúdo pré-renderizado, seção `/artigos` com 6 guias originais, `/termos` e `/suporte` visíveis, navegação e e-mail unificados. Verificado no ar (home com conteúdo, /artigos + 6 artigos + /termos servindo estático, sitemap publicado). **Próximo passo (manual, no painel): marcar "Confirmo que corrigi os problemas" → "Pedir revisão".** Slot `9953596385` ativo em `web/src/ads/adsConfig.ts:24`.
 
 ---
 
 ## Futuro (nice-to-have)
 
-- Testes unitários da engine (`engine.ts`, `walls.ts`, `moves.ts`) com Jest
-- Cache de `shortestPathDistance` no `smartOpponent` para acelerar avaliação de paredes
-- Alternar quem começa a partida no restart (hoje sempre P1)
-- Acessibilidade: `accessibilityLabel` em casas, paredes e botões; tamanhos mínimos de toque
-- AdMob real no espaço já reservado em `game.tsx` (`adContainer`)
-- Unificar fonte de tamanhos: `theme.ts` calcula valores que ninguém usa; tudo deveria vir de `useResponsiveBoard`
-- Tutorial / primeira partida guiada
+- AdMob real no mobile — hoje **inexistente** (sem lib, sem placeholder). Precisa integrar `react-native-google-mobile-ads` do zero e decidir onde mostrar (o antigo `adContainer` em `game.tsx` não existe mais).
 
 ---
 
 ## Histórico
+
+### 2026-06-18 — AdSense: remediação de "Conteúdo de baixo valor" (2ª reprovação)
+
+Resposta à 2ª reprovação do AdSense (motivo: "Conteúdo de baixo valor" / thin content). Diagnóstico: a home `/` era servida como SPA com `#root` vazio — pro crawler (que não executa JS, por isso o projeto usa prerender estático) a página de maior autoridade do domínio parecia em branco; e o site tinha só ~5 páginas indexáveis (o jogo em si é non-indexable via `robots.txt`). Não era problema de qualidade (regras/estratégias/sobre já eram bons), e sim de **volume + home vazia**.
+
+- **Home pré-renderizada** (`web/index.html`): conteúdo textual real e visível (~450 palavras: o que é, regras em resumo, modos, links internos) injetado **dentro do `<div id="root">`** com estilos inline. O React substitui esse markup ao montar (`createRoot().render()` em `main.tsx` limpa o container) — funciona como tela de carregamento e garante que o crawler receba texto. Confirmado no `dist/index.html` após build.
+- **Seção `/artigos`** (nova, alavanca principal contra thin content): índice em `deploy/public/artigos/index.html` + **6 artigos originais** (~1.000–1.100 palavras de corpo cada, escritos do zero, pt-BR com acentos): `historia-do-quoridor`, `glossario`, `guia-iniciante`, `taticas-de-parede`, `erros-comuns`, `aberturas`. Todos com meta/OG/canonical próprios, AdSense unit (slot `9953596385`), data de publicação e cross-linking interno. Site sai de ~5 → ~13 páginas indexáveis.
+- **`/termos` agora visível ao crawler**: criado `deploy/public/termos.html` (prerender com acentos corrigidos; o `Termos.tsx` React era invisível ao crawler). Adicionado ao nginx + sitemap.
+- **nginx** (`deploy/nginx/barreira.conf`): novos `location = /termos`, `location = /artigos` e regex `location ~ ^/artigos/([a-z0-9-]+)/?$` (serve os HTMLs estáticos antes do fallback da SPA), no mesmo padrão de `/regras`, `/sobre` etc.
+- **sitemap.xml** (`web/public/sitemap.xml`): de 5 → 14 URLs (home, regras, estrategias, artigos + 6 artigos, sobre, suporte, privacy, termos); home `changefreq` weekly.
+- **Navegação consistente**: nav de topo padronizado (Início · Regras · Estratégias · Artigos · Sobre · Suporte · Privacidade/Termos) em todas as páginas estáticas (incl. privacy.html e suporte.html, que não tinham nav). Footer da `Home.tsx` ganhou **Artigos**, **Suporte** e **Termos** — Artigos/Suporte usam `<a href>` (sem rota React, são estáticas), o resto segue `navigate()`.
+- **Fix dev/preview** (`web/vite.config.ts`): `/artigos`, `/artigos/<slug>` e `/suporte` não têm rota React e só existem como HTML estático servido pelo nginx — no `npm run dev`/`vite preview` (sem nginx) quebravam (tela branca / fallback da SPA). Novo plugin `barreira-prerender-static-pages` adiciona um middleware (`configureServer`+`configurePreviewServer`) que serve esses HTMLs de `deploy/public`, espelhando o nginx. Cobre SÓ essas rotas (as com componente React seguem pela SPA no dev, sem mudança). Verificado: as 8 rotas retornam 200 com o conteúdo certo no dev; build verde.
+- **E-mail de contato unificado** em `paulovitorengcomp@gmail.com` (antes conflitava com `contato@barreira.app`): `Sobre.tsx`, `Privacy.tsx`, `useOnlineGame.ts`, `sobre.html`, `mobile/app/online-game.tsx`, `mobile/app/privacy.tsx`. (Os `com.barreira.app` são bundle IDs, intactos.)
+- **Validação**: `npm run build` (web) verde, `dist/index.html` e `dist/sitemap.xml` corretos; testes web 72/72.
+- **Deployado em 2026-06-18**: commit `94191a7` → push main → VPS `git pull` + rebuild web + `cp` nginx + `certbot install` (preserva o 443) + `nginx -t` + reload. Verificado no ar: `/health` 200, home com conteúdo SEO, `/artigos` + 6 artigos + `/termos` + `/suporte` servindo estático com os títulos certos, sitemap publicado. **Falta só (manual): reenviar a revisão no painel do AdSense.**
+- **Deixado de fora (deliberado)**: `document.title`/description dinâmicos nas páginas React de conteúdo — o crawler vê os HTMLs estáticos (que já têm title/description corretos), então não afeta o AdSense; é só polish de aba do navegador na navegação intra-SPA.
+
+### 2026-06-07 — Bot: correção de pêndulo / oscilação (memória cross-turn)
+
+Diagnóstico empírico (200 partidas medium×hard + caça-loop de 60) achou 3 falhas: o bot não tinha memória entre turnos (a detecção de repetição só valia dentro de uma busca), oscilava em casas de mesma distância BFS (pêndulo NEUTRO ~3.3%) e às vezes preferia gastar parede própria a converter posição quase ganha — 1/200 partida travou no cap de 200 lances.
+
+- **`shared/src/bot.ts`** (única lógica de bot do projeto): (1) `botMove` ganhou param opcional `recentPositions?: string[]` — semeia um `crossTurn` separado pra detecção de ciclos **entre turnos** (backward compatible: sem ele, comportamento antigo); `positionHash` exportado. (2) `movePenalty` (ex-`retreatPenalty`) agora também penaliza (`SHUFFLE_PENALTY 120`) voltar a uma casa NEUTRA recém-ocupada pelo próprio peão — só quando há avanço disponível (não pune encurralado). (3) `evaluate`: a `botDist ≤ 3` o `progressScore` pesa ×9 (vs ×3) e o valor de parede própria zera → converte a vitória em vez de segurar parede.
+- **`server/src/botManager.ts`**: rastreia os últimos 8 hashes de posição real por sala (`recentByRoom`) e passa ao `botMove`; limpa junto com a sala.
+- **Resultado (diagnóstico):** travadas 1→**0**/200; ciclos cross-turn exatos **0**/60; pêndulo NEUTRO 3.3%→**0.19% (med) / 0.59% (hard)**; recuo desnecessário **0.02% / 0.09%** (<0.5%); paredes inúteis **0%**; média 63.9→**63.2** lances. Testes de produção shared 65/65 e server 114/114 verdes.
+- **Treino offline (web + mobile) — wiring concluído (2026-06-07):** `web/src/hooks/useLocalGame.ts` e `mobile/app/game.tsx` agora mantêm um `ref` com as últimas 8 posições reais (alimentado por `useEffect([state])` que captura humano + bot + início, com dedup e trim) e passam ao `botMove`. Resetado no restart. Assim a detecção cross-turn e o anti-shuffle valem também no treino offline (antes só a conversão de vitória valia). Web 72/72 e mobile 68/68 verdes. Fora do escopo: a fase "free" do `mobile/app/tutorial.tsx` (bot easy/scriptado) segue sem o wiring.
+
+### 2026-06-06 — AdSense: carregamento condicional (limpeza de violação)
+
+O script do AdSense vazava pra todas as rotas da SPA: o `AdBanner` injetava o script com uma flag global que nunca removia, então depois de visitar `/regras` ele ficava no DOM em `/`, `/online`, `/game` etc. (violação "anúncios em telas sem conteúdo").
+
+- **`web/src/ads/AdBanner.tsx`** (reescrito): script **reference-counted** — injeta no mount do 1º banner, **remove no unmount** do último (zera `window.adsbygoogle`). `crossorigin="anonymous"`. Hook `useAdSenseAccountMeta()` adiciona/remove a meta `google-adsense-account`.
+- **SPA**: o `index.html` mantém **só a meta de verificação** `google-adsense-account` (global, permanente — não carrega anúncios); o **script** de anúncios é condicional via `AdBanner`. `/regras /estrategias /sobre /privacy` usam `AdBanner` no fim da página; `/privacy` ganhou o banner. (O hook `useAdSenseAccountMeta` virou fallback redundante com a meta global.)
+- **HTMLs estáticos** (`deploy/public/{regras,estrategias,sobre,privacy}.html` — o que o crawler vê em acesso direto, não tinham nada): snippet oficial (meta + script no `<head>`, ad unit antes do "JOGAR AGORA").
+- **Política de privacidade** (React `Privacy.tsx` + `privacy.html`): dizia "não exibimos anúncios" — atualizada pra divulgar o Google AdSense + cookies (exigência do AdSense pra aprovação).
+- **Adiado**: anúncio na tela de fim de partida (gameOver) — fica pra DEPOIS da conta ser aprovada (era violação no passado: o `AdInterstitial` foi removido por isso). `ads.txt` intacto; nenhuma lógica de jogo tocada.
+
+### 2026-06-05 — Analytics: auditoria + redesign + métricas avançadas (deployado)
+
+Auditoria completa do dashboard de analytics e redesign em 3 fases. Tudo no ar.
+
+**Fase 1 — Auditoria** (só relatório): mapeou todo o fluxo de coleta. Achados ❌: card "Bots em players" sempre 0 (bots não entram em `players`); "Treino offline" nunca registrado; matchmaking caía em `private_online`. ⚠️: online é snapshot ~60s (não tempo real); `total_moves` nunca gravado; fuso UTC vs BRT; "0 partidas em 01–03/06" = a tabela `matches` só começou a gravar em 04/06.
+
+**Fase 2 — Redesign** (`web/src/pages/AdminStats.tsx`): sidebar (Visão Geral/Partidas/Jogadores/Engajamento/Tempo Real) + gráficos **recharts** (lazy-load pra não inchar o bundle), tema escuro. Correções: `matches.source` explícito (matchmaking=casual), bots de `matches`, `total_moves`, reconcile de órfãs no boot, fuso BRT, finalizadas em tudo. Endpoint `/admin/live` (salas/fila/eventos em memória) + ring buffer + `location` no nginx.
+
+**Fase 3 — Métricas avançadas + performance**: filtro de período global (Hoje/7/30/90/custom, localStorage); RPCs aceitam `p_from`/`p_to`. Métricas novas: abandono, win-rate por dificuldade, retenção D1/D7/D30, conversão anônimo→conta, recorrentes, partidas/sessão, **heatmap** hora×dia, **funil**, espera de matchmaking, seção **Bots**. Captura forward-only no server (`bot_difficulty`, `p1_name/p2_name`, `wait_ms`). Export **CSV** por tabela. Performance: índices (composites + expressão `_brt_date` sargável), `LIMIT 200`, cache cliente por TTL (10/15/30min), escalonamento 70ms, timeout 10s nas pesadas. Testes em `web/src/pages/adminUtils.test.ts` (período + CSV).
+
+- **Migrations centralizadas** em `supabase/migrations/` (consolidada `20260605_analytics.sql`, idempotente/re-rodável); `docs/` removida. Acesso ao dashboard por allowlist de email (`AdminStats.tsx`).
+- **Incidente no deploy** (resolvido): `cp` do template nginx (HTTP-only) removeu o bloco 443 SSL do certbot → HTTPS fora ~1–2min. Restaurado com `certbot install --nginx --cert-name barreirajogo.com`. Blindado no cheatsheet de deploy (`.env`): todo `cp` de nginx agora exige re-rodar o certbot.
+
+### 2026-06-05 — Tutorial: primeira partida guiada (mobile) + fixes
+
+Tutorial interativo (coach-marks sobre o tabuleiro real), **uma vez por dispositivo**, que **roda ANTES da tela inicial** na primeira abertura. Ensina jogando e termina deixando o usuário concluir a partida. Decisões: partida guiada interativa (não slides) + flag por dispositivo via AsyncStorage (reinstalar mostra de novo — aceito).
+
+- **Persistência** (`mobile/src/state/tutorial.tsx`): provider espelhando `audioSettings.tsx`, key `tutorial_seen`, expõe `{ seen, loading, markSeen() }` + helper puro `shouldShowTutorial(seen, loading)`. Montado no `_layout.tsx`.
+- **Gatilho ANTES da home** (`app/index.tsx`): na 1ª vez (`!seen && !loading`), a home faz `router.replace("/tutorial")` assim que a flag resolve, com guard de render (fundo neutro) pra não piscar a tela inicial. (Mudou da ideia original de disparar no "Jogar".) Item **"Rever tutorial"** nas Configurações.
+- **Roteiro data-driven** (`mobile/src/tutorial/script.ts`): `TUTORIAL_STEPS` (intro → mover → objetivo → parede → regra → "agora jogue"), `scriptedOpponentMove` (oponente anda reto, previsível) e `allowedTargets` (interseção com lances válidos da engine, defensivo).
+- **Coach-marks** (`mobile/src/components/TutorialOverlay.tsx`): banner com texto + dots de progresso + "Pular" + CTA; *gating* de toque por passo (reaproveita `getValidMoves`/`canPlaceWall`); labels de acessibilidade; sem animação essencial (reduce-motion ok).
+- **Tela do tutorial** (`app/tutorial.tsx`): duas fases — **guiada** (coach-marks, oponente scriptado) e **livre** (partida até o fim contra o bot fácil, com `GameOverModal`). Oponente joga com **delay de 700ms** (`OPPONENT_THINK_MS`, igual ao `game.tsx`) — antes era instantâneo. Sem troféu (é local/offline; troféu só vem do servidor no casual online). `markSeen()` ao entrar na fase livre ou ao pular/sair.
+- **Testes**: `tutorial.test.tsx` (persistência/flag/skip/storage falho), `script.test.ts` (roteiro/oponente legal/fluxo), `tutorial-gate.test.tsx` (redireciona antes da home / já visto mostra home / loading não pisca). Suíte cheia verde (web 60 · server 114 · shared 65 · mobile 68).
+
+**Fixes paralelos (mesma leva):**
+- **Erro do refresh token no cold start** (`mobile/src/net/supabase.ts`): o `@supabase/auth-js` faz `console.error` interno quando o refresh token salvo está inválido (`GoTrueClient._recoverAndRefresh`) — mas já trata (remove sessão, emite SIGNED_OUT). Vazava um ERROR vermelho em produção. Filtro cirúrgico silencia **só** essa mensagem; qualquer outro erro passa.
+- **QR do Expo Go no `npm run dev`** (`mobile/scripts/start-with-qr.mjs` + `package.json` raiz/mobile): rodando sob `concurrently` o stdout não é TTY → o Expo não desenha o QR. Wrapper sobe `expo start --lan`, faz polling no `/status` e, quando o Metro está pronto, imprime um QR estático de `exp://<IP-LAN>:8081` (IP recalculado a cada boot) com margem pra sobreviver ao prefixo `[mobile]`. Sem hotkeys i/a/r (pra isso, `npm --prefix mobile start` em terminal próprio).
+- **Teste web stale** (`web/src/pages/Home.test.tsx`): atualizado pro troféu na navbar (não mais flutuante) + mock completo de `../net/api` pro `FriendsHub` (evita unhandled rejection que derrubava o exit code).
+
+### 2026-06-05 — Ajustes pós-lançamento do Quick Match + troféu na navbar
+
+Refinamentos em cima da Partida Rápida já entregue, além do reposicionamento do troféu:
+- **Matchmaking — robustez e timing** (`server/src/matchmaking.ts` + overlays web/mobile): server passou a **ignorar `already-in-queue`** (re-entrada na fila não vira erro) e **`already-in-room`** no fluxo lobby+matchmaking; cold-start não dispara mais modal de erro. Timeout da fila virou faixa **12–20s** (antes fixo) e o contador é **regressivo**. Tempo exibido ganhou **jitter** e o "~" do contador foi removido (parece mais "real").
+- **Troféu na navbar** (web): movido pra navbar **à esquerda do username**, removido o indicador flutuante anterior.
+- **Troféu no mobile**: aparece **só no lobby**, não na tela inicial.
+
+### 2026-06-05 — Partida Rápida (Quick Match) entregue
+
+Matchmaking estilo Clash Royale: card "Partida Rápida" no lobby → tela de busca → fila; acha humano vira sala privada, senão cai num bot (medium/hard 50/50). 7 tasks, todas concluídas (regra cumprida: TASK 6 só foi implementada após a TASK 5 reportada e aprovada).
+- **UI card** (`web/src/components/QuickMatchCard.tsx`/`Home.tsx`, `mobile/app/online.tsx`): card azul com ícone de raio, "Partida Rápida" / "Encontre um adversário em segundos" / "JOGAR →", acima da lista de salas.
+- **Tela de matchmaking** (`web/src/components/MatchmakingOverlay.tsx` / Reanimated no mobile): fundo escuro animado, "Procurando adversário...", contador com avanço "orgânico", botão "Cancelar".
+- **Server** (`server/src/matchmaking.ts`): fila; 2 reais → sala privada + `matchFound`; sem par → sala com bot. Eventos `joinMatchmaking`/`leaveMatchmaking`/`matchFound`/`matchmakingStatus`. Anti-spam: 1 fila por vez.
+- **Nomes de bot realistas** (`shared/src/botNames.ts`): ≥80 nomes BR + `getRandomBotName()` sem repetição simultânea, substituindo `anonimo####`.
+- **Expiração de salas de bot ociosas** (TASK 5 estudo → TASK 6 impl): `createdAt` na sala (`lobby.ts`); `reapExpiredBotRooms` piggyback no scan de 4s do `botManager` remove salas de bot *waiting* > 3min (`BOT_ROOM_TTL_MS`, env-config), zero timers novos. Matchmaking não afetado (privadas/playing).
+- **Testes** (TASK 7): matchmaking 7 + `botNames` 4 + expiração 2, tudo verde.
+
+### 2026-06-05 — Cache do bot investigado e DESCARTADO (sem ganho)
+
+Tentativa de cachear/memoizar o BFS do bot (`shared/src/bot.ts`). Medido empiricamente com simulação determinística bot-vs-bot (fingerprint das jogadas idêntico antes/depois — comportamento preservado). **Nenhuma variante deu speedup mensurável**, então tudo foi revertido:
+- `WeakMap<WallSet, …>` por config de paredes pro `shortestPathDistance`: hit rate só **~11%** — o hot path (~258k chamadas/partida-hard) vem do `wallIncreasesDist` avaliando paredes em `WallSet` descartáveis (objeto único por chamada, nunca dá hit). Overhead do cache anulou o ganho.
+- Cache do `distFieldToGoal` por `(walls, targetRow)`: hit rate bom (**63%**), mas o BFS já é barato → ganho dentro do ruído.
+- Trocar `registerWall`+BFS por BFS com 2 arestas extras (evita copiar Sets): também sem efeito.
+- Medição min-of-trials: baseline ~1643–1688ms vs modificado ~1648–1659ms (1× hard+medium nos 2 turnos) — **indistinguíveis**.
+
+Lição: o custo NÃO está no BFS (já otimizado com `Uint8Array`, vizinhos inline, early-return), e sim no overhead da busca (clonagem de estado no `applyMove`, `positionHash` montando string por nó, iteração do `generateMoves`). Um ganho real exigiria atacar isso — refactor maior, com risco de comportamento. Reforça [[bot-changes-validate-empirically]].
+
+### 2026-06-05 — Acessibilidade do tabuleiro (mobile)
+
+- **Tabuleiro com leitor de tela** (`Square.tsx`, `Board.tsx`/`AnimatedPawn`, `Wall.tsx`): casas que são jogada válida viram botões com label "Mover para coluna X, linha Y"; casas inertes saem do foco (`importantForAccessibility="no-hide-descendants"`) pra não virar 81 células de ruído. Peões expostos como imagem ("Peão azul/vermelho, coluna X, linha Y"). Paredes colocadas ganham label ("Parede horizontal/vertical do jogador azul/vermelho"); o ghost (preview de arraste) fica oculto do leitor.
+- **Labels em botões só-ícone**: voltar (`game.tsx`, `online-game.tsx`), denunciar jogador, configurações (`TopBar.tsx`), perfil (`ProfileButton.tsx`).
+- **Alvos de toque**: `hitSlop` nos botões pequenos (`FriendsButton` 36→~48, back/report/settings). *Obs: a auditoria tinha apontado "`FriendsButton` minWidth:16" — era o badge de notificação, não o botão (que já é 36×36).* Casas do tabuleiro ficam sem hitSlop de propósito (são adjacentes — expandir causaria toque na casa errada).
+
+### 2026-06-05 — Limpeza do backlog (itens já concluídos)
+
+Auditoria dos "nice-to-have" contra o código atual. Dois itens já estavam feitos e saíram da lista:
+- **Testes unitários da engine** — feito (com vitest, não Jest). Há `*.test.ts` cobrindo `engine.ts`, `walls.ts`, `moves.ts`, `board.ts`, `bot.ts`, `serialization.ts` em `shared/src/`.
+- **Alternar quem começa no restart** — feito. `randomFirstTurn()` (`shared/src/board.ts:31`) é usado em todo (re)início: server (`lobby.ts` start/rematch), jogo local mobile (`game.tsx` init/`onRestart`). Não é mais "sempre P1".
+
+Além disso, feito o **cleanup do `theme.ts`**: removidos `BOARD_PADDING`/`BOARD_SIZE`/`CELL_SIZE`/`WALL_THICKNESS`/`WALL_LENGTH` (dead code — ninguém importava; `BOARD_SIZE` vem do `@barreira/shared` e o sizing real é do `useResponsiveBoard.ts`) e o import `Dimensions`. `theme.ts` ficou só com a paleta de cores.
+
+### 2026-06-05 — Hardening de rate limit / anti-flood (server)
+
+- **Anti-flood em memória** (`server/src/hardening.ts`, novo): janela deslizante por chave, tudo por-processo (sem Redis — cobre o deploy single-node atual). Limites configuráveis por env:
+  - Conexões novas por IP/min (`RL_CONN_PER_MIN`, default 60) via `io.use()` — protege a tabela `players`, que ganha uma linha por `clientId` novo a cada conexão.
+  - Eventos por socket numa janela de 10s (`RL_EVENTS_PER_10S`, default 120) checado no wrapper `rpc()` — barra spam de `createRoom`/`move`/etc.
+  - Log `[flood]` quando alguém estoura; sweeper a cada 60s pra não vazar memória (`startHardeningSweeper`).
+- **`server/src/index.ts`**: `maxHttpBufferSize: 64*1024` no socket + `express.json({ limit: "50kb" })` (corta payload gigante); `helmet()` + `express-rate-limit` (`RL_HTTP_PER_MIN`, default 120/min) no HTTP; `app.set("trust proxy", 1)` pro `X-Forwarded-For` real do nginx.
+- **Protocolo + clientes**: novo `RpcError "rate-limited"` (`shared/src/protocol.ts`) com mensagem "Calma aí" no `web/src/net/errors.ts` e `mobile/src/net/errors.ts`.
+- Mock do `io` em `server/src/wo-trophy.test.ts` ganhou `use: vi.fn()` (o `io.use` roda no load do módulo). 105 testes do server passando. Deploy feito (`pm2 restart` + rebuild web).
+
+### 2026-06-05 — Fix reset de senha no web (link aparecia expirado)
+
+- Bug: ao voltar do email de recuperação, o link caía em "link inválido/expirado". Causa: `web/src/net/supabase.ts` tinha `detectSessionInUrl: false`, então o SDK nunca processava os tokens do hash (`#access_token=...&type=recovery`) — `ResetPassword.tsx` não via sessão. A mensagem de "expirado" era nossa, não do Supabase; o token estava válido.
+- Fix: `detectSessionInUrl: true` no cliente web. (Mobile segue `false` de propósito — lá os tokens chegam via deep link e são aplicados na mão com `setSession`.)
 
 ### 2026-06-05 — Analytics + observabilidade + dashboard admin + UX lobby
 
 > Trabalho do Paulo (pdantas23) feito em cima do `777cb93`. O sistema de amizade
 > do sócio veio depois, por cima disso. Resumo aqui pra contexto.
 
-**Analytics — schema (Supabase, SQL em `docs/analytics-fase1.sql` e `docs/analytics-fase7.sql`):**
+**Analytics — schema (Supabase, migration consolidada `supabase/migrations/20260605_analytics.sql`):**
 - `players` ganhou `is_bot`, `user_id` (FK `auth.users`), `last_platform`.
 - Tabela nova `matches` — registro de partidas: `mode` (casual_online / private_online / training_offline), `winner`, `finish_reason` (goal / timeout_wo / leave_wo / abandoned), e p1/p2 com `client_id` / `user_id` / `is_bot` / `platform`.
 - Tabela nova `online_snapshots` — foto da presença ao longo do tempo (podada > 30 dias).

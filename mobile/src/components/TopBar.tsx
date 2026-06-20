@@ -105,6 +105,9 @@ export const TopBar = ({ onSettingsPress }: Props) => {
             playButtonSound();
             onSettingsPress();
           }}
+          accessibilityLabel="Configurações"
+          accessibilityRole="button"
+          hitSlop={8}
           style={({ pressed }) => [styles.settingsBtn, pressed && styles.btnPressed]}
         >
           <Ionicons name="settings-outline" size={16} color={C.muted} />

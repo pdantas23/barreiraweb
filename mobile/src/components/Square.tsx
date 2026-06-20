@@ -1,4 +1,5 @@
 import { Pressable, View, StyleSheet } from "react-native";
+import { col, row } from "@barreira/shared";
 import { gc } from "../gameColors";
 
 type Props = {
@@ -18,9 +19,19 @@ export const Square = ({
   onPress,
   children,
 }: Props) => {
+  // Só as casas clicáveis (jogada válida) são expostas ao leitor de tela, como
+  // botão. As demais saem do foco — 81 células vazias só virariam ruído. Sem
+  // hitSlop: casas são adjacentes, expandir o toque causaria lance na errada.
+  const pressable = !!onPress;
   return (
     <Pressable
       onPress={onPress ? () => onPress(index) : undefined}
+      accessible={pressable}
+      accessibilityRole={pressable ? "button" : undefined}
+      accessibilityLabel={
+        pressable ? `Mover para coluna ${col(index) + 1}, linha ${row(index) + 1}` : undefined
+      }
+      importantForAccessibility={pressable ? "yes" : "no-hide-descendants"}
       style={[
         styles.square,
         {

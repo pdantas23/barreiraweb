@@ -15,6 +15,8 @@ export const ProfileButton = ({ onPress }: Props) => {
   return (
     <Pressable
       onPress={handlePress}
+      accessibilityLabel="Perfil"
+      accessibilityRole="button"
       style={({ pressed }) => [styles.button, pressed && styles.pressed]}
       hitSlop={10}
     >

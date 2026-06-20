@@ -2,7 +2,7 @@ import { useNavigate } from "react-router-dom";
 import { IoChevronBack } from "react-icons/io5";
 import { PageGate } from "../components/PageGate";
 import { HeaderAuthButtons } from "../components/HeaderAuthButtons";
-import { AdBanner } from "../ads/AdBanner";
+import { AdBanner, useAdSenseAccountMeta } from "../ads/AdBanner";
 import { AD_SLOTS } from "../ads/adsConfig";
 
 const C = {
@@ -17,6 +17,7 @@ const C = {
 
 export default function SobreScreen() {
   const navigate = useNavigate();
+  useAdSenseAccountMeta(); // meta da conta AdSense só nas páginas de conteúdo
 
   return (
     <PageGate>
@@ -113,13 +114,6 @@ export default function SobreScreen() {
               </p>
             </Section>
 
-            <AdBanner
-              slot={AD_SLOTS.contentBanner}
-              format="horizontal"
-              className="w-full my-6"
-              style={{ minHeight: 90 }}
-            />
-
             <Section title="Tecnologia">
               <p>
                 O Barreira é desenvolvido em TypeScript de ponta a ponta. A engine de regras (movimentos,
@@ -170,9 +164,16 @@ export default function SobreScreen() {
             <Section title="Contato">
               <p>
                 Sugestões, reportes de bug, propostas de parceria ou simplesmente um "oi": escreva para{" "}
-                <strong>contato@barreira.app</strong>. Lemos todas as mensagens.
+                <strong>paulovitorengcomp@gmail.com</strong>. Lemos todas as mensagens.
               </p>
             </Section>
+
+            <AdBanner
+              slot={AD_SLOTS.contentBanner}
+              format="horizontal"
+              className="w-full my-6"
+              style={{ minHeight: 90 }}
+            />
           </div>
         </div>
       </div>

@@ -1,3 +1,4 @@
+import { lazy, Suspense } from "react";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { DragOverlayProvider, useDragOverlay } from "./state/dragOverlay";
 import { AudioSettingsProvider } from "./state/audioSettings";
@@ -20,7 +21,9 @@ import ForgotPassword from "./pages/ForgotPassword";
 import ResetPassword from "./pages/ResetPassword";
 import AmigoRedirect from "./pages/AmigoRedirect";
 import SalaRedirect from "./pages/SalaRedirect";
-import AdminStats from "./pages/AdminStats";
+// AdminStats puxa o recharts (pesado) — lazy pra não inchar o bundle principal
+// de quem nunca abre /admin/stats.
+const AdminStats = lazy(() => import("./pages/AdminStats"));
 // Replay Builder: ferramenta interna, rota registrada só em dev.
 import ReplayBuilder from "./pages/ReplayBuilder";
 
@@ -65,7 +68,14 @@ export const App = () => {
                 <Route path="/perfil" element={<Profile />} />
                 <Route path="/esqueci-senha" element={<ForgotPassword />} />
                 <Route path="/reset-password" element={<ResetPassword />} />
-                <Route path="/admin/stats" element={<AdminStats />} />
+                <Route
+                  path="/admin/stats"
+                  element={
+                    <Suspense fallback={<div style={{ minHeight: "100vh", background: "#0b1220" }} />}>
+                      <AdminStats />
+                    </Suspense>
+                  }
+                />
                 {import.meta.env.DEV && (
                   <Route path="/replay-builder" element={<ReplayBuilder />} />
                 )}

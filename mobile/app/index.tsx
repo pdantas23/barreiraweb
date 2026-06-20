@@ -25,6 +25,7 @@ import { setSfxEnabledForWall } from "../src/hooks/useWallSound";
 import { useMenuMusic } from "../src/hooks/useMenuMusic";
 import { useCallback } from "react";
 import { useAudioSettings } from "../src/state/audioSettings";
+import { useTutorial, shouldShowTutorial } from "../src/state/tutorial";
 
 // ─── Palette (home-only) ───────────────────────────────────────────
 const C = {
@@ -53,6 +54,7 @@ export default function HomeScreen() {
   const [offlineModal, setOfflineModal] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const { musicEnabled, sfxEnabled, setMusicEnabled, setSfxEnabled } = useAudioSettings();
+  const { seen: tutorialSeen, loading: tutorialLoading } = useTutorial();
   useButtonSound(); // preload
   const [focused, setFocused] = useState(true);
   useFocusEffect(
@@ -70,6 +72,16 @@ export default function HomeScreen() {
     setSfxEnabledForWall(sfxEnabled);
   }, [sfxEnabled]);
 
+  // Tutorial ANTES da tela inicial: na 1ª vez do dispositivo (flag não setada),
+  // assim que a flag resolve, desvia pro tutorial guiado antes de a home aparecer.
+  // O guard de render abaixo evita o flash da home nesse meio-tempo. `as never`:
+  // rota /tutorial ainda não está no mapa tipado gerado do expo-router.
+  useEffect(() => {
+    if (shouldShowTutorial(tutorialSeen, tutorialLoading)) {
+      router.replace("/tutorial" as never);
+    }
+  }, [tutorialSeen, tutorialLoading]);
+
   const onPlay = () => {
     playButtonSound();
     router.push("/online");
@@ -80,6 +92,13 @@ export default function HomeScreen() {
     setOfflineModal(false);
     router.push({ pathname: "/game", params: { difficulty } });
   };
+
+  // Enquanto a flag do tutorial não resolve (loading) OU vai redirecionar pro
+  // tutorial (1ª vez), não renderiza a home — evita o flash da tela inicial
+  // antes do tutorial. Fundo neutro casando com o gradiente.
+  if (tutorialLoading || shouldShowTutorial(tutorialSeen, tutorialLoading)) {
+    return <View style={[styles.root, { backgroundColor: C.bgTop }]} />;
+  }
 
   return (
     <LinearGradient colors={[C.bgTop, C.bgBottom]} style={styles.root}>
@@ -144,6 +163,17 @@ export default function HomeScreen() {
                   <View style={[styles.toggleThumb, sfxEnabled && styles.toggleThumbActive]} />
                 </Pressable>
               </View>
+
+              <Pressable
+                onPress={() => { setShowSettings(false); router.push("/tutorial" as never); }}
+                style={styles.settingRow}
+              >
+                <View style={styles.settingInfo}>
+                  <Ionicons name="school-outline" size={20} color={C.navy} />
+                  <Text style={styles.settingLabel}>Rever tutorial</Text>
+                </View>
+                <Ionicons name="chevron-forward" size={18} color={C.muted} />
+              </Pressable>
 
               <Pressable
                 onPress={() => { setShowSettings(false); router.push("/privacy" as never); }}

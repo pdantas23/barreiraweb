@@ -2,6 +2,8 @@ import { useNavigate } from "react-router-dom";
 import { IoChevronBack } from "react-icons/io5";
 import { PageGate } from "../components/PageGate";
 import { HeaderAuthButtons } from "../components/HeaderAuthButtons";
+import { AdBanner, useAdSenseAccountMeta } from "../ads/AdBanner";
+import { AD_SLOTS } from "../ads/adsConfig";
 
 const C = {
   blue: "#3D6FFF",
@@ -17,6 +19,7 @@ const C = {
 
 export default function PrivacyScreen() {
   const navigate = useNavigate();
+  useAdSenseAccountMeta(); // meta da conta AdSense só nas páginas de conteúdo
 
   return (
     <PageGate>
@@ -77,9 +80,9 @@ export default function PrivacyScreen() {
             • Exibir nomes dos jogadores durante a partida
           </p>
 
-          <h3 style={{ fontSize: 14, fontWeight: 800, color: C.navy, marginTop: 18, marginBottom: 8 }}>4. Compartilhamento de dados</h3>
+          <h3 style={{ fontSize: 14, fontWeight: 800, color: C.navy, marginTop: 18, marginBottom: 8 }}>4. Compartilhamento de dados e anúncios</h3>
           <p style={{ fontSize: 13, color: "#4A5C7A", lineHeight: 1.6 }}>
-            Não vendemos, compartilhamos ou transferimos seus dados para terceiros. Não utilizamos serviços de analytics ou publicidade.
+            Não vendemos seus dados pessoais. No site (versão web), exibimos anúncios do <strong>Google AdSense</strong> apenas nas páginas de conteúdo (Regras, Estratégias, Sobre e esta página). O Google e seus parceiros podem usar cookies para veicular e personalizar anúncios; você pode gerenciar suas preferências em <a href="https://www.google.com/settings/ads" style={{ color: C.blue, fontWeight: 700 }}>google.com/settings/ads</a>. Durante as partidas o jogo é <strong>livre de anúncios</strong> e não há rastreamento de terceiros nessas telas.
           </p>
 
           <h3 style={{ fontSize: 14, fontWeight: 800, color: C.navy, marginTop: 18, marginBottom: 8 }}>5. Armazenamento</h3>
@@ -104,8 +107,15 @@ export default function PrivacyScreen() {
 
           <h3 style={{ fontSize: 14, fontWeight: 800, color: C.navy, marginTop: 18, marginBottom: 8 }}>9. Contato</h3>
           <p style={{ fontSize: 13, color: "#4A5C7A", lineHeight: 1.6 }}>
-            Em caso de dúvidas sobre privacidade, entre em contato pelo email: contato@barreira.app
+            Em caso de dúvidas sobre privacidade, entre em contato pelo email: paulovitorengcomp@gmail.com
           </p>
+
+          <AdBanner
+            slot={AD_SLOTS.contentBanner}
+            format="horizontal"
+            className="w-full my-6"
+            style={{ minHeight: 90 }}
+          />
         </div>
       </div>
     </div>

@@ -89,3 +89,40 @@ describe("botManager — reaper de salas órfãs (IMPORTANTE 1)", () => {
     expect(lobby.getRoomBySocket("s-h")?.players.some((p) => p.isBot)).toBe(false);
   });
 });
+
+describe("botManager — expiração de salas de bot ociosas (TASK 6)", () => {
+  it("remove a sala de bot waiting após 3min sem jogador", () => {
+    vi.useFakeTimers();
+    botManager.startBotManager(fakeIo);
+
+    const room = lobby.createBotHostRoom({ hostName: "carol92", color: "cyan" });
+    const code = room.code;
+    expect(lobby.getAllRooms().has(code)).toBe(true);
+
+    // Antes do TTL (3min): segue no lobby.
+    vi.advanceTimersByTime(120_000);
+    expect(lobby.getAllRooms().has(code)).toBe(true);
+
+    // Passado o TTL (180s) + um scan (4s): expira e some.
+    vi.advanceTimersByTime(60_000 + 4_000 + 100);
+    expect(lobby.getAllRooms().has(code)).toBe(false);
+  });
+
+  it("NÃO expira sala de bot que recebeu um humano (virou playing)", () => {
+    vi.useFakeTimers();
+    botManager.startBotManager(fakeIo);
+
+    const room = lobby.createBotHostRoom({ hostName: "rafa_oliveira", color: "red" });
+    lobby.joinRoom({
+      socketId: "s-h",
+      clientId: "c-h",
+      authUserId: null,
+      playerName: "Humano",
+      code: room.code,
+    });
+
+    // Bem depois do TTL: como está playing (com humano), o reaper de expiração ignora.
+    vi.advanceTimersByTime(180_000 + 8_000);
+    expect(lobby.getRoomBySocket("s-h")?.players.some((p) => p.isBot)).toBe(true);
+  });
+});
