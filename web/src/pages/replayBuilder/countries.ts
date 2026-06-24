@@ -36,6 +36,7 @@ export const COUNTRIES: CountryOption[] = [
   { code: "de", name: "Alemanha", wallColor: "#FFCC00" },
   { code: "it", name: "Itália", wallColor: "#008C45" },
   { code: "gb", name: "Reino Unido", wallColor: "#C8102E" },
+  { code: "gb-sct", name: "Escócia", wallColor: "#005EB8" },
   { code: "nl", name: "Holanda", wallColor: "#FF6C00" },
   { code: "jp", name: "Japão", wallColor: "#BC002D" },
   { code: "kr", name: "Coreia do Sul", wallColor: "#0047A0" },
