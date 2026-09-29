@@ -24,6 +24,7 @@ import {
 import { Board } from "../src/components/Board";
 import { CountdownOverlay } from "../src/components/CountdownOverlay";
 import { GameOverModal, type GameOverReason } from "../src/components/GameOverModal";
+import { showInterstitialIfDue } from "../src/ads/interstitial";
 import { GameTimer, useGameTimers } from "../src/components/GameTimer";
 import { PlayerCard, TurnArrow } from "../src/components/PlayerCard";
 import { WallBank } from "../src/components/WallBank";
@@ -320,8 +321,12 @@ export default function GameScreen() {
         visible={state.winner !== null}
         winner={state.winner}
         reason={gameOverReason}
-        onRematch={onRestart}
-        onBackToMenu={() => router.back()}
+        onRematch={() => {
+          void showInterstitialIfDue().then(onRestart);
+        }}
+        onBackToMenu={() => {
+          void showInterstitialIfDue().then(() => router.back());
+        }}
       />
 
     </LinearGradient>

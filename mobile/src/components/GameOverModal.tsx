@@ -5,6 +5,7 @@ import Animated, { FadeIn, FadeInDown } from "react-native-reanimated";
 import type { PlayerId } from "@barreira/shared";
 import { useGameResultSound } from "../hooks/useGameResultSound";
 import { useAudioSettings } from "../state/audioSettings";
+import { recordGameFinished } from "../ads/interstitial";
 
 // Paleta alinhada com a home (index.tsx) e tela de jogo (gameColors.ts)
 const ACCENT = {
@@ -78,6 +79,11 @@ export const GameOverModal = ({
   const isTimeout = reason === "timeout";
   const { sfxEnabled } = useAudioSettings();
   useGameResultSound(visible, isVictory, sfxEnabled);
+
+  // Frequência do intersticial conta partidas terminadas.
+  useEffect(() => {
+    if (visible) recordGameFinished();
+  }, [visible]);
 
   const title = isVictory
     ? isTimeout ? "Tempo esgotado!" : "Vitória!"

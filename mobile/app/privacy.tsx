@@ -69,8 +69,13 @@ export default function PrivacyScreen() {
 
             <Text style={styles.heading}>4. Compartilhamento de dados</Text>
             <Text style={styles.body}>
-              Não vendemos, compartilhamos ou transferimos seus dados para terceiros.
-              Não utilizamos serviços de analytics ou publicidade.
+              Não vendemos seus dados. Para manter o jogo gratuito, exibimos um
+              anúncio ocasional do Google AdMob entre partidas (nunca durante uma
+              partida). O AdMob pode coletar o identificador de publicidade do
+              aparelho, endereço IP e dados de interação com o anúncio para
+              veiculação e medição; no iOS usamos apenas anúncios não
+              personalizados. Você pode redefinir ou desativar o identificador
+              de publicidade nas configurações do aparelho.
             </Text>
 
             <Text style={styles.heading}>5. Armazenamento</Text>

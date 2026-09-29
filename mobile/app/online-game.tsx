@@ -41,6 +41,7 @@ import {
 import { Board } from "../src/components/Board";
 import { CountdownOverlay } from "../src/components/CountdownOverlay";
 import { GameOverModal, type GameOverReason } from "../src/components/GameOverModal";
+import { showInterstitialIfDue } from "../src/ads/interstitial";
 import { GameTimer, useGameTimers } from "../src/components/GameTimer";
 import { PlayerCard, TurnArrow } from "../src/components/PlayerCard";
 import { ReplayModal } from "../src/components/ReplayModal";
@@ -425,7 +426,12 @@ export default function OnlineGameScreen() {
     );
   };
 
-  const onBackToMenu = () => router.replace("/");
+  // Intersticial só na saída pós-partida — nunca na revanche (o adversário
+  // está esperando a resposta).
+  const onBackToMenu = async () => {
+    await showInterstitialIfDue();
+    router.replace("/");
+  };
 
   // Monta link de convite: https://dominio/sala/CODE[?pw=SENHA]. No celular
   // com o app instalado, Universal/App Links abrem o app direto na sala; sem
@@ -457,6 +463,7 @@ export default function OnlineGameScreen() {
       leaveRoom().catch(() => undefined),
       new Promise<void>((resolve) => setTimeout(resolve, 1500)),
     ]);
+    await showInterstitialIfDue();
     router.replace("/online");
   };
 

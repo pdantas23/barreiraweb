@@ -142,7 +142,7 @@ export default function SobreScreen() {
               </p>
               <p>
                 Para manter o jogo gratuito, exibimos anúncios <strong>apenas em páginas de conteúdo</strong> (esta,
-                a de Regras e a de Estratégias). Durante partidas, o jogo é livre de anúncios — entendemos
+                a de Regras e a de Estratégias) e, no app, um anúncio ocasional entre partidas. Durante partidas, o jogo é livre de anúncios — entendemos
                 que interromper uma partida com publicidade arruinaria a experiência.
               </p>
             </Section>

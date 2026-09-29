@@ -8,6 +8,7 @@ import { DragLayer } from "../src/components/DragLayer";
 import { SplashOverlay } from "../src/components/SplashOverlay";
 import { AppGate } from "../src/components/AppGate";
 import { initClientId } from "../src/net/clientId";
+import { initAds } from "../src/ads/interstitial";
 import { DragOverlayProvider, useDragOverlay } from "../src/state/dragOverlay";
 import { AudioSettingsProvider } from "../src/state/audioSettings";
 import { ProfileProvider } from "../src/state/profile";
@@ -37,6 +38,11 @@ export default function RootLayout() {
   useEffect(() => {
     initClientId().finally(() => setBootstrapped(true));
   }, []);
+
+  // AdMob: consentimento + init em segundo plano, sem segurar o boot.
+  useEffect(() => {
+    if (bootstrapped) void initAds();
+  }, [bootstrapped]);
 
   if (!bootstrapped) {
     return <View style={{ flex: 1, backgroundColor: "#000000" }} />;
